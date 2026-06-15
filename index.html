@@ -102,9 +102,9 @@
                                 </th>
                                 <th class="px-4 py-3 font-bold">Bài toán</th>
                                 <th class="px-4 py-3 font-bold">Trạng thái</th>
-                                <th class="px-4 py-3 font-bold">URL Gốc</th>
-                                <th class="px-4 py-3 font-bold">Link Testcase</th>
-                                <th class="px-4 py-3 font-bold">Link Phân tích</th>
+                                <th class="px-4 py-3 font-bold text-center">URL Gốc</th>
+                                <th class="px-4 py-3 font-bold text-center">Link Testcase</th>
+                                <th class="px-4 py-3 font-bold text-center">Link Phân tích</th>
                                 <th class="px-4 py-3 font-bold text-center">Thao tác</th>
                             </tr>
                         </thead>
@@ -154,17 +154,18 @@
 <script>
         // ================= CẤU HÌNH API =================
         const URL_MASTER_SHEET = 'https://docs.google.com/spreadsheets/d/1oyWC0Z12SjiAVH8P023HjQtnHFprKFCQgmBCqqytZW0/edit?gid=0#gid=0'; 
-        const URL_GET_LIST = 'https://hungtest2823.app.n8n.cloud/webhook/1981ca71-5359-43d7-94a4-aef5615653ea'; 
-        const URL_POST_RUN = 'https://hungtest2823.app.n8n.cloud/webhook/luong-chuc-nang'; 
-        const URL_POST_ADD = 'https://hungtest2823.app.n8n.cloud/webhook/7dea3b89-0dcf-4a98-b60b-191bdcb78e67'; 
-        const URL_POST_EDIT = 'https://hungtest2823.app.n8n.cloud/webhook/sua-tai-lieu'; 
-        const URL_POST_DELETE = 'https://hungtest2823.app.n8n.cloud/webhook/xoa-tai-lieu';
+        const URL_GET_LIST = 'http://localhost:1234/webhook/1981ca71-5359-43d7-94a4-aef5615653ea'; 
+        const URL_POST_RUN = 'http://localhost:1234/webhook/luong-chuc-nang'; 
+        const URL_POST_ADD = 'http://localhost:1234/webhook/7dea3b89-0dcf-4a98-b60b-191bdcb78e67'; 
+        const URL_POST_EDIT = 'http://localhost:1234/webhook/sua-tai-lieu'; 
+        const URL_POST_DELETE = 'http://localhost:1234/webhook/xoa-tai-lieu';
+        const URL_POST_UPDATE_STATUS = 'http://localhost:1234/webhook/trang-thai';
 
         document.getElementById('btnOpenSheet').href = URL_MASTER_SHEET;
 
         let dataRows = [];
         let pollingTimer = null;
-        let processingTasks = []; // Danh sách ảo lưu các bài đang chạy ngầm
+        let processingTasks = []; 
 
         const getColVal = (row, colName) => {
             const key = Object.keys(row).find(k => k.trim() === colName);
@@ -177,19 +178,18 @@
             if(!pollingTimer) tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-10 text-center text-slate-400">🔄 Đang tải dữ liệu...</td></tr>';
             
             try {
-                // Thêm timestamp để ép trình duyệt không dùng cache
                 const res = await fetch(URL_GET_LIST + '?t=' + new Date().getTime());
                 if (!res.ok) throw new Error('Network error');
                 dataRows = await res.json();
                 
-                renderTable(); // Gọi hàm vẽ bảng
+                renderTable();
             } catch (err) {
                 console.error(err);
                 if(!pollingTimer) tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-10 text-center text-red-500">❌ Lỗi kết nối n8n.</td></tr>`;
             }
         }
 
-        // HÀM VẼ BẢNG RIÊNG (Giúp cập nhật UI ngay lập tức)
+        // HÀM VẼ BẢNG RIÊNG
         function renderTable() {
             const tbody = document.getElementById('tableBody');
             tbody.innerHTML = '';
@@ -206,7 +206,6 @@
                 const linkTC = getColVal(row, 'Link Testcase');
                 const linkPT = getColVal(row, 'Link tài liệu phân tích');
 
-                // Ép hiển thị "Đang xử lý" trên UI nếu bài này vừa được ấn nút chạy
                 if (processingTasks.includes(ten) && trangThai !== 'Đã xong') {
                     trangThai = '⏳ Đang xử lý AI...';
                 }
@@ -214,52 +213,100 @@
                 let statusClass = 'bg-amber-100 text-amber-700';
                 if(trangThai === 'Đã xong') {
                     statusClass = 'bg-green-100 text-green-700 font-bold';
-                    // Xóa bài này khỏi danh sách ảo nếu nó đã thực sự xong
                     processingTasks = processingTasks.filter(item => item !== ten);
                 }
                 if(trangThai.includes('Waiting') || trangThai.includes('Đang xử lý')) {
                     statusClass = 'bg-blue-100 text-blue-700 font-bold animate-pulse shadow-sm border border-blue-200';
                 }
 
-                const makeLink = (linkStr) => {
-                    if (!linkStr) return '<span class="text-slate-400 italic">Trống</span>';
-                    const urls = linkStr.split(/[\n\s]+/).filter(url => url.trim().startsWith('http'));
-                    if (urls.length === 0) return `<span class="break-all whitespace-normal text-slate-600">${linkStr}</span>`;
+                const escapeHtml = (value = '') => {
+                    return String(value)
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;')
+                        .replace(/'/g, '&#039;');
+                };
 
-                    return `<div class="flex flex-col gap-2.5">` + urls.map((url) => {
+                const shortenText = (text = '', maxLength = 28) => {
+                    const clean = String(text).trim();
+                    if (!clean) return '';
+                    return clean.length > maxLength ? clean.slice(0, maxLength - 1) + '…' : clean;
+                };
+
+                const splitLinks = (linkStr) => {
+                    if (!linkStr) return [];
+                    return String(linkStr)
+                        .split(/[\n\s]+/)
+                        .map(url => url.trim())
+                        .filter(url => url.startsWith('http'));
+                };
+
+                const getLinkIcon = (url = '', type = '') => {
+                    const lowerUrl = String(url).toLowerCase();
+                    if (type === 'testcase' || lowerUrl.includes('spreadsheets')) return '📊';
+                    if (type === 'analysis') return '📋';
+                    if (lowerUrl.includes('figma.com')) return '🎨';
+                    if (lowerUrl.includes('document')) return '📄';
+                    return '🔗';
+                };
+
+                const getLinkPrefix = (type = 'source', order = 1) => {
+                if (type === 'testcase') return order > 1 ? `TC ${order}` : 'TC';
+                if (type === 'analysis') return order > 1 ? `PT ${order}` : 'PT';
+                return '';
+               };
+
+                const makeLink = (linkStr, tenBaiToan, type = 'source') => {
+                    const urls = splitLinks(linkStr);
+                    if (urls.length === 0) {
+                        return '<span class="text-slate-400 italic">Trống</span>';
+                    }
+                    const shortTaskName = shortenText(tenBaiToan || 'Tài liệu', 26);
+                    return `<div class="flex flex-col gap-2 items-center">` + urls.map((url, index) => {
                         const cleanUrl = url.trim();
-                        let icon = '🔗';
-                        if (cleanUrl.includes('figma.com')) icon = '🎨';
-                        else if (cleanUrl.includes('spreadsheets')) icon = '📊';
-                        else if (cleanUrl.includes('document')) icon = '📝';
-
+                        const icon = getLinkIcon(cleanUrl, type);
+                        const prefix = getLinkPrefix(type, index + 1);
+                        const label = `${prefix} - ${shortTaskName}`;
+                        const title = `${prefix} - ${tenBaiToan || 'Tài liệu'}\n${cleanUrl}`;
                         return `
-                        <a href="${cleanUrl}" target="_blank" class="flex items-start gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200 hover:bg-blue-50 hover:border-blue-300 transition-all group">
-                            <span class="text-sm shrink-0 mt-0.5">${icon}</span>
-                            <span class="text-blue-600 group-hover:text-blue-800 text-xs break-all whitespace-normal leading-relaxed">${cleanUrl}</span>
+                        <a href="${escapeHtml(cleanUrl)}"
+                           target="_blank"
+                           title="${escapeHtml(title)}"
+                           class="inline-flex max-w-[220px] items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-all text-xs font-semibold text-slate-700">
+                            <span class="shrink-0">${icon}</span>
+                            <span class="truncate">${escapeHtml(label)}</span>
                         </a>`;
                     }).join('') + `</div>`;
                 };
 
-                const checkboxDisabled = '';
-                const checkboxClass = 'cursor-pointer';
-
                 tbody.innerHTML += `
                 <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
                     <td class="px-4 py-4 align-top text-center">
-                        <input type="checkbox" class="task-checkbox w-4 h-4 rounded border-slate-300 text-blue-600 ${checkboxClass}" value="${ten}" ${checkboxDisabled}>
+                        <input type="checkbox" class="task-checkbox w-4 h-4 rounded border-slate-300 text-blue-600 cursor-pointer" value="${ten}">
                     </td>
                     <td class="px-4 py-4 align-top font-semibold text-slate-800">${ten}</td>
                     <td class="px-4 py-4 align-top">
-                        <span class="px-2.5 py-1.5 text-xs rounded-md ${statusClass} inline-block">${trangThai}</span>
+                        <select
+                            onchange="updateStatus(${index}, this.value)"
+                            class="px-3 py-1.5 text-xs rounded-lg border border-slate-300 bg-white cursor-pointer font-semibold"
+                        >
+                            <option value="Chưa làm" ${trangThai === 'Chưa làm' ? 'selected' : ''}>
+                                🔴 Chưa làm
+                            </option>
+                            <option value="Đã xong" ${trangThai === 'Đã xong' ? 'selected' : ''}>
+                                🟢 Đã xong
+                            </option>
+                        </select>
                     </td>
-                    <td class="px-4 py-4 align-top min-w-[200px]">${makeLink(urlGoc)}</td>
-                    <td class="px-4 py-4 align-top min-w-[200px]">${makeLink(linkTC)}</td>
-                    <td class="px-4 py-4 align-top min-w-[200px]">${makeLink(linkPT)}</td>
+                    <td class="px-4 py-4 align-top min-w-[220px] text-center">${makeLink(urlGoc, ten, 'source')}</td>
+                    <td class="px-4 py-4 align-top min-w-[220px] text-center">${makeLink(linkTC, ten, 'testcase')}</td>
+                    <td class="px-4 py-4 align-top min-w-[220px] text-center">${makeLink(linkPT, ten, 'analysis')}</td>
                     <td class="px-4 py-4 align-top min-w-[100px] text-center">
                         <div class="flex items-center justify-center gap-3 pt-1">
                             <button onclick="runSingleTask(${index})" class="text-green-600 hover:text-green-800 transition-colors" title="Chạy AI bài toán này">▶️</button>
                             <button onclick="editDocument(${index})" class="text-blue-500 hover:text-blue-700 transition-colors" title="Sửa tên/link">✏️</button>
+                            <button onclick="downloadSingleTaskFiles(${index})" class="text-emerald-500 hover:text-emerald-700 transition-colors" title="Tải file Testcase & Phân tích">📥</button>
                             <button onclick="deleteDocument(${index})" class="text-red-500 hover:text-red-700 transition-colors" title="Xóa bài toán">🗑️</button>
                         </div>
                     </td>
@@ -446,7 +493,6 @@
 
             if (!confirm(`🚀 Bắt đầu chạy AI phân tích cho: "${tenBaiToan}"?`)) return;
 
-            // Bật trạng thái ảo ngay lập tức
             processingTasks.push(tenBaiToan);
             renderTable();
 
@@ -510,7 +556,6 @@
 
             if (!confirm(`🚀 Bắt đầu chạy AI phân tích cho ${selectedTasks.length} bài toán đã chọn?`)) return;
 
-            // Bật trạng thái ảo ngay lập tức cho tất cả bài được chọn
             processingTasks.push(...selectedTasks);
             renderTable();
 
@@ -560,8 +605,99 @@
             } 
         }
 
+        async function updateStatus(index, newStatus) {
+            const row = dataRows[index];
+            const tenBaiToan = getColVal(row, 'Bài toán') || '';
+
+            if (!tenBaiToan) {
+                alert("❌ Không tìm thấy tên bài toán.");
+                return;
+            }
+
+            if (!confirm(`Đổi trạng thái "${tenBaiToan}" thành "${newStatus}"?`)) return;
+
+            document.getElementById('loadingText').innerText = 'Đang cập nhật trạng thái...';
+            document.getElementById('loadingOverlay').classList.remove('hidden');
+
+            try {
+                const res = await fetch(URL_POST_UPDATE_STATUS, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        baiToan: tenBaiToan,
+                        trangThai: newStatus
+                    })
+                });
+
+                if (res.ok) {
+                    await loadData();
+                    alert("✅ Đã cập nhật trạng thái!");
+                } else {
+                    alert("❌ Lỗi n8n khi cập nhật trạng thái.");
+                }
+            } catch (err) {
+                alert("❌ Không thể kết nối webhook cập nhật trạng thái.");
+            } finally {
+                document.getElementById('loadingOverlay').classList.add('hidden');
+            }
+        }  // <--- LỖI CHÍNH LÀ Ở ĐÂY LÚC NÃY!
+        
+        // 8. TẢI FILE CHO TỪNG BÀI TOÁN
+        function downloadSingleTaskFiles(index) {
+            const row = dataRows[index];
+            const tenBaiToan = getColVal(row, 'Bài toán') || 'bài toán này';
+            
+            if (!row) return;
+
+            const linkTC = getColVal(row, 'Link Testcase') || '';
+            const linkPT = getColVal(row, 'Link tài liệu phân tích') || '';
+            
+            // Gom tất cả link hợp lệ
+            const allLinks = [...linkTC.split(/[\n\s]+/), ...linkPT.split(/[\n\s]+/)].filter(url => url.startsWith('http'));
+
+            if (allLinks.length === 0) {
+                alert(`⚠️ Không có link tài liệu hợp lệ để tải cho: "${tenBaiToan}"`);
+                return;
+            }
+
+            let downloadCount = 0;
+
+            allLinks.forEach((url) => {
+                let downloadUrl = '';
+                
+                // Nhận diện và ép link tải Excel/Word
+                if (url.includes('/spreadsheets/d/')) {
+                    const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+                    if (match) downloadUrl = `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=xlsx`;
+                } else if (url.includes('/document/d/')) {
+                    const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+                    if (match) downloadUrl = `https://docs.google.com/document/d/${match[1]}/export?format=docx`;
+                }
+
+                if (downloadUrl) {
+                    downloadCount++;
+                    setTimeout(() => {
+                        const a = document.createElement('a');
+                        a.href = downloadUrl;
+                        a.target = '_blank'; 
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                    }, downloadCount * 800); // Trễ 0.8s mỗi file để chống nghẽn
+                }
+            });
+
+            if (downloadCount > 0) {
+                alert(`✅ Đang tải ${downloadCount} file tài liệu của bài:\n"${tenBaiToan}"`);
+            } else {
+                alert(`⚠️ Link có tồn tại nhưng không phải là Google Docs/Sheets (Có thể là link Figma hoặc link web khác).`);
+            }
+        }  
+          
         // Chạy lần đầu khi vào trang
         window.onload = loadData;
     </script>
 </body>
 </html>
+
+```
