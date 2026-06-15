@@ -5,699 +5,276 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Automation Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css">
 </head>
+
 <body class="bg-slate-50 min-h-screen font-sans p-4 md:p-6">
 
-    <div class="max-w-screen-2xl mx-auto space-y-6">
-        
-        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div>
-                <h1 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                    <span>📊</span> Tool Kiểm thử 
-                </h1>
-                <p class="text-slate-500 text-sm mt-1">Nền tảng tự động hóa tích hợp n8n & Gemini</p>
+<div class="max-w-screen-2xl mx-auto space-y-6">
+
+    <!-- HEADER -->
+    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                <span>📊</span> Tool Kiểm thử
+            </h1>
+            <p class="text-slate-500 text-sm mt-1">Nền tảng tự động hóa tích hợp n8n & Gemini</p>
+        </div>
+
+        <div class="flex gap-3 w-full md:w-auto">
+            <a href="#" id="btnOpenSheet" target="_blank"
+               class="flex-1 md:flex-none px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold transition shadow-sm text-center flex items-center justify-center gap-2">
+                📗 Mở Sheet Tổng
+            </a>
+
+            <button onclick="loadData()"
+                    class="flex-1 md:flex-none px-5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-sm font-semibold transition shadow-sm flex items-center justify-center gap-2">
+                🔄 Làm mới
+            </button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-4 gap-6">
+
+        <!-- LEFT PANEL -->
+        <div class="xl:col-span-1 space-y-6">
+
+            <!-- ADD DOCUMENT -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
+                <h2 class="text-lg font-bold text-slate-800 border-b pb-3 flex items-center gap-2">
+                    <span>➕</span> Thêm bài toán mới
+                </h2>
+
+                <form id="formAddDoc" onsubmit="addDocument(event)" class="space-y-4">
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Tên bài toán</label>
+                        <input
+                            type="text"
+                            id="newTenBaiToan"
+                            required
+                            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition"
+                            placeholder="VD: Bài toán đăng nhập..."
+                        >
+                    </div>
+
+                    <!-- MODE SWITCH -->
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-2">
+                            Kiểu thêm tài liệu
+                        </label>
+
+                        <div class="grid grid-cols-2 gap-2 mb-4">
+                            <button
+                                type="button"
+                                id="btnManualMode"
+                                onclick="setAddMode('manual')"
+                                class="px-3 py-2 rounded-xl bg-blue-600 text-white text-sm font-bold transition">
+                                ✍️ Thêm URL
+                            </button>
+
+                            <button
+                                type="button"
+                                id="btnImportMode"
+                                onclick="setAddMode('import')"
+                                class="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-bold transition">
+                                📂 Import File
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- MANUAL URL -->
+                    <div id="manualUrlBox" class="space-y-2">
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-2 flex justify-between items-center">
+                            <span>Link tài liệu gốc (URL)</span>
+                            <button
+                                type="button"
+                                onclick="addNewLinkInputForAdd()"
+                                class="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs px-2 py-1 bg-blue-50 rounded-md transition">
+                                ➕ Thêm link
+                            </button>
+                        </label>
+
+                        <div id="addUrlContainer" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+                            <input
+                                type="url"
+                                class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition add-url-input-item"
+                                placeholder="https://docs.google.com/..."
+                            >
+                        </div>
+                    </div>
+
+                    <!-- IMPORT FILE -->
+                    <div id="importFileBox" class="hidden space-y-2">
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-2">
+                            Chọn file tài liệu
+                        </label>
+
+                        <input
+                            type="file"
+                            id="localFiles"
+                            multiple
+                            accept=".doc,.docx,.xls,.xlsx,.pdf,.txt"
+                            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition"
+                        >
+
+                        <p class="text-xs text-slate-500 italic">
+                            Hỗ trợ Word, Excel, PDF, TXT. File sẽ được gửi sang n8n qua FormData.
+                        </p>
+                    </div>
+
+                    <button
+                        type="submit"
+                        id="btnAdd"
+                        class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2">
+                        Lưu vào Sheet
+                    </button>
+                </form>
             </div>
-            <div class="flex gap-3 w-full md:w-auto">
-                <a href="#" id="btnOpenSheet" target="_blank" class="flex-1 md:flex-none px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold transition shadow-sm text-center flex items-center justify-center gap-2">
-                    📗 Mở Sheet Tổng
-                </a>
-                <button onclick="loadData()" class="flex-1 md:flex-none px-5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-sm font-semibold transition shadow-sm flex items-center justify-center gap-2">
-                    🔄 Làm mới
+
+            <!-- AI CONFIG -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
+                <h2 class="text-lg font-bold text-slate-800 border-b pb-3 flex items-center gap-2">
+                    <span>⚙️</span> Cấu hình AI
+                </h2>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">
+                        Prompt 1: Phân tích
+                    </label>
+                    <textarea
+                        id="promptAI1"
+                        rows="8"
+                        class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none resize-y min-h-[160px] font-mono"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">
+                        Prompt 2: Testcase
+                    </label>
+                    <textarea
+                        id="promptAI2"
+                        rows="8"
+                        class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none resize-y min-h-[160px] font-mono"></textarea>
+                </div>
+
+                <p class="text-xs text-slate-500 italic mt-2">
+                    Có thể kéo ô prompt để phóng to/thu nhỏ theo chiều dọc.
+                </p>
+            </div>
+        </div>
+
+        <!-- TABLE -->
+        <div class="xl:col-span-3 bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col overflow-hidden">
+
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b pb-3 gap-3">
+                <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <span>📋</span> Danh sách toàn bộ bài toán
+                </h2>
+
+                <div class="flex items-center gap-3 w-full sm:w-auto">
+                    <div class="relative w-full sm:w-64">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">🔍</span>
+                        <input
+                            type="text"
+                            id="searchInput"
+                            onkeyup="searchTasks()"
+                            placeholder="Tìm bài toán..."
+                            class="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition"
+                        >
+                    </div>
+
+                    <button
+                        onclick="runSelectedTasks()"
+                        class="shrink-0 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition shadow-md shadow-blue-100 flex items-center gap-2">
+                        🚀 Chạy các bài đã chọn
+                    </button>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto flex-grow">
+                <table class="min-w-full text-sm text-left text-slate-600 whitespace-nowrap">
+                    <thead class="text-xs text-slate-700 uppercase bg-slate-50">
+                    <tr>
+                        <th class="px-4 py-3 font-bold w-10 text-center">
+                            <input
+                                type="checkbox"
+                                id="selectAll"
+                                onclick="toggleSelectAll(this)"
+                                class="w-4 h-4 rounded border-slate-300 text-blue-600 cursor-pointer"
+                            >
+                        </th>
+                        <th class="px-4 py-3 font-bold">Bài toán</th>
+                        <th class="px-4 py-3 font-bold">Trạng thái</th>
+                        <th class="px-4 py-3 font-bold text-center">URL Gốc</th>
+                        <th class="px-4 py-3 font-bold text-center">Link Testcase</th>
+                        <th class="px-4 py-3 font-bold text-center">Link Phân tích</th>
+                        <th class="px-4 py-3 font-bold text-center">Thao tác</th>
+                    </tr>
+                    </thead>
+
+                    <tbody id="tableBody" class="divide-y divide-slate-100"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- LOADING -->
+<div id="loadingOverlay" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4">
+    <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full flex flex-col items-center text-center">
+        <div class="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <h3 id="loadingText" class="text-lg font-bold text-slate-800">Đang xử lý...</h3>
+    </div>
+</div>
+
+<!-- EDIT MODAL -->
+<div id="editModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4 transition-opacity">
+    <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full border border-slate-100 transform transition-all scale-100">
+        <h3 class="text-xl font-bold text-slate-800 mb-5 flex items-center gap-2 border-b pb-3">
+            <span>✏️</span> Cập nhật bài toán
+        </h3>
+
+        <div class="space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Tên bài toán mới</label>
+                <input
+                    type="text"
+                    id="editTenBaiToan"
+                    class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition"
+                >
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-600 uppercase mb-2 flex justify-between items-center">
+                    <span>Danh sách Link tài liệu gốc</span>
+                    <button
+                        type="button"
+                        onclick="addNewLinkInput()"
+                        class="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs px-2 py-1 bg-blue-50 rounded-md transition">
+                        <span>➕</span> Thêm link
+                    </button>
+                </label>
+                <div id="editUrlContainer" class="space-y-2 max-h-48 overflow-y-auto pr-1"></div>
+            </div>
+
+            <div class="flex justify-end gap-3 mt-6 pt-2">
+                <button onclick="closeEditModal()"
+                        class="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-bold transition">
+                    Hủy bỏ
+                </button>
+
+                <button id="btnSaveEdit"
+                        class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition shadow-md shadow-blue-100">
+                    Lưu thay đổi
                 </button>
             </div>
         </div>
-
-        <div class="grid grid-cols-1 xl:grid-cols-4 gap-6">
-            
-            <div class="xl:col-span-1 space-y-6">
-                
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
-                    <h2 class="text-lg font-bold text-slate-800 border-b pb-3 flex items-center gap-2">
-                        <span>➕</span> Thêm bài toán mới
-                    </h2>
-                    <form id="formAddDoc" onsubmit="addDocument(event)" class="space-y-4">
-                        <div>
-                            <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Tên bài toán</label>
-                            <input type="text" id="newTenBaiToan" required class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" placeholder="VD: Bài toán đăng nhập...">
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-bold text-slate-600 uppercase mb-2 flex justify-between items-center">
-                                <span>Link tài liệu gốc (URL)</span>
-                                <button type="button" onclick="addNewLinkInputForAdd()" class="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs px-2 py-1 bg-blue-50 rounded-md transition">
-                                    <span>➕</span> Thêm link
-                                </button>
-                            </label>
-                            <div id="addUrlContainer" class="space-y-2 max-h-48 overflow-y-auto pr-1">
-                                <input type="url" required class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition add-url-input-item" placeholder="https://docs.google.com/...">
-                            </div>
-                        </div>
-
-                        <button type="submit" id="btnAdd" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2">
-                            Lưu vào Sheet
-                        </button>
-                    </form>
-                </div>
-
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
-                    <h2 class="text-lg font-bold text-slate-800 border-b pb-3 flex items-center gap-2">
-                        <span>⚙️</span> Cấu hình AI
-                    </h2>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Prompt 1: Phân tích</label>
-                        <textarea id="promptAI1" rows="2" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none"></textarea>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Prompt 2: Testcase</label>
-                        <textarea id="promptAI2" rows="2" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none">Bạn là một Principal QA Automation Engineer...</textarea>
-                    </div>
-                    <p class="text-xs text-slate-500 italic mt-2">Ghi chú: Chọn hoặc bấm nút Play ở các bài toán bên bảng để chạy AI.</p>
-                </div>
-
-            </div>
-
-            <div class="xl:col-span-3 bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col overflow-hidden">
-                
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b pb-3 gap-3">
-                    <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
-                        <span>📋</span> Danh sách toàn bộ bài toán
-                    </h2>
-                    <div class="flex items-center gap-3 w-full sm:w-auto">
-                        <div class="relative w-full sm:w-64">
-                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">🔍</span>
-                            <input type="text" id="searchInput" onkeyup="searchTasks()" placeholder="Tìm bài toán..." class="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition">
-                        </div>
-                        <button onclick="runSelectedTasks()" class="shrink-0 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition shadow-md shadow-blue-100 flex items-center gap-2">
-                            🚀 Chạy các bài đã chọn
-                        </button>
-                    </div>
-                </div>
-
-                <div class="overflow-x-auto flex-grow">
-                    <table class="min-w-full text-sm text-left text-slate-600 whitespace-nowrap">
-                        <thead class="text-xs text-slate-700 uppercase bg-slate-50">
-                            <tr>
-                                <th class="px-4 py-3 font-bold w-10 text-center">
-                                    <input type="checkbox" id="selectAll" onclick="toggleSelectAll(this)" class="w-4 h-4 rounded border-slate-300 text-blue-600 cursor-pointer">
-                                </th>
-                                <th class="px-4 py-3 font-bold">Bài toán</th>
-                                <th class="px-4 py-3 font-bold">Trạng thái</th>
-                                <th class="px-4 py-3 font-bold text-center">URL Gốc</th>
-                                <th class="px-4 py-3 font-bold text-center">Link Testcase</th>
-                                <th class="px-4 py-3 font-bold text-center">Link Phân tích</th>
-                                <th class="px-4 py-3 font-bold text-center">Thao tác</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tableBody" class="divide-y divide-slate-100">
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-        </div>
     </div>
+</div>
 
-    <div id="loadingOverlay" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4">
-        <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full flex flex-col items-center text-center">
-            <div class="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-            <h3 id="loadingText" class="text-lg font-bold text-slate-800">Đang xử lý...</h3>
-        </div>
-    </div>
-    
-    <div id="editModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4 transition-opacity">
-        <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full border border-slate-100 transform transition-all scale-100">
-            <h3 class="text-xl font-bold text-slate-800 mb-5 flex items-center gap-2 border-b pb-3">
-                <span>✏️</span> Cập nhật bài toán
-            </h3>
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Tên bài toán mới</label>
-                    <input type="text" id="editTenBaiToan" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-600 uppercase mb-2 flex justify-between items-center">
-                        <span>Danh sách Link tài liệu gốc</span>
-                        <button type="button" onclick="addNewLinkInput()" class="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs px-2 py-1 bg-blue-50 rounded-md transition">
-                            <span>➕</span> Thêm link
-                        </button>
-                    </label>
-                    <div id="editUrlContainer" class="space-y-2 max-h-48 overflow-y-auto pr-1"></div>
-                </div>
-                <div class="flex justify-end gap-3 mt-6 pt-2">
-                    <button onclick="closeEditModal()" class="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-bold transition">Hủy bỏ</button>
-                    <button id="btnSaveEdit" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition shadow-md shadow-blue-100">Lưu thay đổi</button>
-                </div>
-            </div>
-        </div>
-    </div>
+<script src="app.js"></script>
 
-<script>
-        // ================= CẤU HÌNH API =================
-        const URL_MASTER_SHEET = 'https://docs.google.com/spreadsheets/d/1oyWC0Z12SjiAVH8P023HjQtnHFprKFCQgmBCqqytZW0/edit?gid=0#gid=0'; 
-        const URL_GET_LIST = 'http://localhost:1234/webhook/1981ca71-5359-43d7-94a4-aef5615653ea'; 
-        const URL_POST_RUN = 'http://localhost:1234/webhook/luong-chuc-nang'; 
-        const URL_POST_ADD = 'http://localhost:1234/webhook/7dea3b89-0dcf-4a98-b60b-191bdcb78e67'; 
-        const URL_POST_EDIT = 'http://localhost:1234/webhook/sua-tai-lieu'; 
-        const URL_POST_DELETE = 'http://localhost:1234/webhook/xoa-tai-lieu';
-        const URL_POST_UPDATE_STATUS = 'http://localhost:1234/webhook/trang-thai';
 
-        document.getElementById('btnOpenSheet').href = URL_MASTER_SHEET;
-
-        let dataRows = [];
-        let pollingTimer = null;
-        let processingTasks = []; 
-
-        const getColVal = (row, colName) => {
-            const key = Object.keys(row).find(k => k.trim() === colName);
-            return key && row[key] ? row[key] : '';
-        };
-
-        // 1. TẢI DỮ LIỆU & RENDER BẢNG
-        async function loadData() {
-            const tbody = document.getElementById('tableBody');
-            if(!pollingTimer) tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-10 text-center text-slate-400">🔄 Đang tải dữ liệu...</td></tr>';
-            
-            try {
-                const res = await fetch(URL_GET_LIST + '?t=' + new Date().getTime());
-                if (!res.ok) throw new Error('Network error');
-                dataRows = await res.json();
-                
-                renderTable();
-            } catch (err) {
-                console.error(err);
-                if(!pollingTimer) tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-10 text-center text-red-500">❌ Lỗi kết nối n8n.</td></tr>`;
-            }
-        }
-
-        // HÀM VẼ BẢNG RIÊNG
-        function renderTable() {
-            const tbody = document.getElementById('tableBody');
-            tbody.innerHTML = '';
-
-            if (!Array.isArray(dataRows) || dataRows.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-10 text-center">Không có dữ liệu</td></tr>';
-                return;
-            }
-
-            dataRows.forEach((row,index) => {
-                const ten = getColVal(row, 'Bài toán') || '-';
-                let trangThai = getColVal(row, 'Trạng thái') || 'Chưa làm';
-                const urlGoc = getColVal(row, 'URL');
-                const linkTC = getColVal(row, 'Link Testcase');
-                const linkPT = getColVal(row, 'Link tài liệu phân tích');
-
-                if (processingTasks.includes(ten) && trangThai !== 'Đã xong') {
-                    trangThai = '⏳ Đang xử lý AI...';
-                }
-
-                let statusClass = 'bg-amber-100 text-amber-700';
-                if(trangThai === 'Đã xong') {
-                    statusClass = 'bg-green-100 text-green-700 font-bold';
-                    processingTasks = processingTasks.filter(item => item !== ten);
-                }
-                if(trangThai.includes('Waiting') || trangThai.includes('Đang xử lý')) {
-                    statusClass = 'bg-blue-100 text-blue-700 font-bold animate-pulse shadow-sm border border-blue-200';
-                }
-
-                const escapeHtml = (value = '') => {
-                    return String(value)
-                        .replace(/&/g, '&amp;')
-                        .replace(/</g, '&lt;')
-                        .replace(/>/g, '&gt;')
-                        .replace(/"/g, '&quot;')
-                        .replace(/'/g, '&#039;');
-                };
-
-                const shortenText = (text = '', maxLength = 28) => {
-                    const clean = String(text).trim();
-                    if (!clean) return '';
-                    return clean.length > maxLength ? clean.slice(0, maxLength - 1) + '…' : clean;
-                };
-
-                const splitLinks = (linkStr) => {
-                    if (!linkStr) return [];
-                    return String(linkStr)
-                        .split(/[\n\s]+/)
-                        .map(url => url.trim())
-                        .filter(url => url.startsWith('http'));
-                };
-
-                const getLinkIcon = (url = '', type = '') => {
-                    const lowerUrl = String(url).toLowerCase();
-                    if (type === 'testcase' || lowerUrl.includes('spreadsheets')) return '📊';
-                    if (type === 'analysis') return '📋';
-                    if (lowerUrl.includes('figma.com')) return '🎨';
-                    if (lowerUrl.includes('document')) return '📄';
-                    return '🔗';
-                };
-
-                const getLinkPrefix = (type = 'source', order = 1) => {
-                if (type === 'testcase') return order > 1 ? `TC ${order}` : 'TC';
-                if (type === 'analysis') return order > 1 ? `PT ${order}` : 'PT';
-                return '';
-               };
-
-                const makeLink = (linkStr, tenBaiToan, type = 'source') => {
-                    const urls = splitLinks(linkStr);
-                    if (urls.length === 0) {
-                        return '<span class="text-slate-400 italic">Trống</span>';
-                    }
-                    const shortTaskName = shortenText(tenBaiToan || 'Tài liệu', 26);
-                    return `<div class="flex flex-col gap-2 items-center">` + urls.map((url, index) => {
-                        const cleanUrl = url.trim();
-                        const icon = getLinkIcon(cleanUrl, type);
-                        const prefix = getLinkPrefix(type, index + 1);
-                        const label = `${prefix} - ${shortTaskName}`;
-                        const title = `${prefix} - ${tenBaiToan || 'Tài liệu'}\n${cleanUrl}`;
-                        return `
-                        <a href="${escapeHtml(cleanUrl)}"
-                           target="_blank"
-                           title="${escapeHtml(title)}"
-                           class="inline-flex max-w-[220px] items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-all text-xs font-semibold text-slate-700">
-                            <span class="shrink-0">${icon}</span>
-                            <span class="truncate">${escapeHtml(label)}</span>
-                        </a>`;
-                    }).join('') + `</div>`;
-                };
-
-                tbody.innerHTML += `
-                <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
-                    <td class="px-4 py-4 align-top text-center">
-                        <input type="checkbox" class="task-checkbox w-4 h-4 rounded border-slate-300 text-blue-600 cursor-pointer" value="${ten}">
-                    </td>
-                    <td class="px-4 py-4 align-top font-semibold text-slate-800">${ten}</td>
-                    <td class="px-4 py-4 align-top">
-                        <select
-                            onchange="updateStatus(${index}, this.value)"
-                            class="px-3 py-1.5 text-xs rounded-lg border border-slate-300 bg-white cursor-pointer font-semibold"
-                        >
-                            <option value="Chưa làm" ${trangThai === 'Chưa làm' ? 'selected' : ''}>
-                                🔴 Chưa làm
-                            </option>
-                            <option value="Đã xong" ${trangThai === 'Đã xong' ? 'selected' : ''}>
-                                🟢 Đã xong
-                            </option>
-                        </select>
-                    </td>
-                    <td class="px-4 py-4 align-top min-w-[220px] text-center">${makeLink(urlGoc, ten, 'source')}</td>
-                    <td class="px-4 py-4 align-top min-w-[220px] text-center">${makeLink(linkTC, ten, 'testcase')}</td>
-                    <td class="px-4 py-4 align-top min-w-[220px] text-center">${makeLink(linkPT, ten, 'analysis')}</td>
-                    <td class="px-4 py-4 align-top min-w-[100px] text-center">
-                        <div class="flex items-center justify-center gap-3 pt-1">
-                            <button onclick="runSingleTask(${index})" class="text-green-600 hover:text-green-800 transition-colors" title="Chạy AI bài toán này">▶️</button>
-                            <button onclick="editDocument(${index})" class="text-blue-500 hover:text-blue-700 transition-colors" title="Sửa tên/link">✏️</button>
-                            <button onclick="downloadSingleTaskFiles(${index})" class="text-emerald-500 hover:text-emerald-700 transition-colors" title="Tải file Testcase & Phân tích">📥</button>
-                            <button onclick="deleteDocument(${index})" class="text-red-500 hover:text-red-700 transition-colors" title="Xóa bài toán">🗑️</button>
-                        </div>
-                    </td>
-                </tr>`;
-            });
-        }
-
-        // 2. TÌM KIẾM BÀI TOÁN
-        function searchTasks() {
-            const input = document.getElementById("searchInput").value.toLowerCase();
-            const tableBody = document.getElementById("tableBody");
-            const rows = tableBody.getElementsByTagName("tr");
-
-            for (let i = 0; i < rows.length; i++) {
-                if (rows[i].getElementsByTagName("td").length < 2) continue;
-                const tdName = rows[i].getElementsByTagName("td")[1]; 
-                if (tdName) {
-                    const textValue = tdName.textContent || tdName.innerText;
-                    if (textValue.toLowerCase().indexOf(input) > -1) {
-                        rows[i].style.display = ""; 
-                    } else {
-                        rows[i].style.display = "none"; 
-                    }
-                }
-            }
-        }
-
-        // 3. THÊM TÀI LIỆU MỚI
-        async function addDocument(e) {
-            e.preventDefault();
-            const btnAdd = document.getElementById('btnAdd');
-            btnAdd.innerText = 'Đang lưu...';
-            btnAdd.disabled = true;
-
-            const urlInputs = document.querySelectorAll('.add-url-input-item');
-            const newUrlsArray = Array.from(urlInputs).map(input => input.value.trim()).filter(val => val !== '');
-            const combinedUrl = newUrlsArray.join('\n');
-
-            if (!combinedUrl) {
-                alert("❌ Vui lòng nhập ít nhất 1 link tài liệu!");
-                btnAdd.innerText = 'Lưu vào Sheet';
-                btnAdd.disabled = false;
-                return;
-            }
-
-            const payload = {
-                baiToan: document.getElementById('newTenBaiToan').value,
-                urlGoc: combinedUrl
-            };
-
-            try {
-                const res = await fetch(URL_POST_ADD, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                if (res.ok) {
-                    document.getElementById('formAddDoc').reset();
-                    document.getElementById('addUrlContainer').innerHTML = '<input type="url" required class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition add-url-input-item" placeholder="https://docs.google.com/...">';
-                    await loadData(); 
-                    alert("✅ Đã thêm tài liệu thành công vào Sheet!");
-                } else {
-                    alert("❌ Lỗi n8n khi thêm dữ liệu.");
-                }
-            } catch (err) {
-                alert("❌ Không thể kết nối tới Webhook thêm tài liệu.");
-            } finally {
-                btnAdd.innerText = 'Lưu vào Sheet';
-                btnAdd.disabled = false;
-            }
-        }
-
-        function addNewLinkInputForAdd() {
-            const container = document.getElementById('addUrlContainer');
-            const input = document.createElement('input');
-            input.type = 'url';
-            input.className = 'w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition add-url-input-item';
-            input.placeholder = 'https://...';
-            container.appendChild(input);
-        }
-
-        // 4. XÓA TÀI LIỆU
-        async function deleteDocument(index) {
-            const row = dataRows[index];
-            const tenBaiToan = getColVal(row, 'Bài toán') || '';
-
-            if (!confirm(`⚠️ Anh có chắc chắn muốn xóa bài toán: "${tenBaiToan}" không? Hành động này không thể hoàn tác!`)) return;
-
-            document.getElementById('loadingText').innerText = 'Đang xóa...';
-            document.getElementById('loadingOverlay').classList.remove('hidden');
-
-            try {
-                const res = await fetch(URL_POST_DELETE, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ baiToan: tenBaiToan })
-                });
-
-                if (res.ok) {
-                    await loadData();
-                    alert("✅ Đã xóa thành công!");
-                } else {
-                    alert("❌ Lỗi từ n8n khi xóa dữ liệu.");
-                }
-            } catch (err) {
-                alert("❌ Lỗi mạng: Không thể kết nối tới Webhook xóa.");
-            } finally {
-                document.getElementById('loadingOverlay').classList.add('hidden');
-            }
-        }
-
-        // 5. SỬA TÀI LIỆU
-        let currentEditOldName = ''; 
-        let currentEditOldUrl = '';  
-
-        function editDocument(index) {
-            const row = dataRows[index];
-            currentEditOldName = getColVal(row, 'Bài toán') || '';
-            currentEditOldUrl = getColVal(row, 'URL') || '';
-            
-            document.getElementById('editTenBaiToan').value = currentEditOldName;
-            const urlContainer = document.getElementById('editUrlContainer');
-            urlContainer.innerHTML = ''; 
-
-            let urls = currentEditOldUrl.split(/[\n\s]+/).filter(url => url.trim().startsWith('http'));
-            if (urls.length === 0) urls = ['']; 
-
-            urls.forEach(url => { addNewLinkInput(url); });
-            document.getElementById('editModal').classList.remove('hidden');
-        }
-
-        function addNewLinkInput(value = '') {
-            const container = document.getElementById('editUrlContainer');
-            const input = document.createElement('input');
-            input.type = 'url';
-            input.value = value;
-            input.className = 'w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition url-input-item';
-            input.placeholder = 'https://...';
-            container.appendChild(input);
-        }
-
-        function closeEditModal() {
-            document.getElementById('editModal').classList.add('hidden');
-        }
-
-        document.getElementById('btnSaveEdit').onclick = async function() {
-            const newTen = document.getElementById('editTenBaiToan').value.trim();
-            const urlInputs = document.querySelectorAll('.url-input-item');
-            const newUrlsArray = Array.from(urlInputs).map(input => input.value.trim()).filter(val => val !== '');
-            const newUrl = newUrlsArray.join('\n');
-
-            if (!newTen) { alert("❌ Vui lòng nhập tên bài toán!"); return; }
-            if (newTen === currentEditOldName && newUrl === currentEditOldUrl) { closeEditModal(); return; }
-
-            closeEditModal();
-            document.getElementById('loadingText').innerText = 'Đang cập nhật...';
-            document.getElementById('loadingOverlay').classList.remove('hidden');
-
-            try {
-                const res = await fetch(URL_POST_EDIT, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ oldBaiToan: currentEditOldName, newBaiToan: newTen, newUrl: newUrl })
-                });
-
-                if (res.ok) {
-                    await loadData(); 
-                    alert("✅ Đã cập nhật thành công!");
-                } else {
-                    alert("❌ Lỗi từ n8n khi cập nhật dữ liệu.");
-                }
-            } catch (err) {
-                alert("❌ Lỗi mạng: Không thể kết nối tới Webhook sửa.");
-            } finally {
-                document.getElementById('loadingOverlay').classList.add('hidden');
-            }
-        };
-
-        // 6. CHẠY AI (1 BÀI)
-        async function runSingleTask(index) {
-            const row = dataRows[index];
-            const tenBaiToan = getColVal(row, 'Bài toán');
-
-            if (!confirm(`🚀 Bắt đầu chạy AI phân tích cho: "${tenBaiToan}"?`)) return;
-
-            processingTasks.push(tenBaiToan);
-            renderTable();
-
-            document.getElementById('loadingText').innerText = `Đang gửi lệnh sang n8n...`;
-            document.getElementById('loadingOverlay').classList.remove('hidden');
-
-            const payload = {
-                baiToan: tenBaiToan, 
-                promptAI1: document.getElementById('promptAI1').value,
-                promptAI2: document.getElementById('promptAI2').value
-            };
-
-            try {
-                const res = await fetch(URL_POST_RUN, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                
-                document.getElementById('loadingOverlay').classList.add('hidden');
-
-                if (res.ok) {
-                    alert(`✅ Đã gửi lệnh thành công!\nHệ thống đang xử lý ngầm, anh cứ làm việc khác nhé.`);
-                    
-                    if (!pollingTimer) {
-                        pollingTimer = setInterval(async () => {
-                            await loadData();
-                            const currentRow = dataRows.find(r => getColVal(r, 'Bài toán') === tenBaiToan);
-                            if (currentRow && getColVal(currentRow, 'Trạng thái') === 'Đã xong') {
-                                clearInterval(pollingTimer);
-                                pollingTimer = null;
-                                alert(`🎉 XUẤT SẮC! Bài toán "${tenBaiToan}" đã phân tích xong!`);
-                            }
-                        }, 10000); 
-                    }
-                } else {
-                    processingTasks = processingTasks.filter(item => item !== tenBaiToan); renderTable();
-                    alert("❌ Lỗi: n8n từ chối yêu cầu.");
-                }
-            } catch (err) {
-                processingTasks = processingTasks.filter(item => item !== tenBaiToan); renderTable();
-                document.getElementById('loadingOverlay').classList.add('hidden');
-                alert("❌ Lỗi kết nối n8n.");
-            } 
-        }
-
-        // 7. CHẠY AI (NHIỀU BÀI - CHECKBOX)
-        function toggleSelectAll(masterCheckbox) {
-            const checkboxes = document.querySelectorAll('.task-checkbox:not([disabled])');
-            checkboxes.forEach(cb => cb.checked = masterCheckbox.checked);
-        }
-
-        async function runSelectedTasks() {
-            const selectedBoxes = document.querySelectorAll('.task-checkbox:checked');
-            const selectedTasks = Array.from(selectedBoxes).map(cb => cb.value);
-
-            if (selectedTasks.length === 0) {
-                alert("⚠️ Vui lòng tích chọn ít nhất một bài toán để chạy!");
-                return;
-            }
-
-            if (!confirm(`🚀 Bắt đầu chạy AI phân tích cho ${selectedTasks.length} bài toán đã chọn?`)) return;
-
-            processingTasks.push(...selectedTasks);
-            renderTable();
-
-            document.getElementById('loadingText').innerText = `Đang gửi lệnh sang n8n...`;
-            document.getElementById('loadingOverlay').classList.remove('hidden');
-
-            const payload = {
-                danhSachBaiToan: selectedTasks, 
-                promptAI1: document.getElementById('promptAI1').value,
-                promptAI2: document.getElementById('promptAI2').value
-            };
-
-            try {
-                const res = await fetch(URL_POST_RUN, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                
-                document.getElementById('loadingOverlay').classList.add('hidden');
-
-                if (res.ok) {
-                    alert(`✅ Đã gửi lệnh thành công!\nHệ thống đang xử lý ngầm các bài toán này...`);
-                    document.getElementById('selectAll').checked = false; 
-
-                    if (!pollingTimer) {
-                        pollingTimer = setInterval(async () => {
-                            await loadData();
-                            const stillUnfinished = dataRows.filter(r => 
-                                selectedTasks.includes(getColVal(r, 'Bài toán')) && getColVal(r, 'Trạng thái') !== 'Đã xong'
-                            );
-                            if (stillUnfinished.length === 0) {
-                                clearInterval(pollingTimer);
-                                pollingTimer = null;
-                                alert(`🎉 XUẤT SẮC! Toàn bộ ${selectedTasks.length} bài toán anh chọn đã phân tích xong!`);
-                            }
-                        }, 10000);
-                    }
-                } else {
-                    processingTasks = processingTasks.filter(item => !selectedTasks.includes(item)); renderTable();
-                    alert("❌ Lỗi: n8n từ chối yêu cầu.");
-                }
-            } catch (err) {
-                processingTasks = processingTasks.filter(item => !selectedTasks.includes(item)); renderTable();
-                document.getElementById('loadingOverlay').classList.add('hidden');
-                alert("❌ Lỗi kết nối n8n.");
-            } 
-        }
-
-        async function updateStatus(index, newStatus) {
-            const row = dataRows[index];
-            const tenBaiToan = getColVal(row, 'Bài toán') || '';
-
-            if (!tenBaiToan) {
-                alert("❌ Không tìm thấy tên bài toán.");
-                return;
-            }
-
-            if (!confirm(`Đổi trạng thái "${tenBaiToan}" thành "${newStatus}"?`)) return;
-
-            document.getElementById('loadingText').innerText = 'Đang cập nhật trạng thái...';
-            document.getElementById('loadingOverlay').classList.remove('hidden');
-
-            try {
-                const res = await fetch(URL_POST_UPDATE_STATUS, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        baiToan: tenBaiToan,
-                        trangThai: newStatus
-                    })
-                });
-
-                if (res.ok) {
-                    await loadData();
-                    alert("✅ Đã cập nhật trạng thái!");
-                } else {
-                    alert("❌ Lỗi n8n khi cập nhật trạng thái.");
-                }
-            } catch (err) {
-                alert("❌ Không thể kết nối webhook cập nhật trạng thái.");
-            } finally {
-                document.getElementById('loadingOverlay').classList.add('hidden');
-            }
-        }  // <--- LỖI CHÍNH LÀ Ở ĐÂY LÚC NÃY!
-        
-        // 8. TẢI FILE CHO TỪNG BÀI TOÁN
-        function downloadSingleTaskFiles(index) {
-            const row = dataRows[index];
-            const tenBaiToan = getColVal(row, 'Bài toán') || 'bài toán này';
-            
-            if (!row) return;
-
-            const linkTC = getColVal(row, 'Link Testcase') || '';
-            const linkPT = getColVal(row, 'Link tài liệu phân tích') || '';
-            
-            // Gom tất cả link hợp lệ
-            const allLinks = [...linkTC.split(/[\n\s]+/), ...linkPT.split(/[\n\s]+/)].filter(url => url.startsWith('http'));
-
-            if (allLinks.length === 0) {
-                alert(`⚠️ Không có link tài liệu hợp lệ để tải cho: "${tenBaiToan}"`);
-                return;
-            }
-
-            let downloadCount = 0;
-
-            allLinks.forEach((url) => {
-                let downloadUrl = '';
-                
-                // Nhận diện và ép link tải Excel/Word
-                if (url.includes('/spreadsheets/d/')) {
-                    const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
-                    if (match) downloadUrl = `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=xlsx`;
-                } else if (url.includes('/document/d/')) {
-                    const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
-                    if (match) downloadUrl = `https://docs.google.com/document/d/${match[1]}/export?format=docx`;
-                }
-
-                if (downloadUrl) {
-                    downloadCount++;
-                    setTimeout(() => {
-                        const a = document.createElement('a');
-                        a.href = downloadUrl;
-                        a.target = '_blank'; 
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                    }, downloadCount * 800); // Trễ 0.8s mỗi file để chống nghẽn
-                }
-            });
-
-            if (downloadCount > 0) {
-                alert(`✅ Đang tải ${downloadCount} file tài liệu của bài:\n"${tenBaiToan}"`);
-            } else {
-                alert(`⚠️ Link có tồn tại nhưng không phải là Google Docs/Sheets (Có thể là link Figma hoặc link web khác).`);
-            }
-        }  
-          
-        // Chạy lần đầu khi vào trang
-        window.onload = loadData;
-    </script>
 </body>
 </html>
-
-```
