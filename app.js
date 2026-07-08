@@ -1,11 +1,11 @@
 // ================= CẤU HÌNH API =================
     const URL_MASTER_SHEET = 'https://docs.google.com/spreadsheets/d/1oyWC0Z12SjiAVH8P023HjQtnHFprKFCQgmBCqqytZW0/edit?gid=0#gid=0';
-    const URL_GET_LIST = 'http://localhost:1234/webhook/1981ca71-5359-43d7-94a4-aef5615653ea';
-    const URL_POST_RUN = 'http://localhost:1234/webhook/luong-chuc-nang';
-    const URL_POST_ADD = 'http://localhost:1234/webhook/7dea3b89-0dcf-4a98-b60b-191bdcb78e67';
-    const URL_POST_EDIT = 'http://localhost:1234/webhook/sua-tai-lieu';
-    const URL_POST_DELETE = 'http://localhost:1234/webhook/xoa-tai-lieu';
-    const URL_POST_UPDATE_STATUS = 'http://localhost:1234/webhook/trang-thai';
+    const URL_GET_LIST = 'https://vdtc-hungdv.tailfb2503.ts.net/webhook/1981ca71-5359-43d7-94a4-aef5615653ea';
+    const URL_POST_RUN = 'https://vdtc-hungdv.tailfb2503.ts.net/webhook/luong-chuc-nang';
+    const URL_POST_ADD = 'https://vdtc-hungdv.tailfb2503.ts.net/webhook/7dea3b89-0dcf-4a98-b60b-191bdcb78e67';
+    const URL_POST_EDIT = 'https://vdtc-hungdv.tailfb2503.ts.net/webhook/sua-tai-lieu';
+    const URL_POST_DELETE = 'https://vdtc-hungdv.tailfb2503.ts.net/webhook/xoa-tai-lieu';
+    const URL_POST_UPDATE_STATUS = 'https://vdtc-hungdv.tailfb2503.ts.net/webhook/trang-thai';
 
     document.getElementById('btnOpenSheet').href = URL_MASTER_SHEET;
 
@@ -635,5 +635,20 @@
             alert(`⚠️ Link có tồn tại nhưng không phải là Google Docs/Sheets (Có thể là link Figma hoặc link web khác).`);
         }
     }
+                document.addEventListener("DOMContentLoaded", () => {
+                const aiToggle = document.getElementById("aiToggle");
+                const aiPanel = document.getElementById("aiPanel");
+                const closeAI = document.getElementById("closeAI");
+
+                aiToggle.addEventListener("click", () => {
+                    aiPanel.classList.remove("hidden");
+                    aiPanel.classList.add("flex");
+                });
+
+                closeAI.addEventListener("click", () => {
+                    aiPanel.classList.add("hidden");
+                    aiPanel.classList.remove("flex");
+                });
+            });
 
     window.onload = loadData;

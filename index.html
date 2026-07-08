@@ -35,7 +35,7 @@
     </div>
 
     <div class="grid grid-cols-1 xl:grid-cols-4 gap-6">
-
+        
         <!-- LEFT PANEL -->
         <div class="xl:col-span-1 space-y-6">
 
@@ -275,6 +275,110 @@
 
 <script src="app.js"></script>
 
+<!-- Floating AI Button -->
+<button
+    id="aiToggle"
+    class="fixed bottom-6 right-6 z-50 w-16 h-16 rounded-full
+           bg-gradient-to-r from-blue-600 to-indigo-600
+           text-white shadow-2xl
+           hover:scale-110 transition-all duration-300">
 
+    <span class="text-3xl">🤖</span>
+
+</button>
+<div
+id="aiPanel"
+
+class="fixed bottom-24 right-6
+w-[380px]
+h-[620px]
+
+bg-white
+
+rounded-2xl
+
+shadow-2xl
+
+border
+
+border-slate-200
+
+hidden
+
+flex-col
+
+overflow-hidden
+
+z-50">
+
+    <!-- HEADER -->
+
+    <div class="bg-blue-600 text-white px-5 py-4 flex justify-between items-center">
+
+        <div>
+
+            <div class="font-bold">
+
+                🤖 QA Copilot
+
+            </div>
+
+            <div class="text-xs opacity-80">
+
+                Powered by Dify
+
+            </div>
+
+        </div>
+
+        <button id="closeAI">
+
+            ✕
+
+        </button>
+
+    </div>
+
+    <!-- CHAT -->
+
+    <div
+
+        id="chatMessages"
+
+        class="flex-1 overflow-y-auto p-4 bg-slate-50">
+
+    </div>
+
+    <!-- INPUT -->
+
+    <div class="border-t p-3">
+
+        <div class="flex gap-2">
+
+            <textarea
+
+                id="txtChat"
+
+                rows="1"
+
+                class="flex-1 border rounded-xl p-3 resize-none"
+
+                placeholder="Nhập câu hỏi..."></textarea>
+
+            <button
+
+                id="btnSend"
+
+                class="bg-blue-600 text-white w-12 rounded-xl">
+
+                ➤
+
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
 </body>
 </html>
