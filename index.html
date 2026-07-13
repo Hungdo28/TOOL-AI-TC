@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,376 +10,252 @@
 </head>
 
 <body class="bg-slate-50 min-h-screen font-sans p-4 md:p-6">
+    <div class="max-w-screen-2xl mx-auto space-y-6">
 
-<div class="max-w-screen-2xl mx-auto space-y-6">
-
-    <!-- HEADER -->
-    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-            <h1 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                <span>📊</span> Tool Kiểm thử
-            </h1>
-            <p class="text-slate-500 text-sm mt-1">Nền tảng tự động hóa tích hợp n8n & Gemini</p>
-        </div>
-
-        <div class="flex gap-3 w-full md:w-auto">
-            <a href="#" id="btnOpenSheet" target="_blank"
-               class="flex-1 md:flex-none px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold transition shadow-sm text-center flex items-center justify-center gap-2">
-                📗 Mở Sheet Tổng
-            </a>
-
-            <button onclick="loadData()"
+        <!-- HEADER -->
+        <div
+            class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+                <h1 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                    <span>📊</span> Tool Kiểm thử
+                </h1>
+                <p class="text-slate-500 text-sm mt-1">Nền tảng tự động hóa tích hợp n8n & Gemini</p>
+            </div>
+            <div class="flex gap-3 w-full md:w-auto">
+                <a href="#" id="btnOpenSheet" target="_blank"
+                    class="flex-1 md:flex-none px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold transition shadow-sm text-center flex items-center justify-center gap-2">
+                    📗 Mở Sheet Tổng
+                </a>
+                <button onclick="loadData()"
                     class="flex-1 md:flex-none px-5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-sm font-semibold transition shadow-sm flex items-center justify-center gap-2">
-                🔄 Làm mới
-            </button>
-        </div>
-    </div>
-
-    <div class="grid grid-cols-1 xl:grid-cols-4 gap-6">
-        
-        <!-- LEFT PANEL -->
-        <div class="xl:col-span-1 space-y-6">
-
-            <!-- ADD DOCUMENT -->
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
-                <h2 class="text-lg font-bold text-slate-800 border-b pb-3 flex items-center gap-2">
-                    <span>➕</span> Thêm bài toán mới
-                </h2>
-
-                <form id="formAddDoc" onsubmit="addDocument(event)" class="space-y-4">
-
-                    <div>
-                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Tên bài toán</label>
-                        <input
-                            type="text"
-                            id="newTenBaiToan"
-                            required
-                            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition"
-                            placeholder="VD: Bài toán đăng nhập..."
-                        >
-                    </div>
-
-                    <!-- MODE SWITCH -->
-                    <div>
-                        <label class="block text-xs font-bold text-slate-600 uppercase mb-2">
-                            Kiểu thêm tài liệu
-                        </label>
-
-                        <div class="grid grid-cols-2 gap-2 mb-4">
-                            <button
-                                type="button"
-                                id="btnManualMode"
-                                onclick="setAddMode('manual')"
-                                class="px-3 py-2 rounded-xl bg-blue-600 text-white text-sm font-bold transition">
-                                ✍️ Thêm URL
-                            </button>
-
-                            <button
-                                type="button"
-                                id="btnImportMode"
-                                onclick="setAddMode('import')"
-                                class="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-bold transition">
-                                📂 Import File
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- MANUAL URL -->
-                    <div id="manualUrlBox" class="space-y-2">
-                        <label class="block text-xs font-bold text-slate-600 uppercase mb-2 flex justify-between items-center">
-                            <span>Link tài liệu gốc (URL)</span>
-                            <button
-                                type="button"
-                                onclick="addNewLinkInputForAdd()"
-                                class="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs px-2 py-1 bg-blue-50 rounded-md transition">
-                                ➕ Thêm link
-                            </button>
-                        </label>
-
-                        <div id="addUrlContainer" class="space-y-2 max-h-48 overflow-y-auto pr-1">
-                            <input
-                                type="url"
-                                class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition add-url-input-item"
-                                placeholder="https://docs.google.com/..."
-                            >
-                        </div>
-                    </div>
-
-                    <!-- IMPORT FILE -->
-                    <div id="importFileBox" class="hidden space-y-2">
-                        <label class="block text-xs font-bold text-slate-600 uppercase mb-2">
-                            Chọn file tài liệu
-                        </label>
-
-                        <input
-                            type="file"
-                            id="localFiles"
-                            multiple
-                            accept=".doc,.docx,.xls,.xlsx,.pdf,.txt"
-                            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition"
-                        >
-
-                        <p class="text-xs text-slate-500 italic">
-                            Hỗ trợ Word, Excel, PDF, TXT. File sẽ được gửi sang n8n qua FormData.
-                        </p>
-                    </div>
-
-                    <button
-                        type="submit"
-                        id="btnAdd"
-                        class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2">
-                        Lưu vào Sheet
-                    </button>
-                </form>
-            </div>
-
-            <!-- AI CONFIG -->
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
-                <h2 class="text-lg font-bold text-slate-800 border-b pb-3 flex items-center gap-2">
-                    <span>⚙️</span> Cấu hình AI
-                </h2>
-
-                <div>
-                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">
-                        Prompt 1: Phân tích
-                    </label>
-                    <textarea
-                        id="promptAI1"
-                        rows="8"
-                        class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none resize-y min-h-[160px] font-mono"></textarea>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">
-                        Prompt 2: Testcase
-                    </label>
-                    <textarea
-                        id="promptAI2"
-                        rows="8"
-                        class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none resize-y min-h-[160px] font-mono"></textarea>
-                </div>
-
-                <p class="text-xs text-slate-500 italic mt-2">
-                    Có thể kéo ô prompt để phóng to/thu nhỏ theo chiều dọc.
-                </p>
-            </div>
-        </div>
-
-        <!-- TABLE -->
-        <div class="xl:col-span-3 bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col overflow-hidden">
-
-            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b pb-3 gap-3">
-                <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
-                    <span>📋</span> Danh sách toàn bộ bài toán
-                </h2>
-
-                <div class="flex items-center gap-3 w-full sm:w-auto">
-                    <div class="relative w-full sm:w-64">
-                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">🔍</span>
-                        <input
-                            type="text"
-                            id="searchInput"
-                            onkeyup="searchTasks()"
-                            placeholder="Tìm bài toán..."
-                            class="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition"
-                        >
-                    </div>
-
-                    <button
-                        onclick="runSelectedTasks()"
-                        class="shrink-0 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition shadow-md shadow-blue-100 flex items-center gap-2">
-                        🚀 Chạy các bài đã chọn
-                    </button>
-                </div>
-            </div>
-
-            <div class="overflow-x-auto flex-grow">
-                <table class="min-w-full text-sm text-left text-slate-600 whitespace-nowrap">
-                    <thead class="text-xs text-slate-700 uppercase bg-slate-50">
-                    <tr>
-                        <th class="px-4 py-3 font-bold w-10 text-center">
-                            <input
-                                type="checkbox"
-                                id="selectAll"
-                                onclick="toggleSelectAll(this)"
-                                class="w-4 h-4 rounded border-slate-300 text-blue-600 cursor-pointer"
-                            >
-                        </th>
-                        <th class="px-4 py-3 font-bold">Bài toán</th>
-                        <th class="px-4 py-3 font-bold">Trạng thái</th>
-                        <th class="px-4 py-3 font-bold text-center">URL Gốc</th>
-                        <th class="px-4 py-3 font-bold text-center">Link Testcase</th>
-                        <th class="px-4 py-3 font-bold text-center">Link Phân tích</th>
-                        <th class="px-4 py-3 font-bold text-center">Thao tác</th>
-                    </tr>
-                    </thead>
-
-                    <tbody id="tableBody" class="divide-y divide-slate-100"></tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- LOADING -->
-<div id="loadingOverlay" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4">
-    <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full flex flex-col items-center text-center">
-        <div class="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <h3 id="loadingText" class="text-lg font-bold text-slate-800">Đang xử lý...</h3>
-    </div>
-</div>
-
-<!-- EDIT MODAL -->
-<div id="editModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4 transition-opacity">
-    <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full border border-slate-100 transform transition-all scale-100">
-        <h3 class="text-xl font-bold text-slate-800 mb-5 flex items-center gap-2 border-b pb-3">
-            <span>✏️</span> Cập nhật bài toán
-        </h3>
-
-        <div class="space-y-4">
-            <div>
-                <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Tên bài toán mới</label>
-                <input
-                    type="text"
-                    id="editTenBaiToan"
-                    class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition"
-                >
-            </div>
-
-            <div>
-                <label class="block text-xs font-bold text-slate-600 uppercase mb-2 flex justify-between items-center">
-                    <span>Danh sách Link tài liệu gốc</span>
-                    <button
-                        type="button"
-                        onclick="addNewLinkInput()"
-                        class="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs px-2 py-1 bg-blue-50 rounded-md transition">
-                        <span>➕</span> Thêm link
-                    </button>
-                </label>
-                <div id="editUrlContainer" class="space-y-2 max-h-48 overflow-y-auto pr-1"></div>
-            </div>
-
-            <div class="flex justify-end gap-3 mt-6 pt-2">
-                <button onclick="closeEditModal()"
-                        class="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-bold transition">
-                    Hủy bỏ
-                </button>
-
-                <button id="btnSaveEdit"
-                        class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition shadow-md shadow-blue-100">
-                    Lưu thay đổi
+                    🔄 Làm mới
                 </button>
             </div>
         </div>
-    </div>
-</div>
 
-<script src="app.js"></script>
+        <div class="grid grid-cols-1 xl:grid-cols-4 gap-6">
 
-<!-- Floating AI Button -->
-<button
-    id="aiToggle"
-    class="fixed bottom-6 right-6 z-50 w-16 h-16 rounded-full
-           bg-gradient-to-r from-blue-600 to-indigo-600
-           text-white shadow-2xl
-           hover:scale-110 transition-all duration-300">
+            <!-- LEFT PANEL -->
+            <div class="xl:col-span-1 space-y-6">
+                <!-- FORM THÊM BÀI TOÁN -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
+                    <h2 class="text-lg font-bold text-slate-800 border-b pb-3 flex items-center gap-2">
+                        <span>➕</span> Thêm bài toán mới
+                    </h2>
+                    <form id="formAddDoc" onsubmit="addDocument(event)" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Tên bài toán</label>
+                            <input type="text" id="newTenBaiToan" required
+                                class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition"
+                                placeholder="VD: Bài toán đăng nhập...">
+                        </div>
 
-    <span class="text-3xl">🤖</span>
+                        <!-- MODE SWITCH -->
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 uppercase mb-2">Kiểu thêm tài
+                                liệu</label>
+                            <div class="grid grid-cols-2 gap-2 mb-4">
+                                <button type="button" id="btnManualMode" onclick="setAddMode('manual')"
+                                    class="px-3 py-2 rounded-xl bg-blue-600 text-white text-sm font-bold transition">✍️
+                                    Thêm URL</button>
+                                <button type="button" id="btnImportMode" onclick="setAddMode('import')"
+                                    class="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-bold transition">📂
+                                    Import File</button>
+                            </div>
+                        </div>
 
-</button>
-<div
-id="aiPanel"
+                        <!-- MANUAL URL -->
+                        <div id="manualUrlBox" class="space-y-2">
+                            <label
+                                class="block text-xs font-bold text-slate-600 uppercase mb-2 flex justify-between items-center">
+                                <span>Link tài liệu gốc (URL)</span>
+                                <button type="button" onclick="addNewLinkInputForAdd()"
+                                    class="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs px-2 py-1 bg-blue-50 rounded-md transition">
+                                    ➕ Thêm link
+                                </button>
+                            </label>
+                            <div id="addUrlContainer" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                <input type="url"
+                                    class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition add-url-input-item"
+                                    placeholder="https://docs.google.com/...">
+                            </div>
+                        </div>
 
-class="fixed bottom-24 right-6
-w-[380px]
-h-[620px]
+                        <!-- IMPORT FILE -->
+                        <div id="importFileBox" class="hidden space-y-2">
+                            <label class="block text-xs font-bold text-slate-600 uppercase mb-2">Chọn file tài
+                                liệu</label>
+                            <input type="file" id="localFiles" multiple accept=".doc,.docx,.xls,.xlsx,.pdf,.txt"
+                                class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition">
+                            <p class="text-xs text-slate-500 italic">Hỗ trợ Word, Excel, PDF, TXT. File sẽ được gửi sang
+                                n8n qua FormData.</p>
+                        </div>
 
-bg-white
-
-rounded-2xl
-
-shadow-2xl
-
-border
-
-border-slate-200
-
-hidden
-
-flex-col
-
-overflow-hidden
-
-z-50">
-
-    <!-- HEADER -->
-
-    <div class="bg-blue-600 text-white px-5 py-4 flex justify-between items-center">
-
-        <div>
-
-            <div class="font-bold">
-
-                🤖 QA Copilot
-
+                        <button type="submit" id="btnAdd"
+                            class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2">
+                            Lưu vào Sheet
+                        </button>
+                    </form>
+                </div>
             </div>
 
-            <div class="text-xs opacity-80">
+            <!-- TABLE PANEL -->
+            <div
+                class="xl:col-span-3 bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col overflow-hidden">
+                <div
+                    class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b pb-3 gap-3">
+                    <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <span>📋</span> Danh sách toàn bộ bài toán
+                    </h2>
+                    <div class="flex items-center gap-3 w-full sm:w-auto">
+                        <div class="relative w-full sm:w-64">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">🔍</span>
+                            <input type="text" id="searchInput" onkeyup="searchTasks()" placeholder="Tìm bài toán..."
+                                class="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition">
+                        </div>
+                        <button onclick="runSelectedTasks()"
+                            class="shrink-0 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition shadow-md shadow-blue-100 flex items-center gap-2">
+                            🚀 Chạy các bài đã chọn
+                        </button>
+                    </div>
+                </div>
 
-                Powered by Dify
-
+                <div class="overflow-x-auto flex-grow">
+                    <table class="w-full text-sm text-left text-slate-600 table-fixed border-collapse min-w-[900px]">
+                        <thead class="text-xs text-slate-700 uppercase bg-slate-50">
+                            <tr>
+                                <th class="w-12 px-4 py-3 font-bold text-center border-b">
+                                    <input type="checkbox" id="selectAll" onclick="toggleSelectAll(this)"
+                                        class="w-4 h-4 rounded border-slate-300 text-blue-600 cursor-pointer">
+                                </th>
+                                <th class="w-48 px-4 py-3 font-bold truncate border-b">Bài toán</th>
+                                <th class="w-32 px-4 py-3 font-bold border-b">Trạng thái</th>
+                                <th class="w-64 px-4 py-3 font-bold text-center border-b">URL Gốc</th>
+                                <th class="w-64 px-4 py-3 font-bold text-center border-b">Link Testcase</th>
+                                <th class="w-64 px-4 py-3 font-bold text-center border-b">Link Phân tích</th>
+                                <th class="w-32 px-4 py-3 font-bold text-center border-b">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
             </div>
-
         </div>
-
-        <button id="closeAI">
-
-            ✕
-
-        </button>
-
     </div>
 
-    <!-- CHAT -->
-
-    <div
-
-        id="chatMessages"
-
-        class="flex-1 overflow-y-auto p-4 bg-slate-50">
-
-    </div>
-
-    <!-- INPUT -->
-
-    <div class="border-t p-3">
-
-        <div class="flex gap-2">
-
-            <textarea
-
-                id="txtChat"
-
-                rows="1"
-
-                class="flex-1 border rounded-xl p-3 resize-none"
-
-                placeholder="Nhập câu hỏi..."></textarea>
-
-            <button
-
-                id="btnSend"
-
-                class="bg-blue-600 text-white w-12 rounded-xl">
-
-                ➤
-
-            </button>
-
+    <!-- LOADING OVERLAY -->
+    <div id="loadingOverlay"
+        class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full flex flex-col items-center text-center">
+            <div class="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <h3 id="loadingText" class="text-lg font-bold text-slate-800">Đang xử lý...</h3>
         </div>
-
     </div>
 
-</div>
+    <!-- EDIT MODAL -->
+    <div id="editModal"
+        class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4 transition-opacity">
+        <div
+            class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full border border-slate-100 transform transition-all scale-100">
+            <h3 class="text-xl font-bold text-slate-800 mb-5 flex items-center gap-2 border-b pb-3">
+                <span>✏️</span> Cập nhật bài toán
+            </h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Tên bài toán mới</label>
+                    <input type="text" id="editTenBaiToan"
+                        class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition">
+                </div>
+                <div>
+                    <label
+                        class="block text-xs font-bold text-slate-600 uppercase mb-2 flex justify-between items-center">
+                        <span>Danh sách Link tài liệu gốc</span>
+                        <button type="button" onclick="addNewLinkInput()"
+                            class="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs px-2 py-1 bg-blue-50 rounded-md transition">
+                            <span>➕</span> Thêm link
+                        </button>
+                    </label>
+                    <div id="editUrlContainer" class="space-y-2 max-h-48 overflow-y-auto pr-1"></div>
+                </div>
+                <div class="flex justify-end gap-3 mt-6 pt-2">
+                    <button onclick="closeEditModal()"
+                        class="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-bold transition">Hủy
+                        bỏ</button>
+                    <button id="btnSaveEdit"
+                        class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition shadow-md shadow-blue-100">Lưu
+                        thay đổi</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- RUN AI MODAL (POPUP CHẠY AI VÀ NHẬP PROMPT) -->
+    <div id="runAIModal"
+        class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4 transition-opacity">
+        <div
+            class="bg-white p-6 rounded-2xl shadow-2xl max-w-2xl w-full border border-slate-100 transform transition-all scale-100">
+            <h3 id="runAIModalTitle"
+                class="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2 border-b pb-3">
+                <span>🚀</span> Chạy AI
+            </h3>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Prompt 1: Phân tích</label>
+                    <textarea id="runPrompt1" rows="4"
+                        class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition font-mono resize-y"
+                        placeholder="Nhập prompt phân tích bài toán..."></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Prompt 2: Testcase</label>
+                    <textarea id="runPrompt2" rows="4"
+                        class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition font-mono resize-y"
+                        placeholder="Nhập prompt viết testcase..."></textarea>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-3 mt-2 border-t">
+                    <button onclick="closeRunAIModal()"
+                        class="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-bold transition">Hủy
+                        bỏ</button>
+                    <button onclick="executeRunAI()"
+                        class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition shadow-md shadow-blue-100 flex items-center gap-2">
+                        <span>▶️</span> Bắt đầu chạy
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN APP SCRIPT -->
+    <script src="app.js"></script>
+
+    <!-- Floating AI Chat Button -->
+    <button id="aiToggle"
+        class="fixed bottom-6 right-6 z-50 w-16 h-16 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-2xl hover:scale-110 transition-all duration-300">
+        <span class="text-3xl">🤖</span>
+    </button>
+
+    <!-- Dify Chat Panel -->
+    <div id="aiPanel"
+        class="fixed bottom-24 right-6 w-[380px] h-[620px] bg-white rounded-2xl shadow-2xl border border-slate-200 hidden flex-col overflow-hidden z-50">
+        <div class="bg-blue-600 text-white px-5 py-4 flex justify-between items-center">
+            <div>
+                <div class="font-bold">🤖 QA Copilot</div>
+                <div class="text-xs opacity-80">Powered by Dify</div>
+            </div>
+            <button id="closeAI">✕</button>
+        </div>
+        <div id="chatMessages" class="flex-1 overflow-y-auto p-4 bg-slate-50"></div>
+        <div class="border-t p-3">
+            <div class="flex gap-2">
+                <textarea id="txtChat" rows="1" class="flex-1 border rounded-xl p-3 resize-none"
+                    placeholder="Nhập câu hỏi..."></textarea>
+                <button id="btnSend" class="bg-blue-600 text-white w-12 rounded-xl">➤</button>
+            </div>
+        </div>
+    </div>
+
 </body>
+
 </html>

@@ -167,42 +167,37 @@
                 }).join('') + `</div>`;
             };
 
-            tbody.innerHTML += `
-                <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
-                    <td class="px-4 py-4 align-top text-center">
-                        <input type="checkbox" class="task-checkbox w-4 h-4 rounded border-slate-300 text-blue-600 cursor-pointer" value="${escapeHtml(ten)}">
-                    </td>
+           tbody.innerHTML += `
+            <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
+                <td class="px-4 py-4 align-top text-center">
+                    <input type="checkbox" class="task-checkbox w-4 h-4 rounded border-slate-300 text-blue-600 cursor-pointer" value="${escapeHtml(ten)}">
+                </td>
 
-                    <td class="px-4 py-4 align-top font-semibold text-slate-800">${escapeHtml(ten)}</td>
+                <td class="px-4 py-4 align-top font-semibold text-slate-800">${escapeHtml(ten)}</td>
 
-                    <td class="px-4 py-4 align-top">
-                        ${processingTasks.includes(ten) && trangThai !== 'Đã xong'
-                            ? `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-100 text-blue-700 animate-pulse border border-blue-200">
-                                  ⏳ Đang xử lý...
-                               </span>`
-                            : `<select
-                                    onchange="updateStatus(${index}, this.value)"
-                                    class="px-3 py-1.5 text-xs rounded-lg border border-slate-300 bg-white cursor-pointer font-semibold"
-                                >
-                                    <option value="Chưa làm" ${trangThai === 'Chưa làm' ? 'selected' : ''}>🔴 Chưa làm</option>
-                                    <option value="Đã xong" ${trangThai === 'Đã xong' ? 'selected' : ''}>🟢 Đã xong</option>
-                                </select>`
-                        }
-                    </td>
+                <td class="px-4 py-4 align-top">
+                    ${processingTasks.includes(ten) && trangThai !== 'Đã xong'
+                        ? `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-100 text-blue-700 animate-pulse border border-blue-200">⏳ Đang xử lý...</span>`
+                        : `<select onchange="updateStatus(${index}, this.value)" class="px-3 py-1.5 text-xs rounded-lg border border-slate-300 bg-white cursor-pointer font-semibold">
+                            <option value="Chưa làm" ${trangThai === 'Chưa làm' ? 'selected' : ''}>🔴 Chưa làm</option>
+                            <option value="Đã xong" ${trangThai === 'Đã xong' ? 'selected' : ''}>🟢 Đã xong</option>
+                        </select>`
+                    }
+                </td>
 
-                    <td class="px-4 py-4 align-top min-w-[220px] text-center">${makeLink(urlGoc, ten, 'source')}</td>
-                    <td class="px-4 py-4 align-top min-w-[220px] text-center">${makeLink(linkTC, ten, 'testcase')}</td>
-                    <td class="px-4 py-4 align-top min-w-[220px] text-center">${makeLink(linkPT, ten, 'analysis')}</td>
+                <td class="px-4 py-4 align-top min-w-[220px] text-center">${makeLink(urlGoc, ten, 'source')}</td>
+                <td class="px-4 py-4 align-top min-w-[220px] text-center">${makeLink(linkTC, ten, 'testcase')}</td>
+                <td class="px-4 py-4 align-top min-w-[220px] text-center">${makeLink(linkPT, ten, 'analysis')}</td>
 
-                    <td class="px-4 py-4 align-top min-w-[100px] text-center">
-                        <div class="flex items-center justify-center gap-3 pt-1">
-                            <button onclick="runSingleTask(${index})" class="text-green-600 hover:text-green-800 transition-colors" title="Chạy AI bài toán này">▶️</button>
-                            <button onclick="editDocument(${index})" class="text-blue-500 hover:text-blue-700 transition-colors" title="Sửa tên/link">✏️</button>
-                            <button onclick="downloadSingleTaskFiles(${index})" class="text-emerald-500 hover:text-emerald-700 transition-colors" title="Tải file Testcase & Phân tích">📥</button>
-                            <button onclick="deleteDocument(${index})" class="text-red-500 hover:text-red-700 transition-colors" title="Xóa bài toán">🗑️</button>
-                        </div>
-                    </td>
-                </tr>`;
+                <!-- CỘT THAO TÁC -->
+                <td class="px-4 py-4 align-top min-w-[150px] text-center">
+                    <div class="flex items-center justify-center gap-2">
+                        <button onclick="runSingleTask(${index})" class="text-green-600 hover:text-green-800 transition-colors" title="Chạy AI">▶️</button>
+                        <button onclick="editDocument(${index})" class="text-blue-500 hover:text-blue-700 transition-colors" title="Sửa">✏️</button>
+                        <button onclick="deleteDocument(${index})" class="text-red-500 hover:text-red-700 transition-colors" title="Xóa">🗑️</button>
+                    </div>
+                </td>
+            </tr>`;
         });
     }
 
@@ -417,13 +412,66 @@
         }
     };
 
-    // 6. CHẠY AI (1 BÀI)
-    async function runSingleTask(index) {
+    // 6. MỞ MODAL CHẠY AI
+    let currentRunMode = null; // 'single', 'multiple', 'phan_tich', 'testcase'
+    let currentRunTask = null;
+    let currentRunTasksList = [];
+
+    function closeRunAIModal() {
+        document.getElementById('runAIModal').classList.add('hidden');
+    }
+
+    function runSingleTask(index) {
         const row = dataRows[index];
-        const tenBaiToan = getColVal(row, 'Bài toán');
+        currentRunTask = getColVal(row, 'Bài toán');
+        currentRunMode = 'single';
+        document.getElementById('runAIModalTitle').innerHTML = `<span>🚀</span> Chạy AI - ${currentRunTask}`;
+        document.getElementById('runAIModal').classList.remove('hidden');
+    }
 
-        if (!confirm(`🚀 Bắt đầu chạy AI phân tích cho: "${tenBaiToan}"?`)) return;
+    function openPromptModal(taskName, type) {
+        currentRunTask = taskName;
+        currentRunMode = type; // 'phan_tich' or 'testcase'
+        const typeLabel = type === 'phan_tich' ? 'Phân tích' : 'Testcase';
+        document.getElementById('runAIModalTitle').innerHTML = `<span>🚀</span> Chạy AI (${typeLabel}) - ${currentRunTask}`;
+        document.getElementById('runAIModal').classList.remove('hidden');
+    }
 
+    function toggleSelectAll(masterCheckbox) {
+        const checkboxes = document.querySelectorAll('.task-checkbox:not([disabled])');
+        checkboxes.forEach(cb => cb.checked = masterCheckbox.checked);
+    }
+
+    function runSelectedTasks() {
+        const selectedBoxes = document.querySelectorAll('.task-checkbox:checked');
+        const selectedTasks = Array.from(selectedBoxes).map(cb => cb.value);
+
+        if (selectedTasks.length === 0) {
+            alert("⚠️ Vui lòng tích chọn ít nhất một bài toán để chạy!");
+            return;
+        }
+
+        currentRunTasksList = selectedTasks;
+        currentRunMode = 'multiple';
+        document.getElementById('runAIModalTitle').innerHTML = `<span>🚀</span> Chạy AI - ${selectedTasks.length} bài toán`;
+        document.getElementById('runAIModal').classList.remove('hidden');
+    }
+
+    async function executeRunAI() {
+        const prompt1 = document.getElementById('runPrompt1').value.trim();
+        const prompt2 = document.getElementById('runPrompt2').value.trim();
+
+        closeRunAIModal();
+
+        if (currentRunMode === 'single' || currentRunMode === 'phan_tich' || currentRunMode === 'testcase') {
+            await doRunSingle(currentRunTask, prompt1, prompt2, currentRunMode);
+        } else if (currentRunMode === 'multiple') {
+            await doRunMultiple(currentRunTasksList, prompt1, prompt2);
+        }
+    }
+
+    // 7. THỰC THI CHẠY AI (API CALL)
+    async function doRunSingle(tenBaiToan, prompt1, prompt2, mode) {
         processingTasks.push(tenBaiToan);
         renderTable();
 
@@ -432,8 +480,9 @@
 
         const payload = {
             baiToan: tenBaiToan,
-            promptAI1: document.getElementById('promptAI1').value,
-            promptAI2: document.getElementById('promptAI2').value
+            promptAI1: prompt1,
+            promptAI2: prompt2,
+            loaiChay: mode
         };
 
         try {
@@ -474,23 +523,7 @@
         }
     }
 
-    // 7. CHẠY AI (NHIỀU BÀI - CHECKBOX)
-    function toggleSelectAll(masterCheckbox) {
-        const checkboxes = document.querySelectorAll('.task-checkbox:not([disabled])');
-        checkboxes.forEach(cb => cb.checked = masterCheckbox.checked);
-    }
-
-    async function runSelectedTasks() {
-        const selectedBoxes = document.querySelectorAll('.task-checkbox:checked');
-        const selectedTasks = Array.from(selectedBoxes).map(cb => cb.value);
-
-        if (selectedTasks.length === 0) {
-            alert("⚠️ Vui lòng tích chọn ít nhất một bài toán để chạy!");
-            return;
-        }
-
-        if (!confirm(`🚀 Bắt đầu chạy AI phân tích cho ${selectedTasks.length} bài toán đã chọn?`)) return;
-
+    async function doRunMultiple(selectedTasks, prompt1, prompt2) {
         processingTasks.push(...selectedTasks);
         renderTable();
 
@@ -499,8 +532,8 @@
 
         const payload = {
             danhSachBaiToan: selectedTasks,
-            promptAI1: document.getElementById('promptAI1').value,
-            promptAI2: document.getElementById('promptAI2').value
+            promptAI1: prompt1,
+            promptAI2: prompt2
         };
 
         try {
