@@ -5,29 +5,57 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Automation Dashboard</title>
+    <!-- Thêm font Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
     <link rel="stylesheet" href="style.css">
 </head>
 
-<body class="bg-slate-50 min-h-screen font-sans p-4 md:p-6">
-    <div class="max-w-screen-2xl mx-auto space-y-6">
+<body
+    class="bg-gradient-to-br from-indigo-50 via-blue-50/50 to-purple-50 min-h-screen font-sans p-4 md:p-6 text-slate-700 relative selection:bg-blue-100 selection:text-blue-900">
+    <!-- Decorative Blur Blobs -->
+    <div
+        class="fixed top-0 left-0 w-96 h-96 bg-blue-400/10 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob pointer-events-none">
+    </div>
+    <div
+        class="fixed top-0 right-0 w-96 h-96 bg-purple-400/10 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob animation-delay-2000 pointer-events-none">
+    </div>
+    <div
+        class="fixed -bottom-8 left-20 w-96 h-96 bg-indigo-400/10 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob animation-delay-4000 pointer-events-none">
+    </div>
+
+    <div class="max-w-screen-2xl mx-auto space-y-6 relative z-10">
 
         <!-- HEADER -->
         <div
-            class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            class="bg-white/70 backdrop-blur-xl p-6 rounded-3xl shadow-xl shadow-blue-900/5 border border-white/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all">
             <div>
-                <h1 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                    <span>📊</span> Tool Kiểm thử
+                <h1 class="text-3xl font-extrabold text-slate-800 flex items-center gap-2 tracking-tight">
+                    <span class="text-3xl">📊</span> Tool Kiểm thử AI
                 </h1>
-                <p class="text-slate-500 text-sm mt-1">Nền tảng tự động hóa tích hợp n8n & Gemini</p>
+                <p class="text-slate-500 text-sm mt-1.5 font-medium">Nền tảng tự động hóa tích hợp n8n & Gemini</p>
             </div>
             <div class="flex gap-3 w-full md:w-auto">
                 <a href="#" id="btnOpenSheet" target="_blank"
-                    class="flex-1 md:flex-none px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold transition shadow-sm text-center flex items-center justify-center gap-2">
+                    class="flex-1 md:flex-none px-6 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white rounded-xl text-sm font-semibold transition-all shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 hover:-translate-y-0.5 text-center flex items-center justify-center gap-2">
                     📗 Mở Sheet Tổng
                 </a>
                 <button onclick="loadData()"
-                    class="flex-1 md:flex-none px-5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-sm font-semibold transition shadow-sm flex items-center justify-center gap-2">
+                    class="flex-1 md:flex-none px-6 py-2.5 bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-900 hover:to-slate-800 text-white rounded-xl text-sm font-semibold transition-all shadow-lg shadow-slate-800/25 hover:shadow-slate-800/40 hover:-translate-y-0.5 flex items-center justify-center gap-2">
                     🔄 Làm mới
                 </button>
             </div>
@@ -38,9 +66,11 @@
             <!-- LEFT PANEL -->
             <div class="xl:col-span-1 space-y-6">
                 <!-- FORM THÊM BÀI TOÁN -->
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
-                    <h2 class="text-lg font-bold text-slate-800 border-b pb-3 flex items-center gap-2">
-                        <span>➕</span> Thêm bài toán mới
+                <div
+                    class="bg-white/70 backdrop-blur-xl p-6 rounded-3xl shadow-xl shadow-blue-900/5 border border-white/50 space-y-5">
+                    <h2
+                        class="text-lg font-extrabold text-slate-800 border-b border-slate-200/60 pb-3 flex items-center gap-2">
+                        <span class="text-xl">✨</span> Thêm bài toán mới
                     </h2>
                     <form id="formAddDoc" onsubmit="addDocument(event)" class="space-y-4">
                         <div>
@@ -92,7 +122,7 @@
                         </div>
 
                         <button type="submit" id="btnAdd"
-                            class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2">
+                            class="w-full bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-teal-500/30 hover:shadow-teal-500/50 hover:-translate-y-0.5 flex items-center justify-center gap-2">
                             Lưu vào Sheet
                         </button>
                     </form>
@@ -101,20 +131,20 @@
 
             <!-- TABLE PANEL -->
             <div
-                class="xl:col-span-3 bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col overflow-hidden">
+                class="xl:col-span-3 bg-white/70 backdrop-blur-xl p-6 rounded-3xl shadow-xl shadow-blue-900/5 border border-white/50 flex flex-col overflow-hidden">
                 <div
-                    class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b pb-3 gap-3">
-                    <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
-                        <span>📋</span> Danh sách toàn bộ bài toán
+                    class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 border-b border-slate-200/60 pb-4 gap-3">
+                    <h2 class="text-lg font-extrabold text-slate-800 flex items-center gap-2">
+                        <span class="text-xl">📋</span> Danh sách toàn bộ bài toán
                     </h2>
                     <div class="flex items-center gap-3 w-full sm:w-auto">
                         <div class="relative w-full sm:w-64">
                             <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">🔍</span>
                             <input type="text" id="searchInput" onkeyup="searchTasks()" placeholder="Tìm bài toán..."
-                                class="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition">
+                                class="w-full pl-9 pr-4 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
                         </div>
                         <button onclick="runSelectedTasks()"
-                            class="shrink-0 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition shadow-md shadow-blue-100 flex items-center gap-2">
+                            class="shrink-0 px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:-translate-y-0.5 flex items-center gap-2">
                             🚀 Chạy các bài đã chọn
                         </button>
                     </div>
@@ -145,44 +175,49 @@
 
     <!-- LOADING OVERLAY -->
     <div id="loadingOverlay"
-        class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4">
-        <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full flex flex-col items-center text-center">
-            <div class="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-            <h3 id="loadingText" class="text-lg font-bold text-slate-800">Đang xử lý...</h3>
+        class="fixed inset-0 bg-slate-900/40 backdrop-blur-md hidden flex items-center justify-center z-50 p-4 transition-all duration-300">
+        <div
+            class="bg-white/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl shadow-blue-900/20 max-w-sm w-full flex flex-col items-center text-center border border-white/50">
+            <div
+                class="w-14 h-14 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mb-5 shadow-inner">
+            </div>
+            <h3 id="loadingText" class="text-lg font-bold text-slate-800 tracking-tight">Đang xử lý...</h3>
         </div>
     </div>
 
     <!-- EDIT MODAL -->
     <div id="editModal"
-        class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4 transition-opacity">
+        class="fixed inset-0 bg-slate-900/40 backdrop-blur-md hidden flex items-center justify-center z-50 p-4 transition-opacity">
         <div
-            class="bg-white p-6 rounded-2xl shadow-2xl max-w-md w-full border border-slate-100 transform transition-all scale-100">
-            <h3 class="text-xl font-bold text-slate-800 mb-5 flex items-center gap-2 border-b pb-3">
-                <span>✏️</span> Cập nhật bài toán
+            class="bg-white/95 backdrop-blur-xl p-6 rounded-3xl shadow-2xl shadow-blue-900/20 max-w-md w-full border border-white/50 transform transition-all scale-100">
+            <h3
+                class="text-xl font-extrabold text-slate-800 mb-5 flex items-center gap-2 border-b border-slate-200/60 pb-4">
+                <span class="text-2xl">✏️</span> Cập nhật bài toán
             </h3>
             <div class="space-y-4">
                 <div>
-                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Tên bài toán mới</label>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1.5 tracking-wide">Tên bài toán
+                        mới</label>
                     <input type="text" id="editTenBaiToan"
-                        class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition">
+                        class="w-full px-4 py-3 bg-slate-50/50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
                 </div>
                 <div>
                     <label
-                        class="block text-xs font-bold text-slate-600 uppercase mb-2 flex justify-between items-center">
+                        class="block text-xs font-bold text-slate-600 uppercase mb-2 flex justify-between items-center tracking-wide">
                         <span>Danh sách Link tài liệu gốc</span>
                         <button type="button" onclick="addNewLinkInput()"
-                            class="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs px-2 py-1 bg-blue-50 rounded-md transition">
+                            class="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs px-2 py-1 bg-blue-50 hover:bg-blue-100 rounded-md transition font-semibold">
                             <span>➕</span> Thêm link
                         </button>
                     </label>
-                    <div id="editUrlContainer" class="space-y-2 max-h-48 overflow-y-auto pr-1"></div>
+                    <div id="editUrlContainer" class="space-y-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar"></div>
                 </div>
-                <div class="flex justify-end gap-3 mt-6 pt-2">
+                <div class="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-100">
                     <button onclick="closeEditModal()"
-                        class="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-bold transition">Hủy
+                        class="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-bold transition-all">Hủy
                         bỏ</button>
                     <button id="btnSaveEdit"
-                        class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition shadow-md shadow-blue-100">Lưu
+                        class="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:-translate-y-0.5">Lưu
                         thay đổi</button>
                 </div>
             </div>
@@ -191,35 +226,37 @@
 
     <!-- RUN AI MODAL (POPUP CHẠY AI VÀ NHẬP PROMPT) -->
     <div id="runAIModal"
-        class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4 transition-opacity">
+        class="fixed inset-0 bg-slate-900/40 backdrop-blur-md hidden flex items-center justify-center z-50 p-4 transition-opacity">
         <div
-            class="bg-white p-6 rounded-2xl shadow-2xl max-w-2xl w-full border border-slate-100 transform transition-all scale-100">
+            class="bg-white/95 backdrop-blur-xl p-7 rounded-3xl shadow-2xl shadow-blue-900/20 max-w-2xl w-full border border-white/50 transform transition-all scale-100">
             <h3 id="runAIModalTitle"
-                class="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2 border-b pb-3">
-                <span>🚀</span> Chạy AI
+                class="text-xl font-extrabold text-slate-800 mb-5 flex items-center gap-2 border-b border-slate-200/60 pb-4">
+                <span class="text-2xl">🚀</span> Chạy AI
             </h3>
 
-            <div class="space-y-4">
+            <div class="space-y-5">
                 <div>
-                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Prompt 1: Phân tích</label>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1.5 tracking-wide">Prompt 1: Phân
+                        tích</label>
                     <textarea id="runPrompt1" rows="4"
-                        class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition font-mono resize-y"
+                        class="w-full px-4 py-3 bg-slate-50/50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition font-mono resize-y custom-scrollbar"
                         placeholder="Nhập prompt phân tích bài toán..."></textarea>
                 </div>
 
                 <div>
-                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Prompt 2: Testcase</label>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1.5 tracking-wide">Prompt 2:
+                        Testcase</label>
                     <textarea id="runPrompt2" rows="4"
-                        class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition font-mono resize-y"
+                        class="w-full px-4 py-3 bg-slate-50/50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition font-mono resize-y custom-scrollbar"
                         placeholder="Nhập prompt viết testcase..."></textarea>
                 </div>
 
-                <div class="flex justify-end gap-3 pt-3 mt-2 border-t">
+                <div class="flex justify-end gap-3 pt-5 mt-2 border-t border-slate-100">
                     <button onclick="closeRunAIModal()"
-                        class="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-bold transition">Hủy
+                        class="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-bold transition-all">Hủy
                         bỏ</button>
                     <button onclick="executeRunAI()"
-                        class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition shadow-md shadow-blue-100 flex items-center gap-2">
+                        class="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:-translate-y-0.5 flex items-center gap-2">
                         <span>▶️</span> Bắt đầu chạy
                     </button>
                 </div>
@@ -237,22 +274,19 @@
     </button>
 
     <!-- Dify Chat Panel -->
-    <div id="aiPanel"
-        class="fixed bottom-24 right-6 w-[380px] h-[620px] bg-white rounded-2xl shadow-2xl border border-slate-200 hidden flex-col overflow-hidden z-50">
-        <div class="bg-blue-600 text-white px-5 py-4 flex justify-between items-center">
-            <div>
-                <div class="font-bold">🤖 QA Copilot</div>
-                <div class="text-xs opacity-80">Powered by Dify</div>
-            </div>
-            <button id="closeAI">✕</button>
+    <div id="aiPanel" class="hidden fixed top-0 right-0 w-[450px] h-screen bg-white shadow-2xl z-50 flex-col">
+        <!-- Tiêu đề và nút tắt -->
+        <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-blue-50">
+            <h3 class="font-bold text-blue-800 text-sm">🤖 Trợ lý QA AI (Dify)</h3>
+            <button id="closeAI" class="text-slate-500 hover:text-red-500 transition-colors">
+                ❌
+            </button>
         </div>
-        <div id="chatMessages" class="flex-1 overflow-y-auto p-4 bg-slate-50"></div>
-        <div class="border-t p-3">
-            <div class="flex gap-2">
-                <textarea id="txtChat" rows="1" class="flex-1 border rounded-xl p-3 resize-none"
-                    placeholder="Nhập câu hỏi..."></textarea>
-                <button id="btnSend" class="bg-blue-600 text-white w-12 rounded-xl">➤</button>
-            </div>
+
+        <!-- KHUNG NHÚNG DIFY (IFRAME) -->
+        <div class="flex-1 w-full h-full bg-slate-50">
+            <iframe src="http://127.0.0.1:8888/chat/LoRQK5xAzgwC2jpU"
+                class="w-full h-full border-none" allow="clipboard-read; clipboard-write; microphone"></iframe>
         </div>
     </div>
 

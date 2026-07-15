@@ -156,45 +156,55 @@
                     const label = prefix ? `${prefix} - ${shortTaskName}` : shortTaskName;
                     const title = `${prefix ? prefix + ' - ' : ''}${tenBaiToan || 'Tài liệu'}\n${cleanUrl}`;
 
+                    let extraBtn = '';
+                    if (type === 'testcase') {
+                        extraBtn = `<button onclick="askAIToReview('${escapeHtml(cleanUrl)}')" class="shrink-0 px-2.5 py-1.5 bg-gradient-to-r from-purple-500 to-fuchsia-500 hover:from-purple-600 hover:to-fuchsia-600 text-white rounded-xl text-xs font-bold transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 flex items-center gap-1" title="Nhờ AI Review">🤖 Review</button>`;
+                    }
+
                     return `
-                        <a href="${escapeHtml(cleanUrl)}"
-                           target="_blank"
-                           title="${escapeHtml(title)}"
-                           class="inline-flex max-w-[220px] items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-all text-xs font-semibold text-slate-700">
-                            <span class="shrink-0">${icon}</span>
-                            <span class="truncate">${escapeHtml(label)}</span>
-                        </a>`;
+                        <div class="flex items-center gap-1.5">
+                            <a href="${escapeHtml(cleanUrl)}"
+                               target="_blank"
+                               title="${escapeHtml(title)}"
+                               class="inline-flex max-w-[220px] items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200/80 hover:border-blue-300 hover:bg-blue-50/50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-300 text-xs font-semibold text-slate-700">
+                                <span class="shrink-0 text-sm">${icon}</span>
+                                <span class="truncate">${escapeHtml(label)}</span>
+                            </a>
+                            ${extraBtn}
+                        </div>`;
                 }).join('') + `</div>`;
             };
 
            tbody.innerHTML += `
-            <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
-                <td class="px-4 py-4 align-top text-center">
-                    <input type="checkbox" class="task-checkbox w-4 h-4 rounded border-slate-300 text-blue-600 cursor-pointer" value="${escapeHtml(ten)}">
+            <tr class="hover:bg-blue-50/30 transition-all duration-300 border-b border-slate-100 group">
+                <td class="px-4 py-5 align-top text-center">
+                    <div class="inline-flex items-center justify-center p-1 rounded-lg transition-colors group-hover:bg-blue-100/50">
+                        <input type="checkbox" class="task-checkbox w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition-all">
+                    </div>
                 </td>
 
-                <td class="px-4 py-4 align-top font-semibold text-slate-800">${escapeHtml(ten)}</td>
+                <td class="px-4 py-5 align-top font-bold text-slate-800 text-[13px] leading-relaxed">${escapeHtml(ten)}</td>
 
-                <td class="px-4 py-4 align-top">
+                <td class="px-4 py-5 align-top">
                     ${processingTasks.includes(ten) && trangThai !== 'Đã xong'
-                        ? `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-100 text-blue-700 animate-pulse border border-blue-200">⏳ Đang xử lý...</span>`
-                        : `<select onchange="updateStatus(${index}, this.value)" class="px-3 py-1.5 text-xs rounded-lg border border-slate-300 bg-white cursor-pointer font-semibold">
+                        ? `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-100 text-blue-700 animate-pulse border border-blue-200 shadow-sm">⏳ Đang xử lý...</span>`
+                        : `<select onchange="updateStatus(${index}, this.value)" class="px-3 py-1.5 text-xs rounded-xl border border-slate-200/80 cursor-pointer font-bold outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm appearance-none pr-7 relative bg-no-repeat bg-right hover:border-blue-300 ${trangThai === 'Đã xong' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-600'}" style="background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2394a3b8%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E'); background-size: 8px; background-position: calc(100% - 8px) center;">
                             <option value="Chưa làm" ${trangThai === 'Chưa làm' ? 'selected' : ''}>🔴 Chưa làm</option>
                             <option value="Đã xong" ${trangThai === 'Đã xong' ? 'selected' : ''}>🟢 Đã xong</option>
                         </select>`
                     }
                 </td>
 
-                <td class="px-4 py-4 align-top min-w-[220px] text-center">${makeLink(urlGoc, ten, 'source')}</td>
-                <td class="px-4 py-4 align-top min-w-[220px] text-center">${makeLink(linkTC, ten, 'testcase')}</td>
-                <td class="px-4 py-4 align-top min-w-[220px] text-center">${makeLink(linkPT, ten, 'analysis')}</td>
+                <td class="px-4 py-5 align-top min-w-[220px] text-center">${makeLink(urlGoc, ten, 'source')}</td>
+                <td class="px-4 py-5 align-top min-w-[220px] text-center">${makeLink(linkTC, ten, 'testcase')}</td>
+                <td class="px-4 py-5 align-top min-w-[220px] text-center">${makeLink(linkPT, ten, 'analysis')}</td>
 
                 <!-- CỘT THAO TÁC -->
-                <td class="px-4 py-4 align-top min-w-[150px] text-center">
-                    <div class="flex items-center justify-center gap-2">
-                        <button onclick="runSingleTask(${index})" class="text-green-600 hover:text-green-800 transition-colors" title="Chạy AI">▶️</button>
-                        <button onclick="editDocument(${index})" class="text-blue-500 hover:text-blue-700 transition-colors" title="Sửa">✏️</button>
-                        <button onclick="deleteDocument(${index})" class="text-red-500 hover:text-red-700 transition-colors" title="Xóa">🗑️</button>
+                <td class="px-4 py-5 align-top min-w-[150px] text-center">
+                    <div class="flex items-center justify-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity duration-300">
+                        <button onclick="runSingleTask(${index})" class="w-8 h-8 flex items-center justify-center bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white rounded-lg transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5" title="Chạy AI">▶️</button>
+                        <button onclick="editDocument(${index})" class="w-8 h-8 flex items-center justify-center bg-amber-50 hover:bg-amber-500 text-amber-600 hover:text-white rounded-lg transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5" title="Sửa">✏️</button>
+                        <button onclick="deleteDocument(${index})" class="w-8 h-8 flex items-center justify-center bg-red-50 hover:bg-red-500 text-red-600 hover:text-white rounded-lg transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5" title="Xóa">🗑️</button>
                     </div>
                 </td>
             </tr>`;
@@ -683,5 +693,23 @@
                     aiPanel.classList.remove("flex");
                 });
             });
+
+    window.askAIToReview = function(url) {
+        const prompt = `Review giúp tôi test case ở link sau. Hãy phân tích điểm mạnh, điểm yếu và đề xuất 3-5 kịch bản test bổ sung:\n\n${url}`;
+        
+        navigator.clipboard.writeText(prompt).then(() => {
+            alert('✅ Đã copy yêu cầu review cùng link Testcase!\n\nHãy mở bảng AI và nhấn Ctrl+V (hoặc Chuột phải -> Paste) vào khung chat để gửi cho bot nhé!');
+            
+            // Mở bảng AI
+            const aiPanel = document.getElementById("aiPanel");
+            if (aiPanel) {
+                aiPanel.classList.remove("hidden");
+                aiPanel.classList.add("flex");
+            }
+        }).catch(err => {
+            console.error('Lỗi copy:', err);
+            alert('❌ Có lỗi xảy ra khi copy. Vui lòng copy link thủ công nhé!');
+        });
+    };
 
     window.onload = loadData;
