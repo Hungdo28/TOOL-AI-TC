@@ -61,7 +61,8 @@ async function loadData() {
     const tbody = document.getElementById('tableBody');
 
     if (!pollingTimer) {
-        tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-10 text-center text-slate-400">🔄 Đang tải dữ liệu...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-10 text-center text-slate-500"><div class="flex flex-col items-center gap-2"><i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i> Đang tải dữ liệu...</div></td></tr>';
+        if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 
     try {
@@ -73,7 +74,8 @@ async function loadData() {
     } catch (err) {
         console.error(err);
         if (!pollingTimer) {
-            tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-10 text-center text-red-500">❌ Lỗi kết nối n8n.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-10 text-center text-red-500"><div class="flex flex-col items-center gap-2"><i data-lucide="alert-circle" class="w-5 h-5"></i> Lỗi kết nối n8n.</div></td></tr>`;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
         }
     }
 }
@@ -95,7 +97,7 @@ function renderTable() {
         const linkPT = getColVal(row, 'Link tài liệu phân tích');
 
         if (processingTasks.includes(ten) && trangThai !== 'Đã xong') {
-            trangThai = '⏳ Đang xử lý AI...';
+            trangThai = 'Đang xử lý AI...';
         }
 
         if (trangThai === 'Đã xong') {
@@ -127,11 +129,11 @@ function renderTable() {
 
         const getLinkIcon = (url = '', type = '') => {
             const lowerUrl = String(url).toLowerCase();
-            if (type === 'testcase' || lowerUrl.includes('spreadsheets')) return '📊';
-            if (type === 'analysis') return '📋';
-            if (lowerUrl.includes('figma.com')) return '🎨';
-            if (lowerUrl.includes('document')) return '📄';
-            return '🔗';
+            if (type === 'testcase' || lowerUrl.includes('spreadsheets')) return '<i data-lucide="table" class="w-4 h-4 text-emerald-600"></i>';
+            if (type === 'analysis') return '<i data-lucide="file-text" class="w-4 h-4 text-blue-600"></i>';
+            if (lowerUrl.includes('figma.com')) return '<i data-lucide="figma" class="w-4 h-4 text-purple-600"></i>';
+            if (lowerUrl.includes('document')) return '<i data-lucide="file-text" class="w-4 h-4 text-blue-600"></i>';
+            return '<i data-lucide="link" class="w-4 h-4 text-slate-400"></i>';
         };
 
         const getLinkPrefix = (type = 'source', order = 1) => {
@@ -158,7 +160,7 @@ function renderTable() {
 
                 let extraBtn = '';
                 if (type === 'testcase') {
-                    extraBtn = `<button onclick="askAIToReview('${escapeHtml(cleanUrl)}')" class="shrink-0 px-2.5 py-1.5 bg-gradient-to-r from-purple-500 to-fuchsia-500 hover:from-purple-600 hover:to-fuchsia-600 text-white rounded-xl text-xs font-bold transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 flex items-center gap-1" title="Nhờ AI Review">🤖 Review</button>`;
+                    extraBtn = `<button onclick="askAIToReview('${escapeHtml(cleanUrl)}')" class="shrink-0 px-2.5 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-semibold transition-all shadow-sm flex items-center gap-1 border border-blue-200" title="Nhờ AI Review"><i data-lucide="zap" class="w-3 h-3 fill-blue-600 text-blue-600"></i> Review</button>`;
                 }
 
                 return `
@@ -187,10 +189,10 @@ function renderTable() {
 
                 <td class="px-4 py-5 align-top">
                     ${processingTasks.includes(ten) && trangThai !== 'Đã xong'
-                ? `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-100 text-blue-700 animate-pulse border border-blue-200 shadow-sm">⏳ Đang xử lý...</span>`
-                : `<select onchange="updateStatus(${index}, this.value)" class="px-3 py-1.5 text-xs rounded-xl border border-slate-200/80 cursor-pointer font-bold outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm appearance-none pr-7 relative bg-no-repeat bg-right hover:border-blue-300 ${trangThai === 'Đã xong' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-600'}" style="background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2394a3b8%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E'); background-size: 8px; background-position: calc(100% - 8px) center;">
-                            <option value="Chưa làm" ${trangThai === 'Chưa làm' ? 'selected' : ''}>🔴 Chưa làm</option>
-                            <option value="Đã xong" ${trangThai === 'Đã xong' ? 'selected' : ''}>🟢 Đã xong</option>
+                ? `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-600 border border-blue-100 shadow-sm"><i data-lucide="loader-2" class="w-3 h-3 animate-spin"></i> Đang xử lý...</span>`
+                : `<select onchange="updateStatus(${index}, this.value)" class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 cursor-pointer font-semibold outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm appearance-none pr-7 relative bg-no-repeat bg-right hover:border-blue-300 ${trangThai === 'Đã xong' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-600'}" style="background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2394a3b8%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E'); background-size: 8px; background-position: calc(100% - 8px) center;">
+                            <option value="Chưa làm" ${trangThai === 'Chưa làm' ? 'selected' : ''}>Chưa làm</option>
+                            <option value="Đã xong" ${trangThai === 'Đã xong' ? 'selected' : ''}>Đã xong</option>
                         </select>`
             }
                 </td>
@@ -200,15 +202,20 @@ function renderTable() {
                 <td class="px-4 py-5 align-top min-w-[220px] text-center">${makeLink(linkPT, ten, 'analysis')}</td>
 
                 <!-- CỘT THAO TÁC -->
-                <td class="px-4 py-5 align-top min-w-[150px] text-center">
+                <td class="px-4 py-5 align-top min-w-[170px] text-center">
                     <div class="flex items-center justify-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity duration-300">
-                        <button onclick="runSingleTask(${index})" class="w-8 h-8 flex items-center justify-center bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white rounded-lg transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5" title="Chạy AI">▶️</button>
-                        <button onclick="editDocument(${index})" class="w-8 h-8 flex items-center justify-center bg-amber-50 hover:bg-amber-500 text-amber-600 hover:text-white rounded-lg transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5" title="Sửa">✏️</button>
-                        <button onclick="deleteDocument(${index})" class="w-8 h-8 flex items-center justify-center bg-red-50 hover:bg-red-500 text-red-600 hover:text-white rounded-lg transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5" title="Xóa">🗑️</button>
+                        <button onclick="downloadSingleTaskFiles(${index})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-emerald-50 text-slate-600 hover:text-emerald-600 rounded-lg transition-all shadow-sm" title="Tải tài liệu"><i data-lucide="download" class="w-4 h-4"></i></button>
+                        <button onclick="runSingleTask(${index})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-blue-50 text-slate-600 hover:text-blue-600 rounded-lg transition-all shadow-sm" title="Chạy AI"><i data-lucide="play" class="w-4 h-4 fill-current"></i></button>
+                        <button onclick="editDocument(${index})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-900 rounded-lg transition-all shadow-sm" title="Sửa"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
+                        <button onclick="deleteDocument(${index})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-red-50 text-slate-600 hover:text-red-600 rounded-lg transition-all shadow-sm" title="Xóa"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                     </div>
                 </td>
             </tr>`;
     });
+    
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
 }
 
 // 2. TÌM KIẾM BÀI TOÁN
@@ -435,7 +442,8 @@ function runSingleTask(index) {
     const row = dataRows[index];
     currentRunTask = getColVal(row, 'Bài toán');
     currentRunMode = 'single';
-    document.getElementById('runAIModalTitle').innerHTML = `<span>🚀</span> Chạy AI - ${currentRunTask}`;
+    document.getElementById('runAIModalTitle').innerHTML = `<i data-lucide="bot" class="w-5 h-5 text-blue-600 inline-block mr-2"></i> Chạy AI - ${currentRunTask}`;
+    if (typeof lucide !== 'undefined') lucide.createIcons();
     document.getElementById('runAIModal').classList.remove('hidden');
 }
 
@@ -443,7 +451,8 @@ function openPromptModal(taskName, type) {
     currentRunTask = taskName;
     currentRunMode = type; // 'phan_tich' or 'testcase'
     const typeLabel = type === 'phan_tich' ? 'Phân tích' : 'Testcase';
-    document.getElementById('runAIModalTitle').innerHTML = `<span>🚀</span> Chạy AI (${typeLabel}) - ${currentRunTask}`;
+    document.getElementById('runAIModalTitle').innerHTML = `<i data-lucide="bot" class="w-5 h-5 text-blue-600 inline-block mr-2"></i> Chạy AI (${typeLabel}) - ${currentRunTask}`;
+    if (typeof lucide !== 'undefined') lucide.createIcons();
     document.getElementById('runAIModal').classList.remove('hidden');
 }
 
@@ -463,7 +472,8 @@ function runSelectedTasks() {
 
     currentRunTasksList = selectedTasks;
     currentRunMode = 'multiple';
-    document.getElementById('runAIModalTitle').innerHTML = `<span>🚀</span> Chạy AI - ${selectedTasks.length} bài toán`;
+    document.getElementById('runAIModalTitle').innerHTML = `<i data-lucide="bot" class="w-5 h-5 text-blue-600 inline-block mr-2"></i> Chạy AI - ${selectedTasks.length} bài toán`;
+    if (typeof lucide !== 'undefined') lucide.createIcons();
     document.getElementById('runAIModal').classList.remove('hidden');
 }
 
@@ -632,10 +642,12 @@ function downloadSingleTaskFiles(index) {
 
     if (!row) return;
 
+    const urlGoc = getColVal(row, 'URL') || '';
     const linkTC = getColVal(row, 'Link Testcase') || '';
     const linkPT = getColVal(row, 'Link tài liệu phân tích') || '';
 
     const allLinks = [
+        ...urlGoc.split(/[\n\s]+/),
         ...linkTC.split(/[\n\s]+/),
         ...linkPT.split(/[\n\s]+/)
     ].filter(url => url.startsWith('http'));
@@ -660,15 +672,17 @@ function downloadSingleTaskFiles(index) {
 
         if (downloadUrl) {
             downloadCount++;
-
+            
+            // Dùng iframe để tải nhiều file cùng lúc không bị trình duyệt chặn
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = downloadUrl;
+            document.body.appendChild(iframe);
+            
+            // Xóa iframe sau khi trình duyệt đã bắt đầu tải
             setTimeout(() => {
-                const a = document.createElement('a');
-                a.href = downloadUrl;
-                a.target = '_blank';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-            }, downloadCount * 800);
+                document.body.removeChild(iframe);
+            }, 5000);
         }
     });
 

@@ -22,41 +22,33 @@
             }
         }
     </script>
+    <!-- Thêm thư viện Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body
-    class="bg-gradient-to-br from-indigo-50 via-blue-50/50 to-purple-50 min-h-screen font-sans p-4 md:p-6 text-slate-700 relative selection:bg-blue-100 selection:text-blue-900">
-    <!-- Decorative Blur Blobs -->
-    <div
-        class="fixed top-0 left-0 w-96 h-96 bg-blue-400/10 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob pointer-events-none">
-    </div>
-    <div
-        class="fixed top-0 right-0 w-96 h-96 bg-purple-400/10 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob animation-delay-2000 pointer-events-none">
-    </div>
-    <div
-        class="fixed -bottom-8 left-20 w-96 h-96 bg-indigo-400/10 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob animation-delay-4000 pointer-events-none">
-    </div>
+    class="bg-slate-50 min-h-screen font-sans p-4 md:p-6 text-slate-800 relative selection:bg-blue-100 selection:text-blue-900">
 
     <div class="max-w-screen-2xl mx-auto space-y-6 relative z-10">
 
         <!-- HEADER -->
         <div
-            class="bg-white/70 backdrop-blur-xl p-6 rounded-3xl shadow-xl shadow-blue-900/5 border border-white/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all">
+            class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all">
             <div>
-                <h1 class="text-3xl font-extrabold text-slate-800 flex items-center gap-2 tracking-tight">
-                    <span class="text-3xl">📊</span> Tool Kiểm thử AI
+                <h1 class="text-2xl font-extrabold text-slate-900 flex items-center gap-2 tracking-tight">
+                    <i data-lucide="flask-conical" class="w-7 h-7 text-blue-600"></i> Tool Kiểm thử AI
                 </h1>
                 <p class="text-slate-500 text-sm mt-1.5 font-medium">Nền tảng tự động hóa tích hợp n8n & Gemini</p>
             </div>
             <div class="flex gap-3 w-full md:w-auto">
                 <a href="#" id="btnOpenSheet" target="_blank"
-                    class="flex-1 md:flex-none px-6 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white rounded-xl text-sm font-semibold transition-all shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 hover:-translate-y-0.5 text-center flex items-center justify-center gap-2">
-                    📗 Mở Sheet Tổng
+                    class="flex-1 md:flex-none px-5 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded-lg text-sm font-semibold transition-all shadow-sm text-center flex items-center justify-center gap-2">
+                    <i data-lucide="table" class="w-4 h-4 text-emerald-600"></i> Sheet Tổng
                 </a>
                 <button onclick="loadData()"
-                    class="flex-1 md:flex-none px-6 py-2.5 bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-900 hover:to-slate-800 text-white rounded-xl text-sm font-semibold transition-all shadow-lg shadow-slate-800/25 hover:shadow-slate-800/40 hover:-translate-y-0.5 flex items-center justify-center gap-2">
-                    🔄 Làm mới
+                    class="flex-1 md:flex-none px-5 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded-lg text-sm font-semibold transition-all shadow-sm flex items-center justify-center gap-2">
+                    <i data-lucide="refresh-cw" class="w-4 h-4"></i> Làm mới
                 </button>
             </div>
         </div>
@@ -67,10 +59,10 @@
             <div class="xl:col-span-1 space-y-6">
                 <!-- FORM THÊM BÀI TOÁN -->
                 <div
-                    class="bg-white/70 backdrop-blur-xl p-6 rounded-3xl shadow-xl shadow-blue-900/5 border border-white/50 space-y-5">
+                    class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-5">
                     <h2
-                        class="text-lg font-extrabold text-slate-800 border-b border-slate-200/60 pb-3 flex items-center gap-2">
-                        <span class="text-xl">✨</span> Thêm bài toán mới
+                        class="text-base font-bold text-slate-800 border-b border-slate-100 pb-3 flex items-center gap-2">
+                        <i data-lucide="plus-circle" class="w-5 h-5 text-blue-600"></i> Thêm bài toán mới
                     </h2>
                     <form id="formAddDoc" onsubmit="addDocument(event)" class="space-y-4">
                         <div>
@@ -86,11 +78,13 @@
                                 liệu</label>
                             <div class="grid grid-cols-2 gap-2 mb-4">
                                 <button type="button" id="btnManualMode" onclick="setAddMode('manual')"
-                                    class="px-3 py-2 rounded-xl bg-blue-600 text-white text-sm font-bold transition">✍️
-                                    Thêm URL</button>
+                                    class="px-3 py-2 rounded-lg bg-slate-900 text-white flex items-center justify-center gap-1.5 text-sm font-semibold transition">
+                                    <i data-lucide="link" class="w-4 h-4"></i> Thêm URL
+                                </button>
                                 <button type="button" id="btnImportMode" onclick="setAddMode('import')"
-                                    class="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-bold transition">📂
-                                    Import File</button>
+                                    class="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center gap-1.5 text-sm font-semibold transition">
+                                    <i data-lucide="folder-up" class="w-4 h-4"></i> Import File
+                                </button>
                             </div>
                         </div>
 
@@ -100,8 +94,8 @@
                                 class="block text-xs font-bold text-slate-600 uppercase mb-2 flex justify-between items-center">
                                 <span>Link tài liệu gốc (URL)</span>
                                 <button type="button" onclick="addNewLinkInputForAdd()"
-                                    class="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs px-2 py-1 bg-blue-50 rounded-md transition">
-                                    ➕ Thêm link
+                                    class="text-blue-600 hover:text-blue-700 flex items-center gap-1 text-xs px-2 py-1 bg-blue-50 rounded transition font-semibold">
+                                    <i data-lucide="plus" class="w-3 h-3"></i> Thêm
                                 </button>
                             </label>
                             <div id="addUrlContainer" class="space-y-2 max-h-48 overflow-y-auto pr-1">
@@ -122,7 +116,7 @@
                         </div>
 
                         <button type="submit" id="btnAdd"
-                            class="w-full bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-teal-500/30 hover:shadow-teal-500/50 hover:-translate-y-0.5 flex items-center justify-center gap-2">
+                            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-lg transition-all shadow-sm flex items-center justify-center gap-2">
                             Lưu vào Sheet
                         </button>
                     </form>
@@ -131,21 +125,21 @@
 
             <!-- TABLE PANEL -->
             <div
-                class="xl:col-span-3 bg-white/70 backdrop-blur-xl p-6 rounded-3xl shadow-xl shadow-blue-900/5 border border-white/50 flex flex-col overflow-hidden">
+                class="xl:col-span-3 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
                 <div
-                    class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 border-b border-slate-200/60 pb-4 gap-3">
-                    <h2 class="text-lg font-extrabold text-slate-800 flex items-center gap-2">
-                        <span class="text-xl">📋</span> Danh sách toàn bộ bài toán
+                    class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 border-b border-slate-100 pb-4 gap-3">
+                    <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                        <i data-lucide="layout-list" class="w-5 h-5 text-slate-600"></i> Danh sách bài toán
                     </h2>
                     <div class="flex items-center gap-3 w-full sm:w-auto">
                         <div class="relative w-full sm:w-64">
-                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">🔍</span>
+                            <i data-lucide="search" class="absolute left-3 top-2.5 w-4 h-4 text-slate-400"></i>
                             <input type="text" id="searchInput" onkeyup="searchTasks()" placeholder="Tìm bài toán..."
-                                class="w-full pl-9 pr-4 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+                                class="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition">
                         </div>
                         <button onclick="runSelectedTasks()"
-                            class="shrink-0 px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:-translate-y-0.5 flex items-center gap-2">
-                            🚀 Chạy các bài đã chọn
+                            class="shrink-0 px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-sm font-semibold transition-all shadow-sm flex items-center gap-2">
+                            <i data-lucide="play" class="w-4 h-4 fill-white"></i> Chạy bài chọn
                         </button>
                     </div>
                 </div>
@@ -175,11 +169,11 @@
 
     <!-- LOADING OVERLAY -->
     <div id="loadingOverlay"
-        class="fixed inset-0 bg-slate-900/40 backdrop-blur-md hidden flex items-center justify-center z-50 p-4 transition-all duration-300">
+        class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4 transition-all duration-300">
         <div
-            class="bg-white/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl shadow-blue-900/20 max-w-sm w-full flex flex-col items-center text-center border border-white/50">
+            class="bg-white p-8 rounded-2xl shadow-xl max-w-sm w-full flex flex-col items-center text-center">
             <div
-                class="w-14 h-14 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mb-5 shadow-inner">
+                class="w-10 h-10 border-4 border-slate-100 border-t-blue-600 rounded-full animate-spin mb-4">
             </div>
             <h3 id="loadingText" class="text-lg font-bold text-slate-800 tracking-tight">Đang xử lý...</h3>
         </div>
@@ -187,12 +181,12 @@
 
     <!-- EDIT MODAL -->
     <div id="editModal"
-        class="fixed inset-0 bg-slate-900/40 backdrop-blur-md hidden flex items-center justify-center z-50 p-4 transition-opacity">
+        class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4 transition-opacity">
         <div
-            class="bg-white/95 backdrop-blur-xl p-6 rounded-3xl shadow-2xl shadow-blue-900/20 max-w-md w-full border border-white/50 transform transition-all scale-100">
+            class="bg-white p-6 rounded-2xl shadow-xl max-w-md w-full transform transition-all scale-100">
             <h3
-                class="text-xl font-extrabold text-slate-800 mb-5 flex items-center gap-2 border-b border-slate-200/60 pb-4">
-                <span class="text-2xl">✏️</span> Cập nhật bài toán
+                class="text-lg font-bold text-slate-800 mb-5 flex items-center gap-2 border-b border-slate-100 pb-4">
+                <i data-lucide="edit-3" class="w-5 h-5 text-slate-600"></i> Cập nhật bài toán
             </h3>
             <div class="space-y-4">
                 <div>
@@ -206,32 +200,33 @@
                         class="block text-xs font-bold text-slate-600 uppercase mb-2 flex justify-between items-center tracking-wide">
                         <span>Danh sách Link tài liệu gốc</span>
                         <button type="button" onclick="addNewLinkInput()"
-                            class="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs px-2 py-1 bg-blue-50 hover:bg-blue-100 rounded-md transition font-semibold">
-                            <span>➕</span> Thêm link
+                            class="text-blue-600 hover:text-blue-700 flex items-center gap-1 text-xs px-2 py-1 bg-blue-50 rounded transition font-semibold">
+                            <i data-lucide="plus" class="w-3 h-3"></i> Thêm link
                         </button>
                     </label>
                     <div id="editUrlContainer" class="space-y-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar"></div>
                 </div>
                 <div class="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-100">
                     <button onclick="closeEditModal()"
-                        class="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-bold transition-all">Hủy
+                        class="px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-sm font-semibold transition-all">Hủy
                         bỏ</button>
                     <button id="btnSaveEdit"
-                        class="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:-translate-y-0.5">Lưu
-                        thay đổi</button>
+                        class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-all shadow-sm flex items-center gap-2">
+                        Lưu thay đổi
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- RUN AI MODAL (POPUP CHẠY AI VÀ NHẬP PROMPT) -->
+    <!-- RUN AI MODAL -->
     <div id="runAIModal"
-        class="fixed inset-0 bg-slate-900/40 backdrop-blur-md hidden flex items-center justify-center z-50 p-4 transition-opacity">
+        class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4 transition-opacity">
         <div
-            class="bg-white/95 backdrop-blur-xl p-7 rounded-3xl shadow-2xl shadow-blue-900/20 max-w-2xl w-full border border-white/50 transform transition-all scale-100">
+            class="bg-white p-6 rounded-2xl shadow-xl max-w-2xl w-full transform transition-all scale-100">
             <h3 id="runAIModalTitle"
-                class="text-xl font-extrabold text-slate-800 mb-5 flex items-center gap-2 border-b border-slate-200/60 pb-4">
-                <span class="text-2xl">🚀</span> Chạy AI
+                class="text-lg font-bold text-slate-800 mb-5 flex items-center gap-2 border-b border-slate-100 pb-4">
+                <i data-lucide="bot" class="w-5 h-5 text-blue-600"></i> Chạy AI
             </h3>
 
             <div class="space-y-5">
@@ -253,11 +248,11 @@
 
                 <div class="flex justify-end gap-3 pt-5 mt-2 border-t border-slate-100">
                     <button onclick="closeRunAIModal()"
-                        class="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-bold transition-all">Hủy
+                        class="px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-sm font-semibold transition-all">Hủy
                         bỏ</button>
                     <button onclick="executeRunAI()"
-                        class="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:-translate-y-0.5 flex items-center gap-2">
-                        <span>▶️</span> Bắt đầu chạy
+                        class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-all shadow-sm flex items-center gap-2">
+                        <i data-lucide="play" class="w-4 h-4 fill-white"></i> Bắt đầu chạy
                     </button>
                 </div>
             </div>
@@ -269,17 +264,19 @@
 
     <!-- Floating AI Chat Button -->
     <button id="aiToggle"
-        class="fixed bottom-6 right-6 z-50 w-16 h-16 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-2xl hover:scale-110 transition-all duration-300">
-        <span class="text-3xl">🤖</span>
+        class="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-slate-900 text-white shadow-lg hover:shadow-xl hover:bg-slate-800 hover:-translate-y-1 transition-all duration-300 flex items-center justify-center">
+        <i data-lucide="message-square-text" class="w-6 h-6"></i>
     </button>
 
     <!-- Dify Chat Panel -->
-    <div id="aiPanel" class="hidden fixed top-0 right-0 w-[450px] h-screen bg-white shadow-2xl z-50 flex-col">
+    <div id="aiPanel" class="hidden fixed top-0 right-0 w-[450px] h-screen bg-white shadow-2xl z-50 flex-col border-l border-slate-200">
         <!-- Tiêu đề và nút tắt -->
-        <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-blue-50">
-            <h3 class="font-bold text-blue-800 text-sm">🤖 Trợ lý QA AI (Dify)</h3>
-            <button id="closeAI" class="text-slate-500 hover:text-red-500 transition-colors">
-                ❌
+        <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-white">
+            <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+                <i data-lucide="bot-message-square" class="w-5 h-5 text-blue-600"></i> QA Assistant
+            </h3>
+            <button id="closeAI" class="text-slate-400 hover:text-slate-700 transition-colors bg-slate-50 hover:bg-slate-100 p-1.5 rounded-md">
+                <i data-lucide="x" class="w-4 h-4"></i>
             </button>
         </div>
 
@@ -290,6 +287,9 @@
         </div>
     </div>
 
+    <!-- Gọi hàm khởi tạo icon Lucide -->
+    <script>
+        lucide.createIcons();
+    </script>
 </body>
-
 </html>
