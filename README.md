@@ -1,6 +1,19 @@
 Tài liệu hướng dẫn: 
-lệnh khởi tạo https: tailscale funnel 1234
+Lệnh tắt TailScail
+1. Chỉ tắt đường link public (Vẫn giữ mạng Tailscale nội bộ)
+tailscale serve reset
+2. Tắt hoàn toàn Tailscale (Ngắt kết nối mạng)
+tailscale down
+
+Lệnh bật public tailsacle:
+Đây là cổng của dify:
+tailscale funnel --bg 8888
+
+
+Đây là cổng của n8n:
+tailscale funnel --bg 1234
+
+
 link: 
-n8n: https://vdtc-hungdv.tailfb2503.ts.net/workflow/XbiRvlKmBlZmNQGz
 FE: quanlv.io.vn
 
