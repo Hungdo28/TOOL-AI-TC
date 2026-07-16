@@ -11,7 +11,7 @@ tailscale funnel --bg 8888
 
 
 Đây là cổng của n8n:
-tailscale funnel --bg 1234
+tailscale funnel --bg --https=8443 1234
 
 
 link: 

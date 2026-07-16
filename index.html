@@ -58,8 +58,7 @@
             <!-- LEFT PANEL -->
             <div class="xl:col-span-1 space-y-6">
                 <!-- FORM THÊM BÀI TOÁN -->
-                <div
-                    class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-5">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-5">
                     <h2
                         class="text-base font-bold text-slate-800 border-b border-slate-100 pb-3 flex items-center gap-2">
                         <i data-lucide="plus-circle" class="w-5 h-5 text-blue-600"></i> Thêm bài toán mới
@@ -170,10 +169,8 @@
     <!-- LOADING OVERLAY -->
     <div id="loadingOverlay"
         class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4 transition-all duration-300">
-        <div
-            class="bg-white p-8 rounded-2xl shadow-xl max-w-sm w-full flex flex-col items-center text-center">
-            <div
-                class="w-10 h-10 border-4 border-slate-100 border-t-blue-600 rounded-full animate-spin mb-4">
+        <div class="bg-white p-8 rounded-2xl shadow-xl max-w-sm w-full flex flex-col items-center text-center">
+            <div class="w-10 h-10 border-4 border-slate-100 border-t-blue-600 rounded-full animate-spin mb-4">
             </div>
             <h3 id="loadingText" class="text-lg font-bold text-slate-800 tracking-tight">Đang xử lý...</h3>
         </div>
@@ -182,10 +179,8 @@
     <!-- EDIT MODAL -->
     <div id="editModal"
         class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4 transition-opacity">
-        <div
-            class="bg-white p-6 rounded-2xl shadow-xl max-w-md w-full transform transition-all scale-100">
-            <h3
-                class="text-lg font-bold text-slate-800 mb-5 flex items-center gap-2 border-b border-slate-100 pb-4">
+        <div class="bg-white p-6 rounded-2xl shadow-xl max-w-md w-full transform transition-all scale-100">
+            <h3 class="text-lg font-bold text-slate-800 mb-5 flex items-center gap-2 border-b border-slate-100 pb-4">
                 <i data-lucide="edit-3" class="w-5 h-5 text-slate-600"></i> Cập nhật bài toán
             </h3>
             <div class="space-y-4">
@@ -222,8 +217,7 @@
     <!-- RUN AI MODAL -->
     <div id="runAIModal"
         class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4 transition-opacity">
-        <div
-            class="bg-white p-6 rounded-2xl shadow-xl max-w-2xl w-full transform transition-all scale-100">
+        <div class="bg-white p-6 rounded-2xl shadow-xl max-w-2xl w-full transform transition-all scale-100">
             <h3 id="runAIModalTitle"
                 class="text-lg font-bold text-slate-800 mb-5 flex items-center gap-2 border-b border-slate-100 pb-4">
                 <i data-lucide="bot" class="w-5 h-5 text-blue-600"></i> Chạy AI
@@ -269,17 +263,20 @@
     </button>
 
     <!-- Dify Chat Panel -->
-    <div id="aiPanel" class="hidden fixed top-0 right-0 w-[450px] h-screen bg-white shadow-2xl z-50 flex-col border-l border-slate-200">
+    <div id="aiPanel"
+        class="hidden fixed top-0 right-0 w-[450px] h-screen bg-white shadow-2xl z-50 flex-col border-l border-slate-200">
         <!-- Tiêu đề và nút tắt -->
         <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-white">
             <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
                 <i data-lucide="bot-message-square" class="w-5 h-5 text-blue-600"></i> QA Assistant
             </h3>
-            <button id="closeAI" class="text-slate-400 hover:text-slate-700 transition-colors bg-slate-50 hover:bg-slate-100 p-1.5 rounded-md">
+            <button id="closeAI"
+                class="text-slate-400 hover:text-slate-700 transition-colors bg-slate-50 hover:bg-slate-100 p-1.5 rounded-md">
                 <i data-lucide="x" class="w-4 h-4"></i>
             </button>
         </div>
 
+        <!-- KHUNG NHÚNG DIFY (IFRAME) -->
         <!-- KHUNG NHÚNG DIFY (IFRAME) -->
         <div class="flex-1 w-full h-full bg-slate-50">
             <iframe src="https://vdtc-hungdv.tailfb2503.ts.net/chat/LoRQK5xAzgwC2jpU" class="w-full h-full border-none"
@@ -292,4 +289,5 @@
         lucide.createIcons();
     </script>
 </body>
+
 </html>
