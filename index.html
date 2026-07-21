@@ -11,6 +11,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
         rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -170,6 +171,7 @@
                                         class="w-4 h-4 rounded border-slate-300 text-blue-600 cursor-pointer">
                                 </th>
                                 <th class="w-48 px-4 py-3 font-bold truncate border-b">Bài toán</th>
+                                <th class="w-32 px-4 py-3 font-bold border-b">Người làm</th>
                                 <th class="w-32 px-4 py-3 font-bold border-b">Trạng thái</th>
                                 <th class="w-64 px-4 py-3 font-bold text-center border-b">URL Gốc</th>
                                 <th class="w-64 px-4 py-3 font-bold text-center border-b">Link Testcase</th>
@@ -271,8 +273,42 @@
         </div>
     </div>
 
+    <!-- MODAL CHUYỂN GIAO BÀI TOÁN -->
+    <div id="transferModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="px-6 py-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                <h3 class="font-extrabold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="send" class="w-5 h-5 text-orange-600"></i> Chuyển giao bài toán
+                </h3>
+                <button onclick="closeTransferModal()"
+                    class="text-slate-400 hover:text-slate-700 bg-white hover:bg-slate-100 p-1.5 rounded-lg border border-slate-200 transition-all">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            
+            <div class="p-6 space-y-4">
+                <p class="text-sm text-slate-600">
+                    Bạn đang chuyển giao bài toán: <br>
+                    <strong id="transferTaskName" class="text-slate-900 block mt-1 break-words"></strong>
+                </p>
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-2">Chọn người nhận</label>
+                    <select id="transferUserSelect" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-orange-500 outline-none transition font-medium cursor-pointer">
+                        <option value="">Đang tải danh sách...</option>
+                    </select>
+                </div>
+                <div class="flex justify-end gap-3 pt-5 mt-2 border-t border-slate-100">
+                    <button onclick="closeTransferModal()" class="px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-sm font-semibold transition-all">Hủy bỏ</button>
+                    <button id="btnConfirmTransfer" onclick="confirmTransfer()" disabled class="px-5 py-2.5 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm font-semibold transition-all shadow-sm flex items-center gap-2">
+                        <i data-lucide="check" class="w-4 h-4"></i> Xác nhận
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- MAIN APP SCRIPT -->
-    <script src="app.js"></script>
+    <script src="app.js?v=2"></script>
 
     <!-- Floating AI Chat Button -->
     <button id="aiToggle"

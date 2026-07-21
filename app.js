@@ -5,10 +5,21 @@ if (!currentUserJson) {
 }
 const currentUser = currentUserJson ? JSON.parse(currentUserJson) : { role: 'viewer', fullName: 'Khách' };
 
-function logout() {
-    localStorage.removeItem('currentUser');
-    window.location.href = 'login.html';
+// Khởi tạo Supabase để lấy danh sách User cho form Chuyển giao
+const SUPABASE_URL = 'https://zrwlzthteixjxdhsevkh.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_yA_P7i5OXAffRJwHx3hGvw_Wyo02_u3';
+let supabaseClient = null;
+if (window.supabase) {
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 }
+
+// Hàm xử lý đăng xuất
+window.logout = function () {
+    if (confirm('Bạn có chắc chắn muốn thoát?')) {
+        localStorage.removeItem('currentUser');
+        window.location.href = 'login.html';
+    }
+};
 
 // ================= CẤU HÌNH API =================
 const URL_MASTER_SHEET = 'https://docs.google.com/spreadsheets/d/1oyWC0Z12SjiAVH8P023HjQtnHFprKFCQgmBCqqytZW0/edit?gid=0#gid=0';
@@ -18,6 +29,7 @@ const URL_POST_ADD = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/7dea3b8
 const URL_POST_EDIT = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/sua-tai-lieu';
 const URL_POST_DELETE = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/xoa-tai-lieu';
 const URL_POST_UPDATE_STATUS = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/trang-thai';
+const URL_POST_TRANSFER = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/chuyen-giao';
 
 document.getElementById('btnOpenSheet').href = URL_MASTER_SHEET;
 
@@ -97,22 +109,23 @@ function renderTable() {
     tbody.innerHTML = '';
 
     let displayRows = dataRows;
-    
-    // Nếu không phải admin, chỉ lấy các bài toán của người tạo đó
+
+    // Nếu không phải admin, chỉ lấy các bài toán của người làm đó
     if (currentUser.role !== 'admin') {
         displayRows = dataRows.filter(row => {
-            const creator = getColVal(row, 'Người tạo') || getColVal(row, 'Username') || getColVal(row, 'Tài khoản');
+            const creator = getColVal(row, 'Người làm') || getColVal(row, 'Username') || getColVal(row, 'Tài khoản');
             return String(creator).trim() === currentUser.username;
         });
     }
 
     if (!Array.isArray(displayRows) || displayRows.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-10 text-center">Không có dữ liệu</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-10 text-center">Không có dữ liệu</td></tr>';
         return;
     }
 
     displayRows.forEach((row, index) => {
         const ten = getColVal(row, 'Bài toán') || '-';
+        const nguoiLam = getColVal(row, 'Người làm') || getColVal(row, 'Username') || getColVal(row, 'Tài khoản') || '-';
         let trangThai = getColVal(row, 'Trạng thái') || 'Chưa làm';
         const urlGoc = getColVal(row, 'URL');
         const linkTC = getColVal(row, 'Link Testcase');
@@ -209,6 +222,13 @@ function renderTable() {
 
                 <td class="px-4 py-5 align-top font-bold text-slate-800 text-[13px] leading-relaxed">${escapeHtml(ten)}</td>
 
+                <td class="px-4 py-5 align-top text-slate-600 font-medium text-xs">
+                    <div class="inline-flex items-center gap-1.5 px-2 py-1 bg-slate-100 rounded-md">
+                        <i data-lucide="user" class="w-3 h-3 text-slate-500"></i>
+                        ${escapeHtml(nguoiLam)}
+                    </div>
+                </td>
+
                 <td class="px-4 py-5 align-top">
                     ${processingTasks.includes(ten) && trangThai !== 'Đã xong'
                 ? `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-600 border border-blue-100 shadow-sm"><i data-lucide="loader-2" class="w-3 h-3 animate-spin"></i> Đang xử lý...</span>`
@@ -228,13 +248,14 @@ function renderTable() {
                     <div class="flex items-center justify-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity duration-300">
                         <button onclick="downloadSingleTaskFiles(${index})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-emerald-50 text-slate-600 hover:text-emerald-600 rounded-lg transition-all shadow-sm" title="Tải tài liệu"><i data-lucide="download" class="w-4 h-4"></i></button>
                         <button onclick="runSingleTask(${index})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-blue-50 text-slate-600 hover:text-blue-600 rounded-lg transition-all shadow-sm" title="Chạy AI"><i data-lucide="play" class="w-4 h-4 fill-current"></i></button>
+                        <button onclick="openTransferModal(${index})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-orange-50 text-slate-600 hover:text-orange-600 rounded-lg transition-all shadow-sm" title="Chuyển giao"><i data-lucide="send" class="w-4 h-4"></i></button>
                         <button onclick="editDocument(${index})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-900 rounded-lg transition-all shadow-sm" title="Sửa"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
                         <button onclick="deleteDocument(${index})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-red-50 text-slate-600 hover:text-red-600 rounded-lg transition-all shadow-sm" title="Xóa"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                     </div>
                 </td>
             </tr>`;
     });
-    
+
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
     }
@@ -361,6 +382,82 @@ async function deleteDocument(index) {
         }
     } catch (err) {
         alert("❌ Lỗi mạng: Không thể kết nối tới Webhook xóa.");
+    } finally {
+        document.getElementById('loadingOverlay').classList.add('hidden');
+    }
+}
+
+// ================= CHUYỂN GIAO BÀI TOÁN =================
+let currentTransferTask = '';
+
+async function openTransferModal(index) {
+    const row = dataRows[index];
+    currentTransferTask = getColVal(row, 'Bài toán') || '';
+
+    document.getElementById('transferTaskName').innerText = currentTransferTask;
+    document.getElementById('transferModal').classList.remove('hidden');
+
+    const select = document.getElementById('transferUserSelect');
+    select.innerHTML = '<option value="">Đang tải danh sách...</option>';
+    select.disabled = true;
+    document.getElementById('btnConfirmTransfer').disabled = true;
+
+    try {
+        if (!supabaseClient) throw new Error("Chưa khởi tạo Supabase");
+        const { data, error } = await supabaseClient.from('users').select('*');
+        if (error) throw error;
+
+        select.innerHTML = '<option value="">-- Chọn người nhận --</option>';
+        data.forEach(u => {
+            if (u.username !== currentUser.username) {
+                const opt = document.createElement('option');
+                opt.value = u.username;
+                opt.text = u.full_name ? `${u.full_name} (${u.username})` : u.username;
+                select.appendChild(opt);
+            }
+        });
+        select.disabled = false;
+
+        select.onchange = function () {
+            document.getElementById('btnConfirmTransfer').disabled = !this.value;
+        };
+    } catch (err) {
+        console.error("Lỗi lấy user:", err);
+        select.innerHTML = `<option value="">Lỗi: ${err.message || JSON.stringify(err)}</option>`;
+    }
+}
+
+function closeTransferModal() {
+    document.getElementById('transferModal').classList.add('hidden');
+}
+
+async function confirmTransfer() {
+    const select = document.getElementById('transferUserSelect');
+    const newUser = select.value;
+    if (!newUser) return;
+
+    closeTransferModal();
+    document.getElementById('loadingText').innerText = 'Đang chuyển giao...';
+    document.getElementById('loadingOverlay').classList.remove('hidden');
+
+    try {
+        const res = await fetch(URL_POST_TRANSFER, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                baiToan: currentTransferTask,
+                nguoiNhanMoi: newUser
+            })
+        });
+
+        if (res.ok) {
+            await loadData();
+            alert(`✅ Đã chuyển giao bài toán "${currentTransferTask}" cho ${newUser} thành công!`);
+        } else {
+            alert("❌ Lỗi từ n8n khi chuyển giao. Vui lòng kiểm tra lại Webhook.");
+        }
+    } catch (err) {
+        alert("❌ Lỗi mạng: Không thể kết nối tới Webhook chuyển giao.");
     } finally {
         document.getElementById('loadingOverlay').classList.add('hidden');
     }
@@ -695,13 +792,13 @@ function downloadSingleTaskFiles(index) {
 
         if (downloadUrl) {
             downloadCount++;
-            
+
             // Dùng iframe để tải nhiều file cùng lúc không bị trình duyệt chặn
             const iframe = document.createElement('iframe');
             iframe.style.display = 'none';
             iframe.src = downloadUrl;
             document.body.appendChild(iframe);
-            
+
             // Xóa iframe sau khi trình duyệt đã bắt đầu tải
             setTimeout(() => {
                 document.body.removeChild(iframe);
