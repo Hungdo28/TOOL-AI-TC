@@ -6,6 +6,8 @@ tailscale serve reset
 tailscale down
 
 Lệnh bật public tailsacle:
+tailscale up
+
 Đây là cổng của dify:
 tailscale funnel --bg 8888
 

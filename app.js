@@ -1,3 +1,15 @@
+// ================= KIỂM TRA ĐĂNG NHẬP =================
+const currentUserJson = localStorage.getItem('currentUser');
+if (!currentUserJson) {
+    window.location.href = 'login.html';
+}
+const currentUser = currentUserJson ? JSON.parse(currentUserJson) : { role: 'viewer', fullName: 'Khách' };
+
+function logout() {
+    localStorage.removeItem('currentUser');
+    window.location.href = 'login.html';
+}
+
 // ================= CẤU HÌNH API =================
 const URL_MASTER_SHEET = 'https://docs.google.com/spreadsheets/d/1oyWC0Z12SjiAVH8P023HjQtnHFprKFCQgmBCqqytZW0/edit?gid=0#gid=0';
 const URL_GET_LIST = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/1981ca71-5359-43d7-94a4-aef5615653ea';
@@ -84,12 +96,22 @@ function renderTable() {
     const tbody = document.getElementById('tableBody');
     tbody.innerHTML = '';
 
-    if (!Array.isArray(dataRows) || dataRows.length === 0) {
+    let displayRows = dataRows;
+    
+    // Nếu không phải admin, chỉ lấy các bài toán của người tạo đó
+    if (currentUser.role !== 'admin') {
+        displayRows = dataRows.filter(row => {
+            const creator = getColVal(row, 'Người tạo') || getColVal(row, 'Username') || getColVal(row, 'Tài khoản');
+            return String(creator).trim() === currentUser.username;
+        });
+    }
+
+    if (!Array.isArray(displayRows) || displayRows.length === 0) {
         tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-10 text-center">Không có dữ liệu</td></tr>';
         return;
     }
 
-    dataRows.forEach((row, index) => {
+    displayRows.forEach((row, index) => {
         const ten = getColVal(row, 'Bài toán') || '-';
         let trangThai = getColVal(row, 'Trạng thái') || 'Chưa làm';
         const urlGoc = getColVal(row, 'URL');
@@ -181,7 +203,7 @@ function renderTable() {
             <tr class="hover:bg-blue-50/30 transition-all duration-300 border-b border-slate-100 group">
                 <td class="px-4 py-5 align-top text-center">
                     <div class="inline-flex items-center justify-center p-1 rounded-lg transition-colors group-hover:bg-blue-100/50">
-                        <input type="checkbox" class="task-checkbox w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition-all">
+                        <input type="checkbox" class="task-checkbox w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition-all" value="${escapeHtml(ten)}">
                     </div>
                 </td>
 
@@ -255,6 +277,7 @@ async function addDocument(e) {
         const formData = new FormData();
         formData.append('baiToan', tenBaiToan);
         formData.append('mode', addMode);
+        formData.append('username', currentUser.username); // Gửi thêm username để lưu trên DB/Google Sheet
 
         if (addMode === 'manual') {
             const urlInputs = document.querySelectorAll('.add-url-input-item');
@@ -726,4 +749,15 @@ window.askAIToReview = function (url) {
     });
 };
 
-window.onload = loadData;
+window.onload = () => {
+    // Hiển thị thông tin user trên Header
+    const displayFullName = document.getElementById('displayFullName');
+    const displayRole = document.getElementById('displayRole');
+    if (displayFullName) displayFullName.innerText = currentUser.fullName || 'Khách';
+    if (displayRole) displayRole.innerText = currentUser.role === 'admin' ? 'Quản trị viên' : 'Người dùng';
+
+    // Đã phục hồi quyền cho tất cả user (mỗi người tự sửa form của mình)
+    // Dưới đây chỉ xử lý giao diện nếu cần thêm sau này
+
+    loadData();
+};
