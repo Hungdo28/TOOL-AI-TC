@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.location.href = 'index.html';
             }
         } catch (error) {
-            errorMessage.innerText = 'Lỗi kết nối máy chủ Supabase!';
+            errorMessage.innerText = 'Lỗi kết nối: ' + (error.message || JSON.stringify(error));
             errorMessage.classList.remove('hidden');
         } finally {
             btnSubmit.disabled = false;
