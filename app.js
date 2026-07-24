@@ -37,6 +37,63 @@ let dataRows = [];
 let addMode = 'manual';
 let pollingTimer = null;
 let processingTasks = [];
+let taskStartTime = {};
+
+function startPollingIfNeeded() {
+    if (pollingTimer) return;
+    
+    pollingTimer = setInterval(async () => {
+        if (processingTasks.length === 0) {
+            clearInterval(pollingTimer);
+            pollingTimer = null;
+            return;
+        }
+
+        await loadData(); 
+
+        const now = Date.now();
+        let newlyFinished = [];
+        let newlyErrored = [];
+        let newlyTimeout = [];
+        
+        processingTasks.forEach(tenBaiToan => {
+            const row = dataRows.find(r => getColVal(r, 'Bài toán') === tenBaiToan);
+            if (row) {
+                const currentStatus = getColVal(row, 'Trạng thái') || '';
+                const isDone = currentStatus === 'Đã xong';
+                const isError = currentStatus.toLowerCase().includes('lỗi') || currentStatus.toLowerCase().includes('thất bại') || currentStatus.toLowerCase().includes('error');
+                
+                if (isDone) {
+                    newlyFinished.push(tenBaiToan);
+                } else if (isError) {
+                    newlyErrored.push({ten: tenBaiToan, status: currentStatus});
+                } else if (now - (taskStartTime[tenBaiToan] || now) > 180000) { // 3 mins timeout
+                    newlyTimeout.push(tenBaiToan);
+                }
+            } else {
+                // Task was deleted from sheet while running?
+                newlyTimeout.push(tenBaiToan);
+            }
+        });
+        
+        const toRemove = [...newlyFinished, ...newlyErrored.map(e => e.ten), ...newlyTimeout];
+        if (toRemove.length > 0) {
+            processingTasks = processingTasks.filter(t => !toRemove.includes(t));
+            renderTable(); 
+            
+            if (newlyFinished.length > 0) {
+                alert(`🎉 XUẤT SẮC! Đã phân tích xong: ${newlyFinished.join(', ')}`);
+            }
+            if (newlyErrored.length > 0) {
+                const errMsgs = newlyErrored.map(e => `"${e.ten}": ${e.status}`).join('\n');
+                alert(`❌ Lỗi xử lý:\n${errMsgs}`);
+            }
+            if (newlyTimeout.length > 0) {
+                alert(`⏱️ Timeout: Quá 3 phút không phản hồi từ n8n cho:\n${newlyTimeout.join(', ')}\nCó thể n8n bị lỗi rate limit. Anh hãy kiểm tra lại n8n.`);
+            }
+        }
+    }, 10000);
+}
 
 const getColVal = (row, colName) => {
     const key = Object.keys(row).find(k => k.trim() === colName);
@@ -123,7 +180,8 @@ function renderTable() {
         return;
     }
 
-    displayRows.forEach((row, index) => {
+    displayRows.forEach((row, _) => {
+        const originalIndex = dataRows.indexOf(row);
         const ten = getColVal(row, 'Bài toán') || '-';
         const nguoiLam = getColVal(row, 'Người làm') || getColVal(row, 'Username') || getColVal(row, 'Tài khoản') || '-';
         let trangThai = getColVal(row, 'Trạng thái') || 'Chưa làm';
@@ -131,12 +189,11 @@ function renderTable() {
         const linkTC = getColVal(row, 'Link Testcase');
         const linkPT = getColVal(row, 'Link tài liệu phân tích');
 
-        if (processingTasks.includes(ten) && trangThai !== 'Đã xong') {
-            trangThai = 'Đang xử lý AI...';
-        }
+        const isErrorStatus = trangThai.toLowerCase().includes('lỗi') || trangThai.toLowerCase().includes('thất bại') || trangThai.toLowerCase().includes('error');
+        const isDone = trangThai === 'Đã xong';
 
-        if (trangThai === 'Đã xong') {
-            processingTasks = processingTasks.filter(item => item !== ten);
+        if (processingTasks.includes(ten) && !isDone && !isErrorStatus) {
+            trangThai = 'Đang xử lý AI...';
         }
 
         const escapeHtml = (value = '') => {
@@ -230,12 +287,15 @@ function renderTable() {
                 </td>
 
                 <td class="px-4 py-5 align-top">
-                    ${processingTasks.includes(ten) && trangThai !== 'Đã xong'
+                    ${(processingTasks.includes(ten) && !isDone && !isErrorStatus)
                 ? `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-600 border border-blue-100 shadow-sm"><i data-lucide="loader-2" class="w-3 h-3 animate-spin"></i> Đang xử lý...</span>`
-                : `<select onchange="updateStatus(${index}, this.value)" class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 cursor-pointer font-semibold outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm appearance-none pr-7 relative bg-no-repeat bg-right hover:border-blue-300 ${trangThai === 'Đã xong' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-600'}" style="background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2394a3b8%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E'); background-size: 8px; background-position: calc(100% - 8px) center;">
+                : (currentUser.role === 'admin'
+                    ? `<select onchange="updateStatus(${originalIndex}, this.value)" class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 cursor-pointer font-semibold outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm appearance-none pr-7 relative bg-no-repeat bg-right hover:border-blue-300 ${trangThai === 'Đã xong' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : (trangThai.toLowerCase().includes('lỗi') || trangThai.toLowerCase().includes('thất bại') || trangThai.toLowerCase().includes('error') ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-600')}" style="background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2394a3b8%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E'); background-size: 8px; background-position: calc(100% - 8px) center;">
                             <option value="Chưa làm" ${trangThai === 'Chưa làm' ? 'selected' : ''}>Chưa làm</option>
                             <option value="Đã xong" ${trangThai === 'Đã xong' ? 'selected' : ''}>Đã xong</option>
+                            ${(trangThai !== 'Chưa làm' && trangThai !== 'Đã xong') ? `<option value="${escapeHtml(trangThai)}" selected>${escapeHtml(trangThai)}</option>` : ''}
                         </select>`
+                    : `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm border ${trangThai === 'Đã xong' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : (trangThai.toLowerCase().includes('lỗi') || trangThai.toLowerCase().includes('thất bại') || trangThai.toLowerCase().includes('error') ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-600 border-slate-200')}">${escapeHtml(trangThai)}</span>`)
             }
                 </td>
 
@@ -246,11 +306,13 @@ function renderTable() {
                 <!-- CỘT THAO TÁC -->
                 <td class="px-4 py-5 align-top min-w-[170px] text-center">
                     <div class="flex items-center justify-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity duration-300">
-                        <button onclick="downloadSingleTaskFiles(${index})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-emerald-50 text-slate-600 hover:text-emerald-600 rounded-lg transition-all shadow-sm" title="Tải tài liệu"><i data-lucide="download" class="w-4 h-4"></i></button>
-                        <button onclick="runSingleTask(${index})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-blue-50 text-slate-600 hover:text-blue-600 rounded-lg transition-all shadow-sm" title="Chạy AI"><i data-lucide="play" class="w-4 h-4 fill-current"></i></button>
-                        <button onclick="openTransferModal(${index})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-orange-50 text-slate-600 hover:text-orange-600 rounded-lg transition-all shadow-sm" title="Chuyển giao"><i data-lucide="send" class="w-4 h-4"></i></button>
-                        <button onclick="editDocument(${index})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-900 rounded-lg transition-all shadow-sm" title="Sửa"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
-                        <button onclick="deleteDocument(${index})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-red-50 text-slate-600 hover:text-red-600 rounded-lg transition-all shadow-sm" title="Xóa"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        <button onclick="downloadSingleTaskFiles(${originalIndex})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-emerald-50 text-slate-600 hover:text-emerald-600 rounded-lg transition-all shadow-sm" title="Tải tài liệu"><i data-lucide="download" class="w-4 h-4"></i></button>
+                        <button onclick="runSingleTask(${originalIndex})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-blue-50 text-slate-600 hover:text-blue-600 rounded-lg transition-all shadow-sm" title="Chạy AI"><i data-lucide="play" class="w-4 h-4 fill-current"></i></button>
+                        ${currentUser.role === 'admin' ? `
+                        <button onclick="openTransferModal(${originalIndex})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-orange-50 text-slate-600 hover:text-orange-600 rounded-lg transition-all shadow-sm" title="Chuyển giao"><i data-lucide="send" class="w-4 h-4"></i></button>
+                        <button onclick="editDocument(${originalIndex})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-900 rounded-lg transition-all shadow-sm" title="Sửa"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
+                        <button onclick="deleteDocument(${originalIndex})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-red-50 text-slate-600 hover:text-red-600 rounded-lg transition-all shadow-sm" title="Xóa"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        ` : ''}
                     </div>
                 </td>
             </tr>`;
@@ -612,6 +674,7 @@ async function executeRunAI() {
 
 // 7. THỰC THI CHẠY AI (API CALL)
 async function doRunSingle(tenBaiToan, prompt1, prompt2, mode) {
+    taskStartTime[tenBaiToan] = Date.now();
     processingTasks.push(tenBaiToan);
     renderTable();
 
@@ -636,20 +699,7 @@ async function doRunSingle(tenBaiToan, prompt1, prompt2, mode) {
 
         if (res.ok) {
             alert(`✅ Đã gửi lệnh thành công!\nHệ thống đang xử lý ngầm, anh cứ làm việc khác nhé.`);
-
-            if (!pollingTimer) {
-                pollingTimer = setInterval(async () => {
-                    await loadData();
-
-                    const currentRow = dataRows.find(r => getColVal(r, 'Bài toán') === tenBaiToan);
-
-                    if (currentRow && getColVal(currentRow, 'Trạng thái') === 'Đã xong') {
-                        clearInterval(pollingTimer);
-                        pollingTimer = null;
-                        alert(`🎉 XUẤT SẮC! Bài toán "${tenBaiToan}" đã phân tích xong!`);
-                    }
-                }, 100000);
-            }
+            startPollingIfNeeded();
         } else {
             processingTasks = processingTasks.filter(item => item !== tenBaiToan);
             renderTable();
@@ -664,6 +714,7 @@ async function doRunSingle(tenBaiToan, prompt1, prompt2, mode) {
 }
 
 async function doRunMultiple(selectedTasks, prompt1, prompt2) {
+    selectedTasks.forEach(t => taskStartTime[t] = Date.now());
     processingTasks.push(...selectedTasks);
     renderTable();
 
@@ -688,23 +739,7 @@ async function doRunMultiple(selectedTasks, prompt1, prompt2) {
         if (res.ok) {
             alert(`✅ Đã gửi lệnh thành công!\nHệ thống đang xử lý ngầm các bài toán này...`);
             document.getElementById('selectAll').checked = false;
-
-            if (!pollingTimer) {
-                pollingTimer = setInterval(async () => {
-                    await loadData();
-
-                    const stillUnfinished = dataRows.filter(r =>
-                        selectedTasks.includes(getColVal(r, 'Bài toán')) &&
-                        getColVal(r, 'Trạng thái') !== 'Đã xong'
-                    );
-
-                    if (stillUnfinished.length === 0) {
-                        clearInterval(pollingTimer);
-                        pollingTimer = null;
-                        alert(`🎉 XUẤT SẮC! Toàn bộ ${selectedTasks.length} bài toán anh chọn đã phân tích xong!`);
-                    }
-                }, 100000);
-            }
+            startPollingIfNeeded();
         } else {
             processingTasks = processingTasks.filter(item => !selectedTasks.includes(item));
             renderTable();
@@ -853,8 +888,18 @@ window.onload = () => {
     if (displayFullName) displayFullName.innerText = currentUser.fullName || 'Khách';
     if (displayRole) displayRole.innerText = currentUser.role === 'admin' ? 'Quản trị viên' : 'Người dùng';
 
-    // Đã phục hồi quyền cho tất cả user (mỗi người tự sửa form của mình)
-    // Dưới đây chỉ xử lý giao diện nếu cần thêm sau này
+    if (currentUser.role !== 'admin') {
+        // Ẩn panel thêm bài toán
+        const leftPanel = document.getElementById('leftPanel');
+        if (leftPanel) leftPanel.style.display = 'none';
+
+        // Mở rộng bảng ra toàn bộ
+        const tablePanel = document.getElementById('tablePanel');
+        if (tablePanel) {
+            tablePanel.classList.remove('xl:col-span-3');
+            tablePanel.classList.add('xl:col-span-4');
+        }
+    }
 
     loadData();
 };
