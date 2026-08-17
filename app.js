@@ -22,7 +22,6 @@ window.logout = function () {
 };
 
 // ================= CẤU HÌNH API =================
-const URL_MASTER_SHEET = 'https://docs.google.com/spreadsheets/d/1oyWC0Z12SjiAVH8P023HjQtnHFprKFCQgmBCqqytZW0/edit?gid=0#gid=0';
 const URL_GET_LIST = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/1981ca71-5359-43d7-94a4-aef5615653ea';
 const URL_POST_RUN = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/luong-chuc-nang';
 const URL_POST_ADD = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/7dea3b89-0dcf-4a98-b60b-191bdcb78e67';
@@ -31,7 +30,6 @@ const URL_POST_DELETE = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/xoa-
 const URL_POST_UPDATE_STATUS = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/trang-thai';
 const URL_POST_TRANSFER = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/chuyen-giao';
 
-document.getElementById('btnOpenSheet').href = URL_MASTER_SHEET;
 
 let dataRows = [];
 let addMode = 'manual';
@@ -41,7 +39,7 @@ let taskStartTime = {};
 
 function startPollingIfNeeded() {
     if (pollingTimer) return;
-    
+
     pollingTimer = setInterval(async () => {
         if (processingTasks.length === 0) {
             clearInterval(pollingTimer);
@@ -49,24 +47,24 @@ function startPollingIfNeeded() {
             return;
         }
 
-        await loadData(); 
+        await loadData();
 
         const now = Date.now();
         let newlyFinished = [];
         let newlyErrored = [];
         let newlyTimeout = [];
-        
+
         processingTasks.forEach(tenBaiToan => {
             const row = dataRows.find(r => getColVal(r, 'Bài toán') === tenBaiToan);
             if (row) {
                 const currentStatus = getColVal(row, 'Trạng thái') || '';
                 const isDone = currentStatus === 'Đã xong';
                 const isError = currentStatus.toLowerCase().includes('lỗi') || currentStatus.toLowerCase().includes('thất bại') || currentStatus.toLowerCase().includes('error');
-                
+
                 if (isDone) {
                     newlyFinished.push(tenBaiToan);
                 } else if (isError) {
-                    newlyErrored.push({ten: tenBaiToan, status: currentStatus});
+                    newlyErrored.push({ ten: tenBaiToan, status: currentStatus });
                 } else if (now - (taskStartTime[tenBaiToan] || now) > 180000) { // 3 mins timeout
                     newlyTimeout.push(tenBaiToan);
                 }
@@ -75,12 +73,12 @@ function startPollingIfNeeded() {
                 newlyTimeout.push(tenBaiToan);
             }
         });
-        
+
         const toRemove = [...newlyFinished, ...newlyErrored.map(e => e.ten), ...newlyTimeout];
         if (toRemove.length > 0) {
             processingTasks = processingTasks.filter(t => !toRemove.includes(t));
-            renderTable(); 
-            
+            renderTable();
+
             if (newlyFinished.length > 0) {
                 alert(`🎉 XUẤT SẮC! Đã phân tích xong: ${newlyFinished.join(', ')}`);
             }
