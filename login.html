@@ -58,7 +58,7 @@
                         <i data-lucide="user"
                             class="w-5 h-5 text-slate-400 group-focus-within:text-blue-500 transition-colors"></i>
                     </div>
-                    <input type="text" id="username" required
+                    <input type="text" id="username" name="username" autocomplete="username" required
                         class="group outline-none block w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all font-medium"
                         placeholder="Tên đăng nhập">
                 </div>
@@ -68,13 +68,14 @@
                 <label class="block text-xs font-bold text-slate-600 uppercase mb-1.5 tracking-wide">Mật khẩu</label>
                 <div class="relative">
                     <i data-lucide="lock" class="absolute left-4 top-3 w-5 h-5 text-slate-400"></i>
-                    <input type="password" id="password" required
+                    <input type="password" id="password" name="password" autocomplete="current-password" required
                         class="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
                         placeholder="Nhập mật khẩu">
                 </div>
             </div>
 
             <div id="errorMessage"
+                role="alert" aria-live="polite"
                 class="hidden text-red-500 text-sm font-semibold text-center bg-red-50 py-2 rounded-lg border border-red-100">
                 Sai tài khoản hoặc mật khẩu!
             </div>
@@ -90,10 +91,10 @@
 
     <!-- Gọi hàm khởi tạo icon Lucide -->
     <script>
-        lucide.createIcons();
+        if (window.lucide) window.lucide.createIcons();
     </script>
     <!-- SCRIPT ĐĂNG NHẬP -->
-    <script src="login.js?v=2"></script>
+    <script src="login.js?v=4"></script>
 </body>
 
 </html>

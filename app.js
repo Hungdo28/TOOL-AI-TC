@@ -1,20 +1,32 @@
 // ================= KIỂM TRA ĐĂNG NHẬP =================
 const currentUserJson = localStorage.getItem('currentUser');
 if (!currentUserJson) {
-    window.location.href = 'login.html';
+    window.location.replace('login.html');
 }
 let currentUser = { role: 'viewer', fullName: 'Khách' };
+let hasValidSession = false;
 if (currentUserJson) {
     try {
         const parsedUser = JSON.parse(currentUserJson);
-        if (!parsedUser || typeof parsedUser !== 'object' || !parsedUser.username) {
+        if (
+            !parsedUser
+            || typeof parsedUser !== 'object'
+            || typeof parsedUser.username !== 'string'
+            || !parsedUser.username.trim()
+            || !['admin', 'viewer'].includes(parsedUser.role)
+        ) {
             throw new Error('Dữ liệu đăng nhập không hợp lệ');
         }
-        currentUser = parsedUser;
+        currentUser = {
+            username: parsedUser.username.trim(),
+            role: parsedUser.role,
+            fullName: typeof parsedUser.fullName === 'string' ? parsedUser.fullName : parsedUser.username.trim()
+        };
+        hasValidSession = true;
     } catch (error) {
         console.error('Không thể đọc thông tin đăng nhập:', error);
         localStorage.removeItem('currentUser');
-        window.location.href = 'login.html';
+        window.location.replace('login.html');
     }
 }
 
@@ -30,9 +42,15 @@ if (window.supabase) {
 window.logout = function () {
     if (confirm('Bạn có chắc chắn muốn thoát?')) {
         localStorage.removeItem('currentUser');
-        window.location.href = 'login.html';
+        window.location.replace('login.html');
     }
 };
+
+function requireAdmin() {
+    if (currentUser.role === 'admin') return true;
+    alert('❌ Bạn không có quyền thực hiện thao tác này.');
+    return false;
+}
 
 // ================= CẤU HÌNH API =================
 const URL_GET_LIST = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/1981ca71-5359-43d7-94a4-aef5615653ea';
@@ -42,6 +60,10 @@ const URL_POST_EDIT = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/sua-ta
 const URL_POST_DELETE = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/xoa-tai-lieu';
 const URL_POST_UPDATE_STATUS = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/trang-thai';
 const URL_POST_TRANSFER = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/chuyen-giao';
+const REQUEST_TIMEOUT_MS = 30000;
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
+const MAX_TOTAL_FILE_SIZE = 50 * 1024 * 1024;
+const ALLOWED_FILE_EXTENSIONS = new Set(['doc', 'docx', 'xls', 'xlsx', 'pdf', 'txt']);
 
 
 let dataRows = [];
@@ -127,6 +149,34 @@ const getColVal = (row, colName) => {
     return key && row[key] ? row[key] : '';
 };
 
+function isValidHttpUrl(value) {
+    try {
+        const parsedUrl = new URL(String(value).trim());
+        return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:';
+    } catch (_) {
+        return false;
+    }
+}
+
+function splitHttpLinks(value) {
+    if (!value) return [];
+    return String(value)
+        .split(/[\n\s]+/)
+        .map(url => url.trim())
+        .filter(isValidHttpUrl);
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+        return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+
 function setAddMode(mode) {
     addMode = mode;
 
@@ -169,12 +219,12 @@ async function loadData() {
     const tbody = document.getElementById('tableBody');
 
     if (!pollingTimer) {
-        tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-10 text-center text-slate-500"><div class="flex flex-col items-center gap-2"><i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i> Đang tải dữ liệu...</div></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-10 text-center text-slate-500"><div class="flex flex-col items-center gap-2"><i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i> Đang tải dữ liệu...</div></td></tr>';
         if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 
     try {
-        const res = await fetch(URL_GET_LIST + '?t=' + new Date().getTime());
+        const res = await fetchWithTimeout(URL_GET_LIST + '?t=' + new Date().getTime());
         if (!res.ok) throw new Error('Network error');
 
         const responseData = await res.json();
@@ -188,7 +238,7 @@ async function loadData() {
     } catch (err) {
         console.error(err);
         if (!pollingTimer) {
-            tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-10 text-center text-red-500"><div class="flex flex-col items-center gap-2"><i data-lucide="alert-circle" class="w-5 h-5"></i> Lỗi kết nối n8n.</div></td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-10 text-center text-red-500"><div class="flex flex-col items-center gap-2"><i data-lucide="alert-circle" class="w-5 h-5"></i> Lỗi kết nối n8n.</div></td></tr>`;
             if (typeof lucide !== 'undefined') lucide.createIcons();
         }
         return false;
@@ -245,14 +295,6 @@ function renderTable() {
             return clean.length > maxLength ? clean.slice(0, maxLength - 1) + '…' : clean;
         };
 
-        const splitLinks = (linkStr) => {
-            if (!linkStr) return [];
-            return String(linkStr)
-                .split(/[\n\s]+/)
-                .map(url => url.trim())
-                .filter(url => url.startsWith('http'));
-        };
-
         const getLinkIcon = (url = '', type = '') => {
             const lowerUrl = String(url).toLowerCase();
             if (type === 'testcase' || lowerUrl.includes('spreadsheets')) return '<i data-lucide="table" class="w-4 h-4 text-emerald-600"></i>';
@@ -269,7 +311,7 @@ function renderTable() {
         };
 
         const makeLink = (linkStr, tenBaiToan, type = 'source') => {
-            const urls = splitLinks(linkStr);
+            const urls = splitHttpLinks(linkStr);
 
             if (urls.length === 0) {
                 return '<span class="text-slate-400 italic">Trống</span>';
@@ -293,6 +335,7 @@ function renderTable() {
                         <div class="flex items-center gap-1.5">
                             <a href="${escapeHtml(cleanUrl)}"
                                target="_blank"
+                               rel="noopener noreferrer"
                                title="${escapeHtml(title)}"
                                class="inline-flex max-w-[220px] items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200/80 hover:border-blue-300 hover:bg-blue-50/50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-300 text-xs font-semibold text-slate-700">
                                 <span class="shrink-0 text-sm">${icon}</span>
@@ -379,6 +422,8 @@ function searchTasks() {
 async function addDocument(e) {
     e.preventDefault();
 
+    if (!requireAdmin()) return;
+
     const btnAdd = document.getElementById('btnAdd');
     btnAdd.innerText = 'Đang lưu...';
     btnAdd.disabled = true;
@@ -407,6 +452,11 @@ async function addDocument(e) {
                 return;
             }
 
+            if (newUrlsArray.some(url => !isValidHttpUrl(url))) {
+                alert("❌ Danh sách có URL không hợp lệ. Chỉ chấp nhận địa chỉ http hoặc https.");
+                return;
+            }
+
             formData.append('urlGoc', newUrlsArray.join('\n'));
         } else {
             const files = document.getElementById('localFiles').files;
@@ -416,15 +466,30 @@ async function addDocument(e) {
                 return;
             }
 
+            const invalidFile = Array.from(files).find(file => {
+                const extension = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : '';
+                return !ALLOWED_FILE_EXTENSIONS.has(extension) || file.size > MAX_FILE_SIZE;
+            });
+            const totalSize = Array.from(files).reduce((sum, file) => sum + file.size, 0);
+
+            if (invalidFile) {
+                alert(`❌ File "${invalidFile.name}" sai định dạng hoặc lớn hơn 20 MB.`);
+                return;
+            }
+            if (totalSize > MAX_TOTAL_FILE_SIZE) {
+                alert('❌ Tổng dung lượng file không được vượt quá 50 MB.');
+                return;
+            }
+
             for (const file of files) {
                 formData.append('files', file);
             }
         }
 
-        const res = await fetch(URL_POST_ADD, {
+        const res = await fetchWithTimeout(URL_POST_ADD, {
             method: 'POST',
             body: formData
-        });
+        }, 60000);
 
         if (res.ok) {
             resetAddForm();
@@ -455,6 +520,8 @@ function addNewLinkInputForAdd() {
 
 // 4. XÓA TÀI LIỆU
 async function deleteDocument(index) {
+    if (!requireAdmin()) return;
+
     const row = dataRows[index];
     const tenBaiToan = getColVal(row, 'Bài toán') || '';
 
@@ -464,7 +531,7 @@ async function deleteDocument(index) {
     document.getElementById('loadingOverlay').classList.remove('hidden');
 
     try {
-        const res = await fetch(URL_POST_DELETE, {
+        const res = await fetchWithTimeout(URL_POST_DELETE, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ baiToan: tenBaiToan })
@@ -487,6 +554,8 @@ async function deleteDocument(index) {
 let currentTransferTask = '';
 
 async function openTransferModal(index) {
+    if (!requireAdmin()) return;
+
     const row = dataRows[index];
     currentTransferTask = getColVal(row, 'Bài toán') || '';
 
@@ -500,7 +569,7 @@ async function openTransferModal(index) {
 
     try {
         if (!supabaseClient) throw new Error("Chưa khởi tạo Supabase");
-        const { data, error } = await supabaseClient.from('users').select('*');
+        const { data, error } = await supabaseClient.from('users').select('username, role');
         if (error) throw error;
 
         select.innerHTML = '<option value="">-- Chọn người nhận --</option>';
@@ -508,7 +577,7 @@ async function openTransferModal(index) {
             if (u.username !== currentUser.username) {
                 const opt = document.createElement('option');
                 opt.value = u.username;
-                opt.text = u.full_name ? `${u.full_name} (${u.username})` : u.username;
+                opt.text = u.username;
                 select.appendChild(opt);
             }
         });
@@ -532,6 +601,8 @@ function closeTransferModal() {
 }
 
 async function confirmTransfer() {
+    if (!requireAdmin()) return;
+
     const select = document.getElementById('transferUserSelect');
     const newUser = select.value;
     if (!newUser) return;
@@ -541,7 +612,7 @@ async function confirmTransfer() {
     document.getElementById('loadingOverlay').classList.remove('hidden');
 
     try {
-        const res = await fetch(URL_POST_TRANSFER, {
+        const res = await fetchWithTimeout(URL_POST_TRANSFER, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -568,6 +639,8 @@ let currentEditOldName = '';
 let currentEditOldUrl = '';
 
 function editDocument(index) {
+    if (!requireAdmin()) return;
+
     const row = dataRows[index];
 
     currentEditOldName = getColVal(row, 'Bài toán') || '';
@@ -602,6 +675,8 @@ function closeEditModal() {
 }
 
 document.getElementById('btnSaveEdit').onclick = async function () {
+    if (!requireAdmin()) return;
+
     const newTen = document.getElementById('editTenBaiToan').value.trim();
 
     const urlInputs = document.querySelectorAll('.url-input-item');
@@ -616,6 +691,11 @@ document.getElementById('btnSaveEdit').onclick = async function () {
         return;
     }
 
+    if (newUrlsArray.some(url => !isValidHttpUrl(url))) {
+        alert("❌ Danh sách có URL không hợp lệ. Chỉ chấp nhận địa chỉ http hoặc https.");
+        return;
+    }
+
     if (newTen === currentEditOldName && newUrl === currentEditOldUrl) {
         closeEditModal();
         return;
@@ -626,7 +706,7 @@ document.getElementById('btnSaveEdit').onclick = async function () {
     document.getElementById('loadingOverlay').classList.remove('hidden');
 
     try {
-        const res = await fetch(URL_POST_EDIT, {
+        const res = await fetchWithTimeout(URL_POST_EDIT, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -751,7 +831,7 @@ async function doRunSingle(tenBaiToan, prompt1, prompt2, mode) {
     };
 
     try {
-        const res = await fetch(URL_POST_RUN, {
+        const res = await fetchWithTimeout(URL_POST_RUN, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -798,7 +878,7 @@ async function doRunMultiple(selectedTasks, prompt1, prompt2) {
     };
 
     try {
-        const res = await fetch(URL_POST_RUN, {
+        const res = await fetchWithTimeout(URL_POST_RUN, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -826,6 +906,11 @@ async function doRunMultiple(selectedTasks, prompt1, prompt2) {
 }
 
 async function updateStatus(index, newStatus) {
+    if (!requireAdmin()) {
+        renderTable();
+        return;
+    }
+
     const row = dataRows[index];
     const tenBaiToan = getColVal(row, 'Bài toán') || '';
 
@@ -834,13 +919,16 @@ async function updateStatus(index, newStatus) {
         return;
     }
 
-    if (!confirm(`Đổi trạng thái "${tenBaiToan}" thành "${newStatus}"?`)) return;
+    if (!confirm(`Đổi trạng thái "${tenBaiToan}" thành "${newStatus}"?`)) {
+        renderTable();
+        return;
+    }
 
     document.getElementById('loadingText').innerText = 'Đang cập nhật trạng thái...';
     document.getElementById('loadingOverlay').classList.remove('hidden');
 
     try {
-        const res = await fetch(URL_POST_UPDATE_STATUS, {
+        const res = await fetchWithTimeout(URL_POST_UPDATE_STATUS, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -853,9 +941,11 @@ async function updateStatus(index, newStatus) {
             await loadData();
             alert("✅ Đã cập nhật trạng thái!");
         } else {
+            renderTable();
             alert("❌ Lỗi n8n khi cập nhật trạng thái.");
         }
     } catch (err) {
+        renderTable();
         alert("❌ Không thể kết nối webhook cập nhật trạng thái.");
     } finally {
         document.getElementById('loadingOverlay').classList.add('hidden');
@@ -874,10 +964,10 @@ function downloadSingleTaskFiles(index) {
     const linkPT = getColVal(row, 'Link tài liệu phân tích') || '';
 
     const allLinks = [
-        ...urlGoc.split(/[\n\s]+/),
-        ...linkTC.split(/[\n\s]+/),
-        ...linkPT.split(/[\n\s]+/)
-    ].filter(url => url.startsWith('http'));
+        ...splitHttpLinks(urlGoc),
+        ...splitHttpLinks(linkTC),
+        ...splitHttpLinks(linkPT)
+    ];
 
     if (allLinks.length === 0) {
         alert(`⚠️ Không có link tài liệu hợp lệ để tải cho: "${tenBaiToan}"`);
@@ -924,6 +1014,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const aiPanel = document.getElementById("aiPanel");
     const closeAI = document.getElementById("closeAI");
 
+    if (!aiToggle || !aiPanel || !closeAI) return;
+
     aiToggle.addEventListener("click", () => {
         aiPanel.classList.remove("hidden");
         aiPanel.classList.add("flex");
@@ -961,7 +1053,9 @@ window.askAIToReview = function (url) {
     });
 };
 
-window.onload = () => {
+window.addEventListener('load', () => {
+    if (!hasValidSession) return;
+
     // Hiển thị thông tin user trên Header
     const displayFullName = document.getElementById('displayFullName');
     const displayRole = document.getElementById('displayRole');
@@ -982,4 +1076,4 @@ window.onload = () => {
     }
 
     loadData();
-};
+});
