@@ -3,7 +3,20 @@ const currentUserJson = localStorage.getItem('currentUser');
 if (!currentUserJson) {
     window.location.href = 'login.html';
 }
-const currentUser = currentUserJson ? JSON.parse(currentUserJson) : { role: 'viewer', fullName: 'Khách' };
+let currentUser = { role: 'viewer', fullName: 'Khách' };
+if (currentUserJson) {
+    try {
+        const parsedUser = JSON.parse(currentUserJson);
+        if (!parsedUser || typeof parsedUser !== 'object' || !parsedUser.username) {
+            throw new Error('Dữ liệu đăng nhập không hợp lệ');
+        }
+        currentUser = parsedUser;
+    } catch (error) {
+        console.error('Không thể đọc thông tin đăng nhập:', error);
+        localStorage.removeItem('currentUser');
+        window.location.href = 'login.html';
+    }
+}
 
 // Khởi tạo Supabase để lấy danh sách User cho form Chuyển giao
 const SUPABASE_URL = 'https://zrwlzthteixjxdhsevkh.supabase.co';
@@ -40,14 +53,19 @@ let taskStartTime = {};
 function startPollingIfNeeded() {
     if (pollingTimer) return;
 
-    pollingTimer = setInterval(async () => {
+    const poll = async () => {
         if (processingTasks.length === 0) {
-            clearInterval(pollingTimer);
             pollingTimer = null;
             return;
         }
 
-        await loadData();
+        const loadedSuccessfully = await loadData();
+
+        // Không kết luận trạng thái hoặc timeout dựa trên dữ liệu cũ khi API lỗi.
+        if (!loadedSuccessfully) {
+            pollingTimer = setTimeout(poll, 10000);
+            return;
+        }
 
         const now = Date.now();
         let newlyFinished = [];
@@ -77,6 +95,7 @@ function startPollingIfNeeded() {
         const toRemove = [...newlyFinished, ...newlyErrored.map(e => e.ten), ...newlyTimeout];
         if (toRemove.length > 0) {
             processingTasks = processingTasks.filter(t => !toRemove.includes(t));
+            toRemove.forEach(taskName => delete taskStartTime[taskName]);
             renderTable();
 
             if (newlyFinished.length > 0) {
@@ -90,10 +109,20 @@ function startPollingIfNeeded() {
                 alert(`⏱️ Timeout: Quá 3 phút không phản hồi từ n8n cho:\n${newlyTimeout.join(', ')}\nCó thể n8n bị lỗi rate limit. Anh hãy kiểm tra lại n8n.`);
             }
         }
-    }, 10000);
+
+        if (processingTasks.length > 0) {
+            pollingTimer = setTimeout(poll, 10000);
+        } else {
+            pollingTimer = null;
+        }
+    };
+
+    // Đánh dấu timer ngay để các lần gọi đồng thời không tạo nhiều vòng polling.
+    pollingTimer = setTimeout(poll, 10000);
 }
 
 const getColVal = (row, colName) => {
+    if (!row || typeof row !== 'object') return '';
     const key = Object.keys(row).find(k => k.trim() === colName);
     return key && row[key] ? row[key] : '';
 };
@@ -148,14 +177,21 @@ async function loadData() {
         const res = await fetch(URL_GET_LIST + '?t=' + new Date().getTime());
         if (!res.ok) throw new Error('Network error');
 
-        dataRows = await res.json();
+        const responseData = await res.json();
+        if (!Array.isArray(responseData)) {
+            throw new Error('Dữ liệu danh sách từ n8n không hợp lệ');
+        }
+
+        dataRows = responseData;
         renderTable();
+        return true;
     } catch (err) {
         console.error(err);
         if (!pollingTimer) {
             tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-10 text-center text-red-500"><div class="flex flex-col items-center gap-2"><i data-lucide="alert-circle" class="w-5 h-5"></i> Lỗi kết nối n8n.</div></td></tr>`;
             if (typeof lucide !== 'undefined') lucide.createIcons();
         }
+        return false;
     }
 }
 
@@ -250,7 +286,7 @@ function renderTable() {
 
                 let extraBtn = '';
                 if (type === 'testcase') {
-                    extraBtn = `<button onclick="askAIToReview('${escapeHtml(cleanUrl)}')" class="shrink-0 px-2.5 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-semibold transition-all shadow-sm flex items-center gap-1 border border-blue-200" title="Nhờ AI Review"><i data-lucide="zap" class="w-3 h-3 fill-blue-600 text-blue-600"></i> Review</button>`;
+                    extraBtn = `<button type="button" data-review-url="${escapeHtml(cleanUrl)}" class="review-testcase-btn shrink-0 px-2.5 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-semibold transition-all shadow-sm flex items-center gap-1 border border-blue-200" title="Nhờ AI Review"><i data-lucide="zap" class="w-3 h-3 fill-blue-600 text-blue-600"></i> Review</button>`;
                 }
 
                 return `
@@ -483,7 +519,11 @@ async function openTransferModal(index) {
         };
     } catch (err) {
         console.error("Lỗi lấy user:", err);
-        select.innerHTML = `<option value="">Lỗi: ${err.message || JSON.stringify(err)}</option>`;
+        select.replaceChildren();
+        const errorOption = document.createElement('option');
+        errorOption.value = '';
+        errorOption.textContent = `Lỗi: ${err.message || JSON.stringify(err)}`;
+        select.appendChild(errorOption);
     }
 }
 
@@ -618,12 +658,27 @@ function closeRunAIModal() {
     document.getElementById('runAIModal').classList.add('hidden');
 }
 
+function setRunAIModalTitle(title) {
+    const titleElement = document.getElementById('runAIModalTitle');
+    titleElement.replaceChildren();
+
+    const icon = document.createElement('i');
+    icon.setAttribute('data-lucide', 'bot');
+    icon.className = 'w-5 h-5 text-blue-600 inline-block mr-2';
+
+    titleElement.appendChild(icon);
+    titleElement.appendChild(document.createTextNode(title));
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
 function runSingleTask(index) {
     const row = dataRows[index];
+    if (!row) return;
+
     currentRunTask = getColVal(row, 'Bài toán');
     currentRunMode = 'single';
-    document.getElementById('runAIModalTitle').innerHTML = `<i data-lucide="bot" class="w-5 h-5 text-blue-600 inline-block mr-2"></i> Chạy AI - ${currentRunTask}`;
-    if (typeof lucide !== 'undefined') lucide.createIcons();
+    setRunAIModalTitle(`Chạy AI - ${currentRunTask}`);
     document.getElementById('runAIModal').classList.remove('hidden');
 }
 
@@ -631,8 +686,7 @@ function openPromptModal(taskName, type) {
     currentRunTask = taskName;
     currentRunMode = type; // 'phan_tich' or 'testcase'
     const typeLabel = type === 'phan_tich' ? 'Phân tích' : 'Testcase';
-    document.getElementById('runAIModalTitle').innerHTML = `<i data-lucide="bot" class="w-5 h-5 text-blue-600 inline-block mr-2"></i> Chạy AI (${typeLabel}) - ${currentRunTask}`;
-    if (typeof lucide !== 'undefined') lucide.createIcons();
+    setRunAIModalTitle(`Chạy AI (${typeLabel}) - ${currentRunTask}`);
     document.getElementById('runAIModal').classList.remove('hidden');
 }
 
@@ -650,10 +704,15 @@ function runSelectedTasks() {
         return;
     }
 
-    currentRunTasksList = selectedTasks;
+    const availableTasks = selectedTasks.filter(taskName => !processingTasks.includes(taskName));
+    if (availableTasks.length === 0) {
+        alert('⚠️ Các bài toán đã chọn đều đang được xử lý.');
+        return;
+    }
+
+    currentRunTasksList = availableTasks;
     currentRunMode = 'multiple';
-    document.getElementById('runAIModalTitle').innerHTML = `<i data-lucide="bot" class="w-5 h-5 text-blue-600 inline-block mr-2"></i> Chạy AI - ${selectedTasks.length} bài toán`;
-    if (typeof lucide !== 'undefined') lucide.createIcons();
+    setRunAIModalTitle(`Chạy AI - ${availableTasks.length} bài toán`);
     document.getElementById('runAIModal').classList.remove('hidden');
 }
 
@@ -672,6 +731,11 @@ async function executeRunAI() {
 
 // 7. THỰC THI CHẠY AI (API CALL)
 async function doRunSingle(tenBaiToan, prompt1, prompt2, mode) {
+    if (!tenBaiToan || processingTasks.includes(tenBaiToan)) {
+        alert('⚠️ Bài toán này đang được xử lý. Vui lòng chờ hoàn thành.');
+        return;
+    }
+
     taskStartTime[tenBaiToan] = Date.now();
     processingTasks.push(tenBaiToan);
     renderTable();
@@ -700,11 +764,13 @@ async function doRunSingle(tenBaiToan, prompt1, prompt2, mode) {
             startPollingIfNeeded();
         } else {
             processingTasks = processingTasks.filter(item => item !== tenBaiToan);
+            delete taskStartTime[tenBaiToan];
             renderTable();
             alert("❌ Lỗi: n8n từ chối yêu cầu.");
         }
     } catch (err) {
         processingTasks = processingTasks.filter(item => item !== tenBaiToan);
+        delete taskStartTime[tenBaiToan];
         renderTable();
         document.getElementById('loadingOverlay').classList.add('hidden');
         alert("❌ Lỗi kết nối n8n.");
@@ -712,6 +778,12 @@ async function doRunSingle(tenBaiToan, prompt1, prompt2, mode) {
 }
 
 async function doRunMultiple(selectedTasks, prompt1, prompt2) {
+    selectedTasks = [...new Set(selectedTasks)].filter(taskName => taskName && !processingTasks.includes(taskName));
+    if (selectedTasks.length === 0) {
+        alert('⚠️ Không có bài toán hợp lệ để chạy.');
+        return;
+    }
+
     selectedTasks.forEach(t => taskStartTime[t] = Date.now());
     processingTasks.push(...selectedTasks);
     renderTable();
@@ -740,11 +812,13 @@ async function doRunMultiple(selectedTasks, prompt1, prompt2) {
             startPollingIfNeeded();
         } else {
             processingTasks = processingTasks.filter(item => !selectedTasks.includes(item));
+            selectedTasks.forEach(taskName => delete taskStartTime[taskName]);
             renderTable();
             alert("❌ Lỗi: n8n từ chối yêu cầu.");
         }
     } catch (err) {
         processingTasks = processingTasks.filter(item => !selectedTasks.includes(item));
+        selectedTasks.forEach(taskName => delete taskStartTime[taskName]);
         renderTable();
         document.getElementById('loadingOverlay').classList.add('hidden');
         alert("❌ Lỗi kết nối n8n.");
@@ -791,9 +865,9 @@ async function updateStatus(index, newStatus) {
 // 8. TẢI FILE CHO TỪNG BÀI TOÁN
 function downloadSingleTaskFiles(index) {
     const row = dataRows[index];
-    const tenBaiToan = getColVal(row, 'Bài toán') || 'bài toán này';
-
     if (!row) return;
+
+    const tenBaiToan = getColVal(row, 'Bài toán') || 'bài toán này';
 
     const urlGoc = getColVal(row, 'URL') || '';
     const linkTC = getColVal(row, 'Link Testcase') || '';
@@ -858,6 +932,14 @@ document.addEventListener("DOMContentLoaded", () => {
     closeAI.addEventListener("click", () => {
         aiPanel.classList.add("hidden");
         aiPanel.classList.remove("flex");
+    });
+
+    document.addEventListener('click', (event) => {
+        const reviewButton = event.target.closest('.review-testcase-btn');
+        if (!reviewButton) return;
+
+        const reviewUrl = reviewButton.dataset.reviewUrl;
+        if (reviewUrl) window.askAIToReview(reviewUrl);
     });
 });
 
