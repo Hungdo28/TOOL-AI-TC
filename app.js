@@ -61,6 +61,7 @@ const URL_POST_DELETE = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/xoa-
 const URL_POST_UPDATE_STATUS = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/trang-thai';
 const URL_POST_TRANSFER = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/chuyen-giao';
 const REQUEST_TIMEOUT_MS = 30000;
+const PROCESSING_TIMEOUT_MS = 60 * 60 * 1000;
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 const MAX_TOTAL_FILE_SIZE = 50 * 1024 * 1024;
 const ALLOWED_FILE_EXTENSIONS = new Set(['doc', 'docx', 'xls', 'xlsx', 'pdf', 'txt']);
@@ -71,9 +72,83 @@ let addMode = 'manual';
 let pollingTimer = null;
 let processingTasks = [];
 let taskStartTime = {};
+let runContextByTask = {};
+let testcaseReviewQueue = [];
+let activeTestcaseReview = null;
+let taskExecutionInfo = {};
+let elapsedTimeTimer = null;
+let toastTimer = null;
 
-function startPollingIfNeeded() {
-    if (pollingTimer) return;
+function formatElapsedTime(startTime) {
+    const elapsedSeconds = Math.max(0, Math.floor((Date.now() - startTime) / 1000));
+    const hours = Math.floor(elapsedSeconds / 3600);
+    const minutes = Math.floor((elapsedSeconds % 3600) / 60);
+    const seconds = elapsedSeconds % 60;
+
+    return hours > 0
+        ? `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+        : `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+function updateRunningTaskTimers() {
+    document.querySelectorAll('.task-elapsed-time').forEach(element => {
+        const startTime = taskStartTime[element.dataset.taskName];
+        if (startTime) element.textContent = formatElapsedTime(startTime);
+    });
+
+    if (processingTasks.length === 0 && elapsedTimeTimer) {
+        clearInterval(elapsedTimeTimer);
+        elapsedTimeTimer = null;
+    }
+}
+
+function startElapsedTimeUpdates() {
+    updateRunningTaskTimers();
+    if (!elapsedTimeTimer) {
+        elapsedTimeTimer = setInterval(updateRunningTaskTimers, 1000);
+    }
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.getElementById('appToast');
+    const toastMessage = document.getElementById('appToastMessage');
+    if (!toast || !toastMessage) return;
+
+    const colorClasses = type === 'success'
+        ? ['border-emerald-200', 'bg-emerald-50', 'text-emerald-800']
+        : ['border-blue-200', 'bg-blue-50', 'text-blue-800'];
+
+    toast.className = `fixed top-5 left-5 right-5 sm:left-auto sm:w-full z-[80] max-w-sm rounded-xl border shadow-lg px-4 py-3 transition-all ${colorClasses.join(' ')}`;
+    toastMessage.textContent = message;
+    toast.classList.remove('hidden');
+
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.add('hidden'), 6000);
+}
+
+async function syncExecutionMetadataFromResponse(response, taskNames) {
+    try {
+        const responseBody = await response.clone().json();
+        const data = Array.isArray(responseBody) ? responseBody[0] : responseBody;
+        if (!data || typeof data !== 'object') return;
+
+        const executionId = data.executionId || data.execution_id || data.execution?.id || '';
+        const startedAtValue = data.startedAt || data.started_at || data.execution?.startedAt || '';
+        const n8nStartedAt = Date.parse(startedAtValue);
+
+        taskNames.forEach(taskName => {
+            taskExecutionInfo[taskName] = { executionId, startedAt: startedAtValue };
+            if (Number.isFinite(n8nStartedAt)) taskStartTime[taskName] = n8nStartedAt;
+        });
+        updateRunningTaskTimers();
+    } catch (_) {
+        // Webhook cũ không trả JSON metadata: tiếp tục dùng giờ bắt đầu tại frontend.
+    }
+}
+
+function startPollingIfNeeded(runOnce = false) {
+    // Đã tắt auto polling GET list. Chỉ chạy khi người dùng chủ động bấm Làm mới.
+    if (!runOnce || pollingTimer) return;
 
     const poll = async () => {
         if (processingTasks.length === 0) {
@@ -85,7 +160,6 @@ function startPollingIfNeeded() {
 
         // Không kết luận trạng thái hoặc timeout dựa trên dữ liệu cũ khi API lỗi.
         if (!loadedSuccessfully) {
-            pollingTimer = setTimeout(poll, 10000);
             return;
         }
 
@@ -105,7 +179,7 @@ function startPollingIfNeeded() {
                     newlyFinished.push(tenBaiToan);
                 } else if (isError) {
                     newlyErrored.push({ ten: tenBaiToan, status: currentStatus });
-                } else if (now - (taskStartTime[tenBaiToan] || now) > 180000) { // 3 mins timeout
+                } else if (now - (taskStartTime[tenBaiToan] || now) > PROCESSING_TIMEOUT_MS) {
                     newlyTimeout.push(tenBaiToan);
                 }
             } else {
@@ -117,30 +191,50 @@ function startPollingIfNeeded() {
         const toRemove = [...newlyFinished, ...newlyErrored.map(e => e.ten), ...newlyTimeout];
         if (toRemove.length > 0) {
             processingTasks = processingTasks.filter(t => !toRemove.includes(t));
-            toRemove.forEach(taskName => delete taskStartTime[taskName]);
+            toRemove.forEach(taskName => {
+                delete taskStartTime[taskName];
+                delete taskExecutionInfo[taskName];
+            });
             renderTable();
 
             if (newlyFinished.length > 0) {
-                alert(`🎉 XUẤT SẮC! Đã phân tích xong: ${newlyFinished.join(', ')}`);
+                const tasksNeedingReview = newlyFinished.filter(taskName => {
+                    const context = runContextByTask[taskName];
+                    return context && context.requiresTestcaseReview;
+                });
+                const tasksWithoutReview = newlyFinished.filter(taskName => !tasksNeedingReview.includes(taskName));
+
+                tasksNeedingReview.forEach(queueTestcaseReview);
+                tasksWithoutReview.forEach(taskName => delete runContextByTask[taskName]);
+
+                if (tasksWithoutReview.length > 0) {
+                    alert(`🎉 XUẤT SẮC! Đã xử lý xong: ${tasksWithoutReview.join(', ')}`);
+                }
             }
             if (newlyErrored.length > 0) {
                 const errMsgs = newlyErrored.map(e => `"${e.ten}": ${e.status}`).join('\n');
                 alert(`❌ Lỗi xử lý:\n${errMsgs}`);
             }
             if (newlyTimeout.length > 0) {
-                alert(`⏱️ Timeout: Quá 3 phút không phản hồi từ n8n cho:\n${newlyTimeout.join(', ')}\nCó thể n8n bị lỗi rate limit. Anh hãy kiểm tra lại n8n.`);
+                alert(`⏱️ Timeout: Quá 60 phút không phản hồi từ n8n cho:\n${newlyTimeout.join(', ')}\nVui lòng kiểm tra execution tương ứng trên n8n.`);
             }
+
+            [...newlyErrored.map(item => item.ten), ...newlyTimeout]
+                .forEach(taskName => delete runContextByTask[taskName]);
         }
 
-        if (processingTasks.length > 0) {
-            pollingTimer = setTimeout(poll, 10000);
-        } else {
-            pollingTimer = null;
-        }
+        pollingTimer = null;
     };
 
-    // Đánh dấu timer ngay để các lần gọi đồng thời không tạo nhiều vòng polling.
-    pollingTimer = setTimeout(poll, 10000);
+    return poll();
+}
+
+async function refreshDataManually() {
+    if (processingTasks.length > 0) {
+        await startPollingIfNeeded(true);
+    } else {
+        await loadData();
+    }
 }
 
 const getColVal = (row, colName) => {
@@ -275,8 +369,9 @@ function renderTable() {
 
         const isErrorStatus = trangThai.toLowerCase().includes('lỗi') || trangThai.toLowerCase().includes('thất bại') || trangThai.toLowerCase().includes('error');
         const isDone = trangThai === 'Đã xong';
+        const isActivelyProcessing = processingTasks.includes(ten);
 
-        if (processingTasks.includes(ten) && !isDone && !isErrorStatus) {
+        if (isActivelyProcessing) {
             trangThai = 'Đang xử lý AI...';
         }
 
@@ -364,8 +459,8 @@ function renderTable() {
                 </td>
 
                 <td class="px-4 py-5 align-top">
-                    ${(processingTasks.includes(ten) && !isDone && !isErrorStatus)
-                ? `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-600 border border-blue-100 shadow-sm"><i data-lucide="loader-2" class="w-3 h-3 animate-spin"></i> Đang xử lý...</span>`
+                    ${isActivelyProcessing
+                ? `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-600 border border-blue-100 shadow-sm" title="Thời gian xử lý được cập nhật mỗi giây"><i data-lucide="loader-2" class="w-3 h-3 animate-spin"></i><span>Đang chạy</span><span class="task-elapsed-time font-mono tabular-nums text-blue-800" data-task-name="${escapeHtml(ten)}">${formatElapsedTime(taskStartTime[ten] || Date.now())}</span></span>`
                 : (currentUser.role === 'admin'
                     ? `<select onchange="updateStatus(${originalIndex}, this.value)" class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 cursor-pointer font-semibold outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm appearance-none pr-7 relative bg-no-repeat bg-right hover:border-blue-300 ${trangThai === 'Đã xong' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : (trangThai.toLowerCase().includes('lỗi') || trangThai.toLowerCase().includes('thất bại') || trangThai.toLowerCase().includes('error') ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-600')}" style="background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2394a3b8%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E'); background-size: 8px; background-position: calc(100% - 8px) center;">
                             <option value="Chưa làm" ${trangThai === 'Chưa làm' ? 'selected' : ''}>Chưa làm</option>
@@ -398,6 +493,7 @@ function renderTable() {
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
     }
+    updateRunningTaskTimers();
 }
 
 // 2. TÌM KIẾM BÀI TOÁN
@@ -733,6 +829,179 @@ document.getElementById('btnSaveEdit').onclick = async function () {
 let currentRunMode = null; // 'single', 'multiple', 'phan_tich', 'testcase'
 let currentRunTask = null;
 let currentRunTasksList = [];
+const TESTCASE_REVIEW_SUGGESTIONS = [
+    {
+        id: 'negative',
+        label: 'Negative case',
+        prompt: 'Bổ sung ít nhất 5 negative testcase cho dữ liệu sai, thiếu dữ liệu và thao tác không hợp lệ.'
+    },
+    {
+        id: 'boundary',
+        label: 'Boundary',
+        prompt: 'Bổ sung các giá trị biên: nhỏ nhất, lớn nhất, ngay dưới biên, ngay trên biên và dữ liệu rỗng.'
+    },
+    {
+        id: 'permission',
+        label: 'Phân quyền',
+        prompt: 'Bổ sung testcase cho từng vai trò người dùng, trường hợp không có quyền và truy cập trái phép.'
+    },
+    {
+        id: 'exception',
+        label: 'Lỗi hệ thống',
+        prompt: 'Bổ sung testcase khi timeout, mất kết nối, API trả lỗi, dữ liệu không đồng bộ và người dùng thử lại.'
+    },
+    {
+        id: 'expected',
+        label: 'Expected Result',
+        prompt: 'Viết lại Expected Result cụ thể, đo lường và kiểm chứng được; tránh các mô tả chung chung như hoạt động đúng.'
+    },
+    {
+        id: 'duplicates',
+        label: 'Loại bỏ trùng lặp',
+        prompt: 'Rà soát và gộp các testcase trùng ý nghĩa, nhưng không làm mất phạm vi kiểm thử.'
+    },
+    {
+        id: 'full_regeneration',
+        label: 'Viết lại toàn bộ',
+        prompt: 'Viết lại toàn bộ bộ testcase theo một cấu trúc rõ ràng hơn, không chỉ bổ sung vài testcase vào kết quả cũ.'
+    }
+];
+let selectedTestcaseReviewSuggestions = new Set();
+
+function renderTestcaseReviewSuggestions() {
+    const container = document.getElementById('testcaseReviewSuggestions');
+    if (!container) return;
+
+    container.replaceChildren();
+    TESTCASE_REVIEW_SUGGESTIONS.forEach(suggestion => {
+        const isSelected = selectedTestcaseReviewSuggestions.has(suggestion.id);
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = isSelected
+            ? 'px-3 py-2 rounded-lg text-xs font-semibold border border-blue-300 bg-blue-50 text-blue-700 transition-all'
+            : 'px-3 py-2 rounded-lg text-xs font-semibold border border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 transition-all';
+        button.textContent = `${isSelected ? '✓ ' : '+ '}${suggestion.label}`;
+        button.setAttribute('aria-pressed', String(isSelected));
+        button.addEventListener('click', () => addTestcaseReviewSuggestion(suggestion.id));
+        container.appendChild(button);
+    });
+}
+
+function addTestcaseReviewSuggestion(suggestionId) {
+    if (selectedTestcaseReviewSuggestions.has(suggestionId)) return;
+
+    const suggestion = TESTCASE_REVIEW_SUGGESTIONS.find(item => item.id === suggestionId);
+    if (!suggestion) return;
+
+    const feedbackInput = document.getElementById('testcaseReviewFeedback');
+    const currentFeedback = feedbackInput.value.trim();
+    feedbackInput.value = `${currentFeedback}${currentFeedback ? '\n' : ''}- ${suggestion.prompt}`;
+    selectedTestcaseReviewSuggestions.add(suggestionId);
+    renderTestcaseReviewSuggestions();
+    feedbackInput.focus();
+}
+
+function clearTestcaseReviewSuggestions() {
+    selectedTestcaseReviewSuggestions.clear();
+    document.getElementById('testcaseReviewFeedback').value = '';
+    renderTestcaseReviewSuggestions();
+}
+
+function queueTestcaseReview(taskName) {
+    const row = dataRows.find(item => getColVal(item, 'Bài toán') === taskName);
+    const context = runContextByTask[taskName];
+    if (!context) return;
+
+    testcaseReviewQueue.push({
+        taskName,
+        testcaseUrls: splitHttpLinks(getColVal(row, 'Link Testcase')),
+        prompt1: context.prompt1,
+        prompt2: context.prompt2
+    });
+    openNextTestcaseReview();
+}
+
+function openNextTestcaseReview() {
+    if (activeTestcaseReview || testcaseReviewQueue.length === 0) return;
+
+    activeTestcaseReview = testcaseReviewQueue.shift();
+    document.getElementById('testcaseReviewTaskName').textContent = activeTestcaseReview.taskName;
+    document.getElementById('testcaseReviewFeedback').value = '';
+    selectedTestcaseReviewSuggestions.clear();
+    renderTestcaseReviewSuggestions();
+    document.getElementById('testcaseReviewDecision').classList.remove('hidden');
+    document.getElementById('testcaseReviewRevision').classList.add('hidden');
+
+    const linksContainer = document.getElementById('testcaseReviewLinks');
+    linksContainer.replaceChildren();
+
+    if (activeTestcaseReview.testcaseUrls.length === 0) {
+        const emptyMessage = document.createElement('p');
+        emptyMessage.className = 'text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3';
+        emptyMessage.textContent = 'Chưa tìm thấy link testcase. Bạn vẫn có thể yêu cầu AI điều chỉnh và chạy lại.';
+        linksContainer.appendChild(emptyMessage);
+    } else {
+        activeTestcaseReview.testcaseUrls.forEach((url, index) => {
+            const link = document.createElement('a');
+            link.href = url;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.className = 'inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-semibold transition-all';
+            link.textContent = activeTestcaseReview.testcaseUrls.length > 1
+                ? `Mở testcase ${index + 1}`
+                : 'Mở testcase để xem lại';
+            linksContainer.appendChild(link);
+        });
+    }
+
+    document.getElementById('testcaseReviewModal').classList.remove('hidden');
+}
+
+function approveTestcaseReview() {
+    if (!activeTestcaseReview) return;
+
+    delete runContextByTask[activeTestcaseReview.taskName];
+    activeTestcaseReview = null;
+    document.getElementById('testcaseReviewModal').classList.add('hidden');
+    openNextTestcaseReview();
+}
+
+function showTestcaseRevisionForm() {
+    document.getElementById('testcaseReviewDecision').classList.add('hidden');
+    document.getElementById('testcaseReviewRevision').classList.remove('hidden');
+    document.getElementById('testcaseReviewFeedback').focus();
+}
+
+function cancelTestcaseRevision() {
+    document.getElementById('testcaseReviewRevision').classList.add('hidden');
+    document.getElementById('testcaseReviewDecision').classList.remove('hidden');
+}
+
+async function rerunTestcaseFromReview() {
+    if (!activeTestcaseReview) return;
+
+    const feedbackInput = document.getElementById('testcaseReviewFeedback');
+    const additionalPrompt = feedbackInput.value.trim();
+    if (!additionalPrompt) {
+        feedbackInput.focus();
+        alert('⚠️ Vui lòng nhập nội dung muốn AI điều chỉnh.');
+        return;
+    }
+
+    const review = activeTestcaseReview;
+    const revisedPrompt = [
+        review.prompt2,
+        review.testcaseUrls.length > 0 ? `TESTCASE HIỆN TẠI:\n${review.testcaseUrls.join('\n')}` : '',
+        'YÊU CẦU ĐIỀU CHỈNH SAU KHI NGƯỜI DÙNG REVIEW:',
+        additionalPrompt,
+        'Các yêu cầu điều chỉnh trên là bắt buộc. Hãy đối chiếu với testcase hiện tại, cập nhật nội dung thực sự thay vì chỉ diễn đạt lại, loại bỏ testcase trùng và bảo đảm Expected Result có thể kiểm chứng.'
+    ].filter(Boolean).join('\n\n');
+
+    activeTestcaseReview = null;
+    document.getElementById('testcaseReviewModal').classList.add('hidden');
+    await doRunSingle(review.taskName, review.prompt1, revisedPrompt, 'testcase');
+    openNextTestcaseReview();
+}
 
 function closeRunAIModal() {
     document.getElementById('runAIModal').classList.add('hidden');
@@ -818,6 +1087,12 @@ async function doRunSingle(tenBaiToan, prompt1, prompt2, mode) {
 
     taskStartTime[tenBaiToan] = Date.now();
     processingTasks.push(tenBaiToan);
+    startElapsedTimeUpdates();
+    runContextByTask[tenBaiToan] = {
+        prompt1,
+        prompt2,
+        requiresTestcaseReview: mode !== 'phan_tich'
+    };
     renderTable();
 
     document.getElementById('loadingText').innerText = `Đang gửi lệnh sang n8n...`;
@@ -840,17 +1115,21 @@ async function doRunSingle(tenBaiToan, prompt1, prompt2, mode) {
         document.getElementById('loadingOverlay').classList.add('hidden');
 
         if (res.ok) {
-            alert(`✅ Đã gửi lệnh thành công!\nHệ thống đang xử lý ngầm, anh cứ làm việc khác nhé.`);
-            startPollingIfNeeded();
+            await syncExecutionMetadataFromResponse(res, [tenBaiToan]);
+            showToast('Đã gửi lệnh tới n8n. Bộ đếm vẫn chạy trực tiếp; bấm Làm mới để kiểm tra kết quả.', 'success');
         } else {
             processingTasks = processingTasks.filter(item => item !== tenBaiToan);
             delete taskStartTime[tenBaiToan];
+            delete taskExecutionInfo[tenBaiToan];
+            delete runContextByTask[tenBaiToan];
             renderTable();
             alert("❌ Lỗi: n8n từ chối yêu cầu.");
         }
     } catch (err) {
         processingTasks = processingTasks.filter(item => item !== tenBaiToan);
         delete taskStartTime[tenBaiToan];
+        delete taskExecutionInfo[tenBaiToan];
+        delete runContextByTask[tenBaiToan];
         renderTable();
         document.getElementById('loadingOverlay').classList.add('hidden');
         alert("❌ Lỗi kết nối n8n.");
@@ -866,6 +1145,14 @@ async function doRunMultiple(selectedTasks, prompt1, prompt2) {
 
     selectedTasks.forEach(t => taskStartTime[t] = Date.now());
     processingTasks.push(...selectedTasks);
+    startElapsedTimeUpdates();
+    selectedTasks.forEach(taskName => {
+        runContextByTask[taskName] = {
+            prompt1,
+            prompt2,
+            requiresTestcaseReview: true
+        };
+    });
     renderTable();
 
     document.getElementById('loadingText').innerText = `Đang gửi lệnh sang n8n...`;
@@ -887,18 +1174,22 @@ async function doRunMultiple(selectedTasks, prompt1, prompt2) {
         document.getElementById('loadingOverlay').classList.add('hidden');
 
         if (res.ok) {
-            alert(`✅ Đã gửi lệnh thành công!\nHệ thống đang xử lý ngầm các bài toán này...`);
+            await syncExecutionMetadataFromResponse(res, selectedTasks);
+            showToast(`Đã gửi ${selectedTasks.length} bài tới n8n. Bấm Làm mới để kiểm tra kết quả khi xử lý xong.`, 'success');
             document.getElementById('selectAll').checked = false;
-            startPollingIfNeeded();
         } else {
             processingTasks = processingTasks.filter(item => !selectedTasks.includes(item));
             selectedTasks.forEach(taskName => delete taskStartTime[taskName]);
+            selectedTasks.forEach(taskName => delete taskExecutionInfo[taskName]);
+            selectedTasks.forEach(taskName => delete runContextByTask[taskName]);
             renderTable();
             alert("❌ Lỗi: n8n từ chối yêu cầu.");
         }
     } catch (err) {
         processingTasks = processingTasks.filter(item => !selectedTasks.includes(item));
         selectedTasks.forEach(taskName => delete taskStartTime[taskName]);
+        selectedTasks.forEach(taskName => delete taskExecutionInfo[taskName]);
+        selectedTasks.forEach(taskName => delete runContextByTask[taskName]);
         renderTable();
         document.getElementById('loadingOverlay').classList.add('hidden');
         alert("❌ Lỗi kết nối n8n.");
