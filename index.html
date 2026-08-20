@@ -242,20 +242,13 @@
             </h3>
 
             <div class="space-y-5">
-                <div>
-                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1.5 tracking-wide">Prompt 1: Phân
-                        tích</label>
-                    <textarea id="runPrompt1" rows="4"
+                <div id="runTestcasePromptGroup">
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1.5 tracking-wide">
+                        Prompt bổ sung:
+                    </label>
+                    <textarea id="runTestcasePrompt" rows="5"
                         class="w-full px-4 py-3 bg-slate-50/50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition font-mono resize-y custom-scrollbar"
-                        placeholder="Nhập prompt phân tích bài toán..."></textarea>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1.5 tracking-wide">Prompt 2:
-                        Testcase</label>
-                    <textarea id="runPrompt2" rows="4"
-                        class="w-full px-4 py-3 bg-slate-50/50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition font-mono resize-y custom-scrollbar"
-                        placeholder="Nhập prompt viết testcase..."></textarea>
+                        placeholder="Ví dụ: Bổ sung negative case, boundary case hoặc kiểm tra phân quyền..."></textarea>
                 </div>
 
                 <div class="flex justify-end gap-3 pt-5 mt-2 border-t border-slate-100">
@@ -392,7 +385,7 @@
     </div>
 
     <!-- MAIN APP SCRIPT -->
-    <script src="app.js?v=8"></script>
+    <script src="app.js?v=9"></script>
 
     <!-- Floating AI Chat Button -->
     <button id="aiToggle"

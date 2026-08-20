@@ -1048,8 +1048,7 @@ function queueTestcaseReview(taskName) {
     testcaseReviewQueue.push({
         taskName,
         testcaseUrls: splitHttpLinks(getColVal(row, 'Link Testcase')),
-        prompt1: context.prompt1,
-        prompt2: context.prompt2
+        testcasePrompt: context.testcasePrompt || context.prompt2 || ''
     });
     openNextTestcaseReview();
 }
@@ -1124,7 +1123,7 @@ async function rerunTestcaseFromReview() {
 
     const review = activeTestcaseReview;
     const revisedPrompt = [
-        review.prompt2,
+        review.testcasePrompt,
         review.testcaseUrls.length > 0 ? `TESTCASE HIỆN TẠI:\n${review.testcaseUrls.join('\n')}` : '',
         'YÊU CẦU ĐIỀU CHỈNH SAU KHI NGƯỜI DÙNG REVIEW:',
         additionalPrompt,
@@ -1133,7 +1132,7 @@ async function rerunTestcaseFromReview() {
 
     activeTestcaseReview = null;
     document.getElementById('testcaseReviewModal').classList.add('hidden');
-    await doRunSingle(review.taskName, review.prompt1, revisedPrompt, 'testcase');
+    await doRunSingle(review.taskName, revisedPrompt, 'testcase');
     openNextTestcaseReview();
 }
 
@@ -1162,6 +1161,8 @@ function runSingleTask(index) {
     currentRunTask = getColVal(row, 'Bài toán');
     currentRunMode = 'single';
     setRunAIModalTitle(`Chạy AI - ${currentRunTask}`);
+    document.getElementById('runTestcasePromptGroup').classList.remove('hidden');
+    document.getElementById('runTestcasePrompt').value = '';
     document.getElementById('runAIModal').classList.remove('hidden');
 }
 
@@ -1170,6 +1171,8 @@ function openPromptModal(taskName, type) {
     currentRunMode = type; // 'phan_tich' or 'testcase'
     const typeLabel = type === 'phan_tich' ? 'Phân tích' : 'Testcase';
     setRunAIModalTitle(`Chạy AI (${typeLabel}) - ${currentRunTask}`);
+    document.getElementById('runTestcasePromptGroup').classList.toggle('hidden', type === 'phan_tich');
+    document.getElementById('runTestcasePrompt').value = '';
     document.getElementById('runAIModal').classList.remove('hidden');
 }
 
@@ -1196,24 +1199,25 @@ function runSelectedTasks() {
     currentRunTasksList = availableTasks;
     currentRunMode = 'multiple';
     setRunAIModalTitle(`Chạy AI - ${availableTasks.length} bài toán`);
+    document.getElementById('runTestcasePromptGroup').classList.remove('hidden');
+    document.getElementById('runTestcasePrompt').value = '';
     document.getElementById('runAIModal').classList.remove('hidden');
 }
 
 async function executeRunAI() {
-    const prompt1 = document.getElementById('runPrompt1').value.trim();
-    const prompt2 = document.getElementById('runPrompt2').value.trim();
+    const testcasePrompt = document.getElementById('runTestcasePrompt').value.trim();
 
     closeRunAIModal();
 
     if (currentRunMode === 'single' || currentRunMode === 'phan_tich' || currentRunMode === 'testcase') {
-        await doRunSingle(currentRunTask, prompt1, prompt2, currentRunMode);
+        await doRunSingle(currentRunTask, testcasePrompt, currentRunMode);
     } else if (currentRunMode === 'multiple') {
-        await doRunMultiple(currentRunTasksList, prompt1, prompt2);
+        await doRunMultiple(currentRunTasksList, testcasePrompt);
     }
 }
 
 // 7. THỰC THI CHẠY AI (API CALL)
-async function doRunSingle(tenBaiToan, prompt1, prompt2, mode) {
+async function doRunSingle(tenBaiToan, testcasePrompt, mode) {
     if (!tenBaiToan || processingTasks.includes(tenBaiToan)) {
         alert('⚠️ Bài toán này đang được xử lý. Vui lòng chờ hoàn thành.');
         return;
@@ -1225,8 +1229,7 @@ async function doRunSingle(tenBaiToan, prompt1, prompt2, mode) {
     taskExecutionInfo[tenBaiToan] = { requestId, startedAt: new Date().toISOString() };
     startElapsedTimeUpdates();
     runContextByTask[tenBaiToan] = {
-        prompt1,
-        prompt2,
+        testcasePrompt,
         requiresTestcaseReview: mode !== 'phan_tich'
     };
     persistProcessingState();
@@ -1237,11 +1240,10 @@ async function doRunSingle(tenBaiToan, prompt1, prompt2, mode) {
 
     const payload = {
         baiToan: tenBaiToan,
-        promptAI1: prompt1,
-        promptAI2: prompt2,
         loaiChay: mode,
         requestId
     };
+    if (mode !== 'phan_tich' && testcasePrompt) payload.promptAI2 = testcasePrompt;
 
     try {
         const res = await fetchWithTimeout(URL_POST_RUN, {
@@ -1274,7 +1276,7 @@ async function doRunSingle(tenBaiToan, prompt1, prompt2, mode) {
     }
 }
 
-async function doRunMultiple(selectedTasks, prompt1, prompt2) {
+async function doRunMultiple(selectedTasks, testcasePrompt) {
     selectedTasks = [...new Set(selectedTasks)].filter(taskName => taskName && !processingTasks.includes(taskName));
     if (selectedTasks.length === 0) {
         alert('⚠️ Không có bài toán hợp lệ để chạy.');
@@ -1289,8 +1291,7 @@ async function doRunMultiple(selectedTasks, prompt1, prompt2) {
     selectedTasks.forEach(taskName => {
         taskExecutionInfo[taskName] = { requestId, startedAt: new Date(startedAt).toISOString() };
         runContextByTask[taskName] = {
-            prompt1,
-            prompt2,
+            testcasePrompt,
             requiresTestcaseReview: true
         };
     });
@@ -1302,10 +1303,9 @@ async function doRunMultiple(selectedTasks, prompt1, prompt2) {
 
     const payload = {
         danhSachBaiToan: selectedTasks,
-        promptAI1: prompt1,
-        promptAI2: prompt2,
         requestId
     };
+    if (testcasePrompt) payload.promptAI2 = testcasePrompt;
 
     try {
         const res = await fetchWithTimeout(URL_POST_RUN, {
