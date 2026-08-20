@@ -61,7 +61,11 @@ const URL_POST_DELETE = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/xoa-
 const URL_POST_UPDATE_STATUS = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/trang-thai';
 const URL_POST_TRANSFER = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/chuyen-giao';
 const REQUEST_TIMEOUT_MS = 30000;
+const PROCESSING_POLL_INTERVAL_MS = 2 * 60 * 1000;
+const MAX_POLL_RETRY_INTERVAL_MS = 10 * 60 * 1000;
 const PROCESSING_TIMEOUT_MS = 60 * 60 * 1000;
+const MAX_PERSISTED_PROCESSING_AGE_MS = 24 * 60 * 60 * 1000;
+const EXECUTION_STORAGE_VERSION = 1;
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 const MAX_TOTAL_FILE_SIZE = 50 * 1024 * 1024;
 const ALLOWED_FILE_EXTENSIONS = new Set(['doc', 'docx', 'xls', 'xlsx', 'pdf', 'txt']);
@@ -70,6 +74,8 @@ const ALLOWED_FILE_EXTENSIONS = new Set(['doc', 'docx', 'xls', 'xlsx', 'pdf', 't
 let dataRows = [];
 let addMode = 'manual';
 let pollingTimer = null;
+let pollingInProgress = false;
+let pollingFailureCount = 0;
 let processingTasks = [];
 let taskStartTime = {};
 let runContextByTask = {};
@@ -78,6 +84,79 @@ let activeTestcaseReview = null;
 let taskExecutionInfo = {};
 let elapsedTimeTimer = null;
 let toastTimer = null;
+
+function getExecutionStorageKey() {
+    return `autotc:processing:${currentUser.username || 'anonymous'}`;
+}
+
+function persistProcessingState() {
+    if (!hasValidSession) return;
+
+    try {
+        if (processingTasks.length === 0) {
+            localStorage.removeItem(getExecutionStorageKey());
+            return;
+        }
+
+        localStorage.setItem(getExecutionStorageKey(), JSON.stringify({
+            version: EXECUTION_STORAGE_VERSION,
+            savedAt: Date.now(),
+            processingTasks,
+            taskStartTime,
+            runContextByTask,
+            taskExecutionInfo
+        }));
+    } catch (error) {
+        console.warn('Không thể lưu trạng thái task đang chạy:', error);
+    }
+}
+
+function restoreProcessingState() {
+    if (!hasValidSession) return 0;
+
+    try {
+        const rawState = localStorage.getItem(getExecutionStorageKey());
+        if (!rawState) return 0;
+
+        const state = JSON.parse(rawState);
+        if (state?.version !== EXECUTION_STORAGE_VERSION || !Array.isArray(state.processingTasks)) {
+            localStorage.removeItem(getExecutionStorageKey());
+            return 0;
+        }
+
+        const now = Date.now();
+        const restoredTasks = [...new Set(state.processingTasks)]
+            .filter(taskName => typeof taskName === 'string' && taskName.trim())
+            .filter(taskName => {
+                const startedAt = Number(state.taskStartTime?.[taskName]);
+                return Number.isFinite(startedAt) && now - startedAt <= MAX_PERSISTED_PROCESSING_AGE_MS;
+            });
+
+        processingTasks = restoredTasks;
+        taskStartTime = Object.fromEntries(restoredTasks.map(taskName => [
+            taskName,
+            Number(state.taskStartTime[taskName])
+        ]));
+        runContextByTask = Object.fromEntries(restoredTasks
+            .filter(taskName => state.runContextByTask?.[taskName])
+            .map(taskName => [taskName, state.runContextByTask[taskName]]));
+        taskExecutionInfo = Object.fromEntries(restoredTasks
+            .filter(taskName => state.taskExecutionInfo?.[taskName])
+            .map(taskName => [taskName, state.taskExecutionInfo[taskName]]));
+
+        persistProcessingState();
+        return restoredTasks.length;
+    } catch (error) {
+        console.warn('Không thể khôi phục trạng thái task đang chạy:', error);
+        localStorage.removeItem(getExecutionStorageKey());
+        return 0;
+    }
+}
+
+function createRequestId() {
+    if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+    return `run-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
 
 function formatElapsedTime(startTime) {
     const elapsedSeconds = Math.max(0, Math.floor((Date.now() - startTime) / 1000));
@@ -109,21 +188,38 @@ function startElapsedTimeUpdates() {
     }
 }
 
-function showToast(message, type = 'info') {
+function showToast(message, type = 'info', durationMs) {
     const toast = document.getElementById('appToast');
     const toastMessage = document.getElementById('appToastMessage');
     if (!toast || !toastMessage) return;
 
-    const colorClasses = type === 'success'
-        ? ['border-emerald-200', 'bg-emerald-50', 'text-emerald-800']
-        : ['border-blue-200', 'bg-blue-50', 'text-blue-800'];
+    const stylesByType = {
+        success: ['border-emerald-200', 'bg-emerald-50', 'text-emerald-800'],
+        error: ['border-red-200', 'bg-red-50', 'text-red-800'],
+        warning: ['border-amber-200', 'bg-amber-50', 'text-amber-800'],
+        info: ['border-blue-200', 'bg-blue-50', 'text-blue-800']
+    };
+    const colorClasses = stylesByType[type] || stylesByType.info;
+    const visibleDuration = durationMs ?? (type === 'error' ? 10000 : 6000);
 
     toast.className = `fixed top-5 left-5 right-5 sm:left-auto sm:w-full z-[80] max-w-sm rounded-xl border shadow-lg px-4 py-3 transition-all ${colorClasses.join(' ')}`;
     toastMessage.textContent = message;
     toast.classList.remove('hidden');
 
     if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toast.classList.add('hidden'), 6000);
+    toastTimer = setTimeout(() => toast.classList.add('hidden'), visibleDuration);
+}
+
+function notifyTaskResult(title, message, type = 'info') {
+    showToast(`${title}: ${message}`, type);
+
+    if (
+        document.hidden
+        && 'Notification' in window
+        && Notification.permission === 'granted'
+    ) {
+        new Notification(title, { body: message, tag: 'autotc-task-result' });
+    }
 }
 
 async function syncExecutionMetadataFromResponse(response, taskNames) {
@@ -137,9 +233,14 @@ async function syncExecutionMetadataFromResponse(response, taskNames) {
         const n8nStartedAt = Date.parse(startedAtValue);
 
         taskNames.forEach(taskName => {
-            taskExecutionInfo[taskName] = { executionId, startedAt: startedAtValue };
+            taskExecutionInfo[taskName] = {
+                ...taskExecutionInfo[taskName],
+                executionId: executionId || taskExecutionInfo[taskName]?.executionId || '',
+                startedAt: startedAtValue || taskExecutionInfo[taskName]?.startedAt || ''
+            };
             if (Number.isFinite(n8nStartedAt)) taskStartTime[taskName] = n8nStartedAt;
         });
+        persistProcessingState();
         updateRunningTaskTimers();
     } catch (_) {
         // Webhook cũ không trả JSON metadata: tiếp tục dùng giờ bắt đầu tại frontend.
@@ -147,86 +248,116 @@ async function syncExecutionMetadataFromResponse(response, taskNames) {
 }
 
 function startPollingIfNeeded(runOnce = false) {
-    // Đã tắt auto polling GET list. Chỉ chạy khi người dùng chủ động bấm Làm mới.
-    if (!runOnce || pollingTimer) return;
+    if (processingTasks.length === 0) return;
+
+    if (runOnce && pollingTimer) {
+        clearTimeout(pollingTimer);
+        pollingTimer = null;
+    }
+
+    if (pollingTimer || pollingInProgress) return;
 
     const poll = async () => {
-        if (processingTasks.length === 0) {
-            pollingTimer = null;
-            return;
-        }
+        pollingTimer = null;
+        if (processingTasks.length === 0) return;
 
-        const loadedSuccessfully = await loadData();
+        pollingInProgress = true;
+        let loadedSuccessfully = false;
 
-        // Không kết luận trạng thái hoặc timeout dựa trên dữ liệu cũ khi API lỗi.
-        if (!loadedSuccessfully) {
-            return;
-        }
+        try {
+            loadedSuccessfully = await loadData();
+            if (!loadedSuccessfully) {
+                pollingFailureCount += 1;
+                if (pollingFailureCount === 3) {
+                    showToast('Tạm thời chưa kết nối được n8n. Hệ thống vẫn đang tự thử lại.', 'warning', 10000);
+                }
+                return;
+            }
 
-        const now = Date.now();
-        let newlyFinished = [];
-        let newlyErrored = [];
-        let newlyTimeout = [];
+            pollingFailureCount = 0;
+            const now = Date.now();
+            const newlyFinished = [];
+            const newlyErrored = [];
+            const newlyTimeout = [];
 
-        processingTasks.forEach(tenBaiToan => {
-            const row = dataRows.find(r => getColVal(r, 'Bài toán') === tenBaiToan);
-            if (row) {
+            processingTasks.forEach(tenBaiToan => {
+                const row = dataRows.find(r => getColVal(r, 'Bài toán') === tenBaiToan);
+                const elapsed = now - (taskStartTime[tenBaiToan] || now);
+
+                if (!row) {
+                    if (elapsed > PROCESSING_TIMEOUT_MS) newlyTimeout.push(tenBaiToan);
+                    return;
+                }
+
                 const currentStatus = getColVal(row, 'Trạng thái') || '';
+                const normalizedStatus = currentStatus.toLowerCase();
                 const isDone = currentStatus === 'Đã xong';
-                const isError = currentStatus.toLowerCase().includes('lỗi') || currentStatus.toLowerCase().includes('thất bại') || currentStatus.toLowerCase().includes('error');
+                const isError = normalizedStatus.includes('lỗi')
+                    || normalizedStatus.includes('thất bại')
+                    || normalizedStatus.includes('error');
 
                 if (isDone) {
                     newlyFinished.push(tenBaiToan);
                 } else if (isError) {
                     newlyErrored.push({ ten: tenBaiToan, status: currentStatus });
-                } else if (now - (taskStartTime[tenBaiToan] || now) > PROCESSING_TIMEOUT_MS) {
+                } else if (elapsed > PROCESSING_TIMEOUT_MS) {
                     newlyTimeout.push(tenBaiToan);
                 }
-            } else {
-                // Task was deleted from sheet while running?
-                newlyTimeout.push(tenBaiToan);
-            }
-        });
+            });
 
-        const toRemove = [...newlyFinished, ...newlyErrored.map(e => e.ten), ...newlyTimeout];
-        if (toRemove.length > 0) {
-            processingTasks = processingTasks.filter(t => !toRemove.includes(t));
+            const toRemove = [...newlyFinished, ...newlyErrored.map(item => item.ten), ...newlyTimeout];
+            if (toRemove.length === 0) return;
+
+            processingTasks = processingTasks.filter(taskName => !toRemove.includes(taskName));
             toRemove.forEach(taskName => {
                 delete taskStartTime[taskName];
                 delete taskExecutionInfo[taskName];
             });
-            renderTable();
+            const resultMessages = [];
 
             if (newlyFinished.length > 0) {
-                const tasksNeedingReview = newlyFinished.filter(taskName => {
-                    const context = runContextByTask[taskName];
-                    return context && context.requiresTestcaseReview;
-                });
+                const tasksNeedingReview = newlyFinished.filter(taskName => runContextByTask[taskName]?.requiresTestcaseReview);
                 const tasksWithoutReview = newlyFinished.filter(taskName => !tasksNeedingReview.includes(taskName));
 
                 tasksNeedingReview.forEach(queueTestcaseReview);
                 tasksWithoutReview.forEach(taskName => delete runContextByTask[taskName]);
+                resultMessages.push(`Hoàn thành: ${newlyFinished.join(', ')}`);
+            }
 
-                if (tasksWithoutReview.length > 0) {
-                    alert(`🎉 XUẤT SẮC! Đã xử lý xong: ${tasksWithoutReview.join(', ')}`);
-                }
-            }
             if (newlyErrored.length > 0) {
-                const errMsgs = newlyErrored.map(e => `"${e.ten}": ${e.status}`).join('\n');
-                alert(`❌ Lỗi xử lý:\n${errMsgs}`);
+                const errorMessage = newlyErrored.map(item => `${item.ten}: ${item.status}`).join('; ');
+                resultMessages.push(`Lỗi: ${errorMessage}`);
             }
+
             if (newlyTimeout.length > 0) {
-                alert(`⏱️ Timeout: Quá 60 phút không phản hồi từ n8n cho:\n${newlyTimeout.join(', ')}\nVui lòng kiểm tra execution tương ứng trên n8n.`);
+                resultMessages.push(`Quá 60 phút: ${newlyTimeout.join(', ')}`);
             }
 
             [...newlyErrored.map(item => item.ten), ...newlyTimeout]
                 .forEach(taskName => delete runContextByTask[taskName]);
+            const resultType = newlyErrored.length > 0
+                ? 'error'
+                : (newlyTimeout.length > 0 ? 'warning' : 'success');
+            notifyTaskResult('Cập nhật xử lý', resultMessages.join(' | '), resultType);
+            persistProcessingState();
+            renderTable();
+        } catch (error) {
+            pollingFailureCount += 1;
+            console.error('Lỗi khi kiểm tra trạng thái task:', error);
+        } finally {
+            pollingInProgress = false;
+            if (processingTasks.length > 0) {
+                const retryMultiplier = Math.max(1, 2 ** Math.max(0, pollingFailureCount - 1));
+                const nextPollDelay = loadedSuccessfully
+                    ? PROCESSING_POLL_INTERVAL_MS
+                    : Math.min(PROCESSING_POLL_INTERVAL_MS * retryMultiplier, MAX_POLL_RETRY_INTERVAL_MS);
+                pollingTimer = setTimeout(poll, nextPollDelay);
+            }
         }
-
-        pollingTimer = null;
     };
 
-    return poll();
+    if (runOnce) return poll();
+    pollingTimer = setTimeout(poll, PROCESSING_POLL_INTERVAL_MS);
 }
 
 async function refreshDataManually() {
@@ -312,7 +443,7 @@ function resetAddForm() {
 async function loadData() {
     const tbody = document.getElementById('tableBody');
 
-    if (!pollingTimer) {
+    if (!pollingInProgress) {
         tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-10 text-center text-slate-500"><div class="flex flex-col items-center gap-2"><i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i> Đang tải dữ liệu...</div></td></tr>';
         if (typeof lucide !== 'undefined') lucide.createIcons();
     }
@@ -331,7 +462,7 @@ async function loadData() {
         return true;
     } catch (err) {
         console.error(err);
-        if (!pollingTimer) {
+        if (!pollingInProgress) {
             tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-10 text-center text-red-500"><div class="flex flex-col items-center gap-2"><i data-lucide="alert-circle" class="w-5 h-5"></i> Lỗi kết nối n8n.</div></td></tr>`;
             if (typeof lucide !== 'undefined') lucide.createIcons();
         }
@@ -358,7 +489,7 @@ function renderTable() {
         return;
     }
 
-    displayRows.forEach((row, _) => {
+    const tableRowsHtml = displayRows.map(row => {
         const originalIndex = dataRows.indexOf(row);
         const ten = getColVal(row, 'Bài toán') || '-';
         const nguoiLam = getColVal(row, 'Người làm') || getColVal(row, 'Username') || getColVal(row, 'Tài khoản') || '-';
@@ -441,7 +572,7 @@ function renderTable() {
             }).join('') + `</div>`;
         };
 
-        tbody.innerHTML += `
+        return `
             <tr class="hover:bg-blue-50/30 transition-all duration-300 border-b border-slate-100 group">
                 <td class="px-4 py-5 align-top text-center">
                     <div class="inline-flex items-center justify-center p-1 rounded-lg transition-colors group-hover:bg-blue-100/50">
@@ -488,7 +619,9 @@ function renderTable() {
                     </div>
                 </td>
             </tr>`;
-    });
+    }).join('');
+
+    tbody.innerHTML = tableRowsHtml;
 
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
@@ -961,6 +1094,7 @@ function approveTestcaseReview() {
     if (!activeTestcaseReview) return;
 
     delete runContextByTask[activeTestcaseReview.taskName];
+    persistProcessingState();
     activeTestcaseReview = null;
     document.getElementById('testcaseReviewModal').classList.add('hidden');
     openNextTestcaseReview();
@@ -1085,14 +1219,17 @@ async function doRunSingle(tenBaiToan, prompt1, prompt2, mode) {
         return;
     }
 
+    const requestId = createRequestId();
     taskStartTime[tenBaiToan] = Date.now();
     processingTasks.push(tenBaiToan);
+    taskExecutionInfo[tenBaiToan] = { requestId, startedAt: new Date().toISOString() };
     startElapsedTimeUpdates();
     runContextByTask[tenBaiToan] = {
         prompt1,
         prompt2,
         requiresTestcaseReview: mode !== 'phan_tich'
     };
+    persistProcessingState();
     renderTable();
 
     document.getElementById('loadingText').innerText = `Đang gửi lệnh sang n8n...`;
@@ -1102,7 +1239,8 @@ async function doRunSingle(tenBaiToan, prompt1, prompt2, mode) {
         baiToan: tenBaiToan,
         promptAI1: prompt1,
         promptAI2: prompt2,
-        loaiChay: mode
+        loaiChay: mode,
+        requestId
     };
 
     try {
@@ -1112,27 +1250,27 @@ async function doRunSingle(tenBaiToan, prompt1, prompt2, mode) {
             body: JSON.stringify(payload)
         });
 
-        document.getElementById('loadingOverlay').classList.add('hidden');
-
         if (res.ok) {
             await syncExecutionMetadataFromResponse(res, [tenBaiToan]);
-            showToast('Đã gửi lệnh tới n8n. Bộ đếm vẫn chạy trực tiếp; bấm Làm mới để kiểm tra kết quả.', 'success');
+            startPollingIfNeeded();
+            showToast('Đã gửi lệnh tới n8n. Hệ thống sẽ tự kiểm tra kết quả mỗi 2 phút.', 'success');
         } else {
             processingTasks = processingTasks.filter(item => item !== tenBaiToan);
             delete taskStartTime[tenBaiToan];
             delete taskExecutionInfo[tenBaiToan];
             delete runContextByTask[tenBaiToan];
+            persistProcessingState();
             renderTable();
-            alert("❌ Lỗi: n8n từ chối yêu cầu.");
+            showToast('n8n từ chối yêu cầu chạy. Vui lòng kiểm tra lại dữ liệu.', 'error');
         }
     } catch (err) {
-        processingTasks = processingTasks.filter(item => item !== tenBaiToan);
-        delete taskStartTime[tenBaiToan];
-        delete taskExecutionInfo[tenBaiToan];
-        delete runContextByTask[tenBaiToan];
-        renderTable();
+        // Request có thể đã tới n8n dù trình duyệt không nhận được response.
+        // Giữ trạng thái để tránh người dùng vô tình chạy trùng.
+        persistProcessingState();
+        startPollingIfNeeded();
+        showToast('Chưa nhận được phản hồi từ n8n. Hệ thống vẫn theo dõi task để tránh chạy trùng.', 'warning', 10000);
+    } finally {
         document.getElementById('loadingOverlay').classList.add('hidden');
-        alert("❌ Lỗi kết nối n8n.");
     }
 }
 
@@ -1143,16 +1281,20 @@ async function doRunMultiple(selectedTasks, prompt1, prompt2) {
         return;
     }
 
-    selectedTasks.forEach(t => taskStartTime[t] = Date.now());
+    const requestId = createRequestId();
+    const startedAt = Date.now();
+    selectedTasks.forEach(t => taskStartTime[t] = startedAt);
     processingTasks.push(...selectedTasks);
     startElapsedTimeUpdates();
     selectedTasks.forEach(taskName => {
+        taskExecutionInfo[taskName] = { requestId, startedAt: new Date(startedAt).toISOString() };
         runContextByTask[taskName] = {
             prompt1,
             prompt2,
             requiresTestcaseReview: true
         };
     });
+    persistProcessingState();
     renderTable();
 
     document.getElementById('loadingText').innerText = `Đang gửi lệnh sang n8n...`;
@@ -1161,7 +1303,8 @@ async function doRunMultiple(selectedTasks, prompt1, prompt2) {
     const payload = {
         danhSachBaiToan: selectedTasks,
         promptAI1: prompt1,
-        promptAI2: prompt2
+        promptAI2: prompt2,
+        requestId
     };
 
     try {
@@ -1171,28 +1314,26 @@ async function doRunMultiple(selectedTasks, prompt1, prompt2) {
             body: JSON.stringify(payload)
         });
 
-        document.getElementById('loadingOverlay').classList.add('hidden');
-
         if (res.ok) {
             await syncExecutionMetadataFromResponse(res, selectedTasks);
-            showToast(`Đã gửi ${selectedTasks.length} bài tới n8n. Bấm Làm mới để kiểm tra kết quả khi xử lý xong.`, 'success');
+            startPollingIfNeeded();
+            showToast(`Đã gửi ${selectedTasks.length} bài tới n8n. Hệ thống sẽ tự kiểm tra kết quả mỗi 2 phút.`, 'success');
             document.getElementById('selectAll').checked = false;
         } else {
             processingTasks = processingTasks.filter(item => !selectedTasks.includes(item));
             selectedTasks.forEach(taskName => delete taskStartTime[taskName]);
             selectedTasks.forEach(taskName => delete taskExecutionInfo[taskName]);
             selectedTasks.forEach(taskName => delete runContextByTask[taskName]);
+            persistProcessingState();
             renderTable();
-            alert("❌ Lỗi: n8n từ chối yêu cầu.");
+            showToast('n8n từ chối yêu cầu chạy nhiều bài. Vui lòng kiểm tra lại dữ liệu.', 'error');
         }
     } catch (err) {
-        processingTasks = processingTasks.filter(item => !selectedTasks.includes(item));
-        selectedTasks.forEach(taskName => delete taskStartTime[taskName]);
-        selectedTasks.forEach(taskName => delete taskExecutionInfo[taskName]);
-        selectedTasks.forEach(taskName => delete runContextByTask[taskName]);
-        renderTable();
+        persistProcessingState();
+        startPollingIfNeeded();
+        showToast('Chưa nhận được phản hồi từ n8n. Hệ thống vẫn theo dõi các task để tránh chạy trùng.', 'warning', 10000);
+    } finally {
         document.getElementById('loadingOverlay').classList.add('hidden');
-        alert("❌ Lỗi kết nối n8n.");
     }
 }
 
@@ -1344,7 +1485,7 @@ window.askAIToReview = function (url) {
     });
 };
 
-window.addEventListener('load', () => {
+window.addEventListener('load', async () => {
     if (!hasValidSession) return;
 
     // Hiển thị thông tin user trên Header
@@ -1366,5 +1507,22 @@ window.addEventListener('load', () => {
         }
     }
 
-    loadData();
+    const restoredTaskCount = restoreProcessingState();
+    if (restoredTaskCount > 0) {
+        startElapsedTimeUpdates();
+        await startPollingIfNeeded(true);
+        if (processingTasks.length > 0) {
+            showToast(`Đã khôi phục ${processingTasks.length} task đang chạy và tiếp tục theo dõi.`, 'info');
+        }
+    } else {
+        await loadData();
+    }
 });
+
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && processingTasks.length > 0) {
+        startPollingIfNeeded(true);
+    }
+});
+
+window.addEventListener('beforeunload', persistProcessingState);
