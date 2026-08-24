@@ -64,6 +64,7 @@ const REQUEST_TIMEOUT_MS = 30000;
 const PROCESSING_POLL_INTERVAL_MS = 2 * 60 * 1000;
 const MAX_POLL_RETRY_INTERVAL_MS = 10 * 60 * 1000;
 const PROCESSING_TIMEOUT_MS = 60 * 60 * 1000;
+const RUN_REQUEST_TIMEOUT_MS = PROCESSING_TIMEOUT_MS;
 const MAX_PERSISTED_PROCESSING_AGE_MS = 24 * 60 * 60 * 1000;
 const EXECUTION_STORAGE_VERSION = 1;
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
@@ -200,14 +201,45 @@ function showToast(message, type = 'info', durationMs) {
         info: ['border-blue-200', 'bg-blue-50', 'text-blue-800']
     };
     const colorClasses = stylesByType[type] || stylesByType.info;
-    const visibleDuration = durationMs ?? (type === 'error' ? 10000 : 6000);
+    const visibleDuration = durationMs ?? (type === 'error' ? null : 6000);
 
     toast.className = `fixed top-5 left-5 right-5 sm:left-auto sm:w-full z-[80] max-w-sm rounded-xl border shadow-lg px-4 py-3 transition-all ${colorClasses.join(' ')}`;
     toastMessage.textContent = message;
     toast.classList.remove('hidden');
+    toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    toast.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 
     if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toast.classList.add('hidden'), visibleDuration);
+    toastTimer = null;
+    if (Number.isFinite(visibleDuration) && visibleDuration > 0) {
+        toastTimer = setTimeout(() => {
+            toast.classList.add('hidden');
+            toastTimer = null;
+        }, visibleDuration);
+    }
+}
+
+window.hideAppToast = function () {
+    const toast = document.getElementById('appToast');
+    if (toast) toast.classList.add('hidden');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = null;
+};
+
+function showRunError(message) {
+    showToast(message, 'error');
+
+    if (
+        document.hidden
+        && 'Notification' in window
+        && Notification.permission === 'granted'
+    ) {
+        new Notification('Luồng xử lý bị lỗi', {
+            body: message,
+            tag: 'autotc-run-error'
+        });
+    }
 }
 
 function notifyTaskResult(title, message, type = 'info') {
@@ -244,6 +276,27 @@ async function syncExecutionMetadataFromResponse(response, taskNames) {
         updateRunningTaskTimers();
     } catch (_) {
         // Webhook cũ không trả JSON metadata: tiếp tục dùng giờ bắt đầu tại frontend.
+    }
+}
+
+async function readN8nResponse(response) {
+    try {
+        const responseBody = await response.clone().json();
+        const data = Array.isArray(responseBody) ? responseBody[0] : responseBody;
+        const nestedError = data?.error;
+
+        return {
+            data,
+            message: data?.message
+                || (typeof nestedError === 'string' ? nestedError : nestedError?.message)
+                || ''
+        };
+    } catch (_) {
+        try {
+            return { data: null, message: (await response.clone().text()).trim() };
+        } catch (_) {
+            return { data: null, message: '' };
+        }
     }
 }
 
@@ -1241,21 +1294,26 @@ async function doRunSingle(tenBaiToan, testcasePrompt, mode) {
     const payload = {
         baiToan: tenBaiToan,
         loaiChay: mode,
-        requestId
+        requestId,
+        promptAI2: mode === 'phan_tich' ? '' : (testcasePrompt || '')
     };
-    if (mode !== 'phan_tich' && testcasePrompt) payload.promptAI2 = testcasePrompt;
 
     try {
-        const res = await fetchWithTimeout(URL_POST_RUN, {
+        const responsePromise = fetchWithTimeout(URL_POST_RUN, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
-        });
+        }, RUN_REQUEST_TIMEOUT_MS);
+        startPollingIfNeeded();
+        document.getElementById('loadingOverlay').classList.add('hidden');
+        const res = await responsePromise;
+        const responseData = await readN8nResponse(res);
+        const responseFailed = !res.ok || responseData.data?.success === false;
 
-        if (res.ok) {
+        if (!responseFailed) {
             await syncExecutionMetadataFromResponse(res, [tenBaiToan]);
-            startPollingIfNeeded();
-            showToast('Đã gửi lệnh tới n8n. Hệ thống sẽ tự kiểm tra kết quả mỗi 2 phút.', 'success');
+            await startPollingIfNeeded(true);
+            showToast(responseData.message || 'Xử lý bài toán thành công.', 'success');
         } else {
             processingTasks = processingTasks.filter(item => item !== tenBaiToan);
             delete taskStartTime[tenBaiToan];
@@ -1263,7 +1321,7 @@ async function doRunSingle(tenBaiToan, testcasePrompt, mode) {
             delete runContextByTask[tenBaiToan];
             persistProcessingState();
             renderTable();
-            showToast('n8n từ chối yêu cầu chạy. Vui lòng kiểm tra lại dữ liệu.', 'error');
+            showRunError(responseData.message || 'n8n từ chối yêu cầu chạy. Vui lòng kiểm tra lại dữ liệu.');
         }
     } catch (err) {
         // Request có thể đã tới n8n dù trình duyệt không nhận được response.
@@ -1303,21 +1361,26 @@ async function doRunMultiple(selectedTasks, testcasePrompt) {
 
     const payload = {
         danhSachBaiToan: selectedTasks,
-        requestId
+        requestId,
+        promptAI2: testcasePrompt || ''
     };
-    if (testcasePrompt) payload.promptAI2 = testcasePrompt;
 
     try {
-        const res = await fetchWithTimeout(URL_POST_RUN, {
+        const responsePromise = fetchWithTimeout(URL_POST_RUN, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
-        });
+        }, RUN_REQUEST_TIMEOUT_MS);
+        startPollingIfNeeded();
+        document.getElementById('loadingOverlay').classList.add('hidden');
+        const res = await responsePromise;
+        const responseData = await readN8nResponse(res);
+        const responseFailed = !res.ok || responseData.data?.success === false;
 
-        if (res.ok) {
+        if (!responseFailed) {
             await syncExecutionMetadataFromResponse(res, selectedTasks);
-            startPollingIfNeeded();
-            showToast(`Đã gửi ${selectedTasks.length} bài tới n8n. Hệ thống sẽ tự kiểm tra kết quả mỗi 2 phút.`, 'success');
+            await startPollingIfNeeded(true);
+            showToast(responseData.message || `Đã xử lý thành công ${selectedTasks.length} bài toán.`, 'success');
             document.getElementById('selectAll').checked = false;
         } else {
             processingTasks = processingTasks.filter(item => !selectedTasks.includes(item));
@@ -1326,7 +1389,7 @@ async function doRunMultiple(selectedTasks, testcasePrompt) {
             selectedTasks.forEach(taskName => delete runContextByTask[taskName]);
             persistProcessingState();
             renderTable();
-            showToast('n8n từ chối yêu cầu chạy nhiều bài. Vui lòng kiểm tra lại dữ liệu.', 'error');
+            showRunError(responseData.message || 'n8n từ chối yêu cầu chạy nhiều bài. Vui lòng kiểm tra lại dữ liệu.');
         }
     } catch (err) {
         persistProcessingState();

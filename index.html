@@ -380,7 +380,12 @@
     <div id="appToast" class="hidden" role="status" aria-live="polite">
         <div class="flex items-start gap-2">
             <i data-lucide="info" class="w-4 h-4 mt-0.5 shrink-0"></i>
-            <p id="appToastMessage" class="text-sm font-semibold leading-relaxed"></p>
+            <p id="appToastMessage" class="min-w-0 flex-1 text-sm font-semibold leading-relaxed"></p>
+            <button type="button" onclick="hideAppToast()"
+                class="shrink-0 p-1 rounded-md hover:bg-black/5 transition-colors"
+                aria-label="Đóng thông báo" title="Đóng thông báo">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
         </div>
     </div>
 
