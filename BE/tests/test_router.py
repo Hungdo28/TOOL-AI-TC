@@ -1,0 +1,60 @@
+import unittest
+from types import SimpleNamespace
+
+from controllers.task_controller import TaskController
+from router import Router
+from services.task_service import ApiError
+
+
+class FakeService:
+    def list_tasks(self):
+        return [{"Bài toán": "Đăng nhập"}]
+
+    def update_status(self, payload):
+        return {"Bài toán": payload["baiToan"], "Trạng thái": payload["trangThai"]}
+
+
+class FakeRequest:
+    def __init__(self, path, payload=None, role="admin"):
+        self.path = path
+        self.payload = payload or {}
+        self.headers = {"X-User-Role": role}
+
+    def read_json(self):
+        return self.payload
+
+
+class RouterTests(unittest.TestCase):
+    def setUp(self):
+        settings = SimpleNamespace(enforce_role_header=True)
+        self.router = Router(TaskController(FakeService(), settings))
+
+    def test_routes_list_tasks(self):
+        response = self.router.dispatch("GET", FakeRequest("/api/tasks", role="viewer"))
+        self.assertEqual(response.status, 200)
+        self.assertEqual(response.body[0]["Bài toán"], "Đăng nhập")
+
+    def test_routes_status_update(self):
+        request = FakeRequest(
+            "/api/tasks/status",
+            {"baiToan": "Đăng nhập", "trangThai": "Đã xong"},
+        )
+        response = self.router.dispatch("PATCH", request)
+        self.assertEqual(response.status, 200)
+        self.assertEqual(response.body["data"]["Trạng thái"], "Đã xong")
+
+    def test_rejects_viewer_mutation(self):
+        request = FakeRequest("/api/tasks/status", role="viewer")
+        with self.assertRaises(ApiError) as error:
+            self.router.dispatch("PATCH", request)
+        self.assertEqual(error.exception.status, 403)
+
+    def test_unknown_route_returns_not_found(self):
+        with self.assertRaises(ApiError) as error:
+            self.router.dispatch("GET", FakeRequest("/api/not-found"))
+        self.assertEqual(error.exception.status, 404)
+
+
+if __name__ == "__main__":
+    unittest.main()
+

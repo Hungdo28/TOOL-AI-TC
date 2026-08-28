@@ -53,13 +53,14 @@ function requireAdmin() {
 }
 
 // ================= CẤU HÌNH API =================
-const URL_GET_LIST = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/1981ca71-5359-43d7-94a4-aef5615653ea';
+const BACKEND_API_BASE = (window.AUTO_TC_API_BASE || 'http://127.0.0.1:3000/api').replace(/\/$/, '');
+const URL_GET_LIST = `${BACKEND_API_BASE}/tasks`;
 const URL_POST_RUN = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/luong-chuc-nang';
-const URL_POST_ADD = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/7dea3b89-0dcf-4a98-b60b-191bdcb78e67';
-const URL_POST_EDIT = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/sua-tai-lieu';
-const URL_POST_DELETE = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/xoa-tai-lieu';
-const URL_POST_UPDATE_STATUS = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/trang-thai';
-const URL_POST_TRANSFER = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/chuyen-giao';
+const URL_POST_ADD = `${BACKEND_API_BASE}/tasks`;
+const URL_POST_EDIT = `${BACKEND_API_BASE}/tasks`;
+const URL_POST_DELETE = `${BACKEND_API_BASE}/tasks`;
+const URL_POST_UPDATE_STATUS = `${BACKEND_API_BASE}/tasks/status`;
+const URL_POST_TRANSFER = `${BACKEND_API_BASE}/tasks/assignee`;
 const REQUEST_TIMEOUT_MS = 30000;
 const PROCESSING_POLL_INTERVAL_MS = 2 * 60 * 1000;
 const MAX_POLL_RETRY_INTERVAL_MS = 10 * 60 * 1000;
@@ -70,6 +71,15 @@ const EXECUTION_STORAGE_VERSION = 1;
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 const MAX_TOTAL_FILE_SIZE = 50 * 1024 * 1024;
 const ALLOWED_FILE_EXTENSIONS = new Set(['doc', 'docx', 'xls', 'xlsx', 'pdf', 'txt']);
+
+function getBackendHeaders(json = false) {
+    const headers = {
+        'X-User-Name': currentUser.username || '',
+        'X-User-Role': currentUser.role || 'viewer'
+    };
+    if (json) headers['Content-Type'] = 'application/json';
+    return headers;
+}
 
 
 let dataRows = [];
@@ -227,6 +237,33 @@ window.hideAppToast = function () {
     toastTimer = null;
 };
 
+function showResultPopup(message, type = 'success') {
+    const popup = document.getElementById('resultPopup');
+    const title = document.getElementById('resultPopupTitle');
+    const messageElement = document.getElementById('resultPopupMessage');
+    const icon = document.getElementById('resultPopupIcon');
+    if (!popup || !title || !messageElement || !icon) return;
+
+    const isSuccess = type === 'success';
+    document.getElementById('loadingOverlay')?.classList.add('hidden');
+    title.textContent = isSuccess ? 'Thành công' : 'Có lỗi xảy ra';
+    messageElement.textContent = message;
+    icon.className = `mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full ${
+        isSuccess ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'
+    }`;
+    icon.innerHTML = `<i data-lucide="${isSuccess ? 'check-circle-2' : 'circle-alert'}" class="h-7 w-7"></i>`;
+    popup.classList.remove('hidden');
+    popup.classList.add('flex');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+window.closeResultPopup = function () {
+    const popup = document.getElementById('resultPopup');
+    if (!popup) return;
+    popup.classList.add('hidden');
+    popup.classList.remove('flex');
+};
+
 function showRunError(message) {
     showToast(message, 'error');
 
@@ -279,7 +316,7 @@ async function syncExecutionMetadataFromResponse(response, taskNames) {
     }
 }
 
-async function readN8nResponse(response) {
+async function readApiResponse(response) {
     try {
         const responseBody = await response.clone().json();
         const data = Array.isArray(responseBody) ? responseBody[0] : responseBody;
@@ -298,6 +335,16 @@ async function readN8nResponse(response) {
             return { data: null, message: '' };
         }
     }
+}
+
+async function showBackendResponse(response, successMessage, errorMessage) {
+    const responseData = await readApiResponse(response);
+    const succeeded = response.ok && responseData.data?.success !== false;
+    showResultPopup(
+        responseData.message || (succeeded ? successMessage : errorMessage),
+        succeeded ? 'success' : 'error'
+    );
+    return { succeeded, data: responseData.data };
 }
 
 function startPollingIfNeeded(runOnce = false) {
@@ -322,7 +369,7 @@ function startPollingIfNeeded(runOnce = false) {
             if (!loadedSuccessfully) {
                 pollingFailureCount += 1;
                 if (pollingFailureCount === 3) {
-                    showToast('Tạm thời chưa kết nối được n8n. Hệ thống vẫn đang tự thử lại.', 'warning', 10000);
+                    showToast('Tạm thời chưa kết nối được backend. Hệ thống vẫn đang tự thử lại.', 'warning', 10000);
                 }
                 return;
             }
@@ -502,12 +549,14 @@ async function loadData() {
     }
 
     try {
-        const res = await fetchWithTimeout(URL_GET_LIST + '?t=' + new Date().getTime());
+        const res = await fetchWithTimeout(URL_GET_LIST + '?t=' + new Date().getTime(), {
+            headers: getBackendHeaders()
+        });
         if (!res.ok) throw new Error('Network error');
 
         const responseData = await res.json();
         if (!Array.isArray(responseData)) {
-            throw new Error('Dữ liệu danh sách từ n8n không hợp lệ');
+            throw new Error('Dữ liệu danh sách từ backend không hợp lệ');
         }
 
         dataRows = responseData;
@@ -516,7 +565,7 @@ async function loadData() {
     } catch (err) {
         console.error(err);
         if (!pollingInProgress) {
-            tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-10 text-center text-red-500"><div class="flex flex-col items-center gap-2"><i data-lucide="alert-circle" class="w-5 h-5"></i> Lỗi kết nối n8n.</div></td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-10 text-center text-red-500"><div class="flex flex-col items-center gap-2"><i data-lucide="alert-circle" class="w-5 h-5"></i> Lỗi kết nối backend.</div></td></tr>`;
             if (typeof lucide !== 'undefined') lucide.createIcons();
         }
         return false;
@@ -770,19 +819,23 @@ async function addDocument(e) {
 
         const res = await fetchWithTimeout(URL_POST_ADD, {
             method: 'POST',
+            headers: getBackendHeaders(),
             body: formData
         }, 60000);
 
-        if (res.ok) {
+        const result = await showBackendResponse(
+            res,
+            'Đã thêm bài toán thành công.',
+            'Backend không thể thêm dữ liệu.'
+        );
+
+        if (result.succeeded) {
             resetAddForm();
             await loadData();
-            alert("✅ Đã thêm tài liệu thành công vào Sheet!");
-        } else {
-            alert("❌ Lỗi n8n khi thêm dữ liệu.");
         }
     } catch (err) {
         console.error(err);
-        alert("❌ Không thể kết nối tới Webhook thêm tài liệu.");
+        showResultPopup('Không thể kết nối backend để thêm tài liệu.', 'error');
     } finally {
         btnAdd.innerText = 'Lưu vào Sheet';
         btnAdd.disabled = false;
@@ -814,19 +867,22 @@ async function deleteDocument(index) {
 
     try {
         const res = await fetchWithTimeout(URL_POST_DELETE, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: 'DELETE',
+            headers: getBackendHeaders(true),
             body: JSON.stringify({ baiToan: tenBaiToan })
         });
 
-        if (res.ok) {
+        const result = await showBackendResponse(
+            res,
+            'Đã xóa bài toán thành công.',
+            'Backend không thể xóa dữ liệu.'
+        );
+
+        if (result.succeeded) {
             await loadData();
-            alert("✅ Đã xóa thành công!");
-        } else {
-            alert("❌ Lỗi từ n8n khi xóa dữ liệu.");
         }
     } catch (err) {
-        alert("❌ Lỗi mạng: Không thể kết nối tới Webhook xóa.");
+        showResultPopup('Lỗi mạng: Không thể kết nối backend để xóa.', 'error');
     } finally {
         document.getElementById('loadingOverlay').classList.add('hidden');
     }
@@ -895,22 +951,25 @@ async function confirmTransfer() {
 
     try {
         const res = await fetchWithTimeout(URL_POST_TRANSFER, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: 'PATCH',
+            headers: getBackendHeaders(true),
             body: JSON.stringify({
                 baiToan: currentTransferTask,
                 nguoiNhanMoi: newUser
             })
         });
 
-        if (res.ok) {
+        const result = await showBackendResponse(
+            res,
+            `Đã chuyển giao bài toán "${currentTransferTask}" cho ${newUser}.`,
+            'Backend không thể chuyển giao bài toán.'
+        );
+
+        if (result.succeeded) {
             await loadData();
-            alert(`✅ Đã chuyển giao bài toán "${currentTransferTask}" cho ${newUser} thành công!`);
-        } else {
-            alert("❌ Lỗi từ n8n khi chuyển giao. Vui lòng kiểm tra lại Webhook.");
         }
     } catch (err) {
-        alert("❌ Lỗi mạng: Không thể kết nối tới Webhook chuyển giao.");
+        showResultPopup('Lỗi mạng: Không thể kết nối backend để chuyển giao.', 'error');
     } finally {
         document.getElementById('loadingOverlay').classList.add('hidden');
     }
@@ -989,8 +1048,8 @@ document.getElementById('btnSaveEdit').onclick = async function () {
 
     try {
         const res = await fetchWithTimeout(URL_POST_EDIT, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: 'PUT',
+            headers: getBackendHeaders(true),
             body: JSON.stringify({
                 oldBaiToan: currentEditOldName,
                 newBaiToan: newTen,
@@ -998,14 +1057,17 @@ document.getElementById('btnSaveEdit').onclick = async function () {
             })
         });
 
-        if (res.ok) {
+        const result = await showBackendResponse(
+            res,
+            'Đã cập nhật bài toán thành công.',
+            'Backend không thể cập nhật dữ liệu.'
+        );
+
+        if (result.succeeded) {
             await loadData();
-            alert("✅ Đã cập nhật thành công!");
-        } else {
-            alert("❌ Lỗi từ n8n khi cập nhật dữ liệu.");
         }
     } catch (err) {
-        alert("❌ Lỗi mạng: Không thể kết nối tới Webhook sửa.");
+        showResultPopup('Lỗi mạng: Không thể kết nối backend để sửa.', 'error');
     } finally {
         document.getElementById('loadingOverlay').classList.add('hidden');
     }
@@ -1307,7 +1369,7 @@ async function doRunSingle(tenBaiToan, testcasePrompt, mode) {
         startPollingIfNeeded();
         document.getElementById('loadingOverlay').classList.add('hidden');
         const res = await responsePromise;
-        const responseData = await readN8nResponse(res);
+        const responseData = await readApiResponse(res);
         const responseFailed = !res.ok || responseData.data?.success === false;
 
         if (!responseFailed) {
@@ -1374,7 +1436,7 @@ async function doRunMultiple(selectedTasks, testcasePrompt) {
         startPollingIfNeeded();
         document.getElementById('loadingOverlay').classList.add('hidden');
         const res = await responsePromise;
-        const responseData = await readN8nResponse(res);
+        const responseData = await readApiResponse(res);
         const responseFailed = !res.ok || responseData.data?.success === false;
 
         if (!responseFailed) {
@@ -1424,24 +1486,28 @@ async function updateStatus(index, newStatus) {
 
     try {
         const res = await fetchWithTimeout(URL_POST_UPDATE_STATUS, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: 'PATCH',
+            headers: getBackendHeaders(true),
             body: JSON.stringify({
                 baiToan: tenBaiToan,
                 trangThai: newStatus
             })
         });
 
-        if (res.ok) {
+        const result = await showBackendResponse(
+            res,
+            'Đã cập nhật trạng thái.',
+            'Backend không thể cập nhật trạng thái.'
+        );
+
+        if (result.succeeded) {
             await loadData();
-            alert("✅ Đã cập nhật trạng thái!");
         } else {
             renderTable();
-            alert("❌ Lỗi n8n khi cập nhật trạng thái.");
         }
     } catch (err) {
         renderTable();
-        alert("❌ Không thể kết nối webhook cập nhật trạng thái.");
+        showResultPopup('Không thể kết nối backend để cập nhật trạng thái.', 'error');
     } finally {
         document.getElementById('loadingOverlay').classList.add('hidden');
     }

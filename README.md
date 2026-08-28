@@ -1,10 +1,15 @@
-# FE AutoTC
+# AutoTC
 
-Frontend quản lý bài toán kiểm thử, kết nối Supabase, n8n và Dify.
+Mã nguồn được tách thành hai phần:
+
+- `FE`: giao diện quản lý bài toán kiểm thử, kết nối Supabase, n8n và Dify.
+- `BE`: backend Python xử lý dữ liệu Google Sheets/Drive.
+
+Các thao tác lấy danh sách, thêm, sửa, xóa, chuyển giao và cập nhật trạng thái nằm trong thư mục `BE`. n8n chỉ còn xử lý luồng AI. Xem hướng dẫn tại `BE/README.md`.
 
 ## Chạy local
 
-Phục vụ thư mục bằng một web server tĩnh, ví dụ Live Server, rồi mở `login.html`. Không mở trực tiếp bằng giao thức `file://` vì một số API trình duyệt và request CORS có thể không hoạt động đúng.
+Chạy backend theo hướng dẫn trong `BE/README.md`. Sau đó phục vụ thư mục `FE` bằng một web server tĩnh, ví dụ Live Server, rồi mở `FE/login.html`. Không mở trực tiếp bằng giao thức `file://` vì một số API trình duyệt và request CORS có thể không hoạt động đúng.
 
 ## Tailscale
 
