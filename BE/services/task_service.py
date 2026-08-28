@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
 
+from services.file_processing import prepare_workspace_file
+
 
 ALLOWED_EXTENSIONS = {"doc", "docx", "xls", "xlsx", "pdf", "txt"}
 ALLOWED_STATUSES = {"Chưa làm", "Waiting", "Đã xong"}
@@ -75,9 +77,29 @@ class TaskService:
 
             urls = []
             for file in files:
-                urls.append(
-                    self.workspace.upload_file(file.filename, file.content_type, file.content)
-                )
+                try:
+                    workspace_file = prepare_workspace_file(
+                        file.filename, file.content_type, file.content
+                    )
+                    urls.append(
+                        self.workspace.upload_file(
+                            workspace_file.title,
+                            workspace_file.source_mime_type,
+                            workspace_file.content,
+                            workspace_file.target_mime_type,
+                        )
+                    )
+                except Exception as error:
+                    error_text = str(error)
+                    if "storageQuotaExceeded" in error_text or "do not have storage quota" in error_text:
+                        raise ApiError(
+                            503,
+                            "Service account không có dung lượng Google Drive. "
+                            "Hãy chạy setup_google_oauth.py và khởi động lại backend.",
+                        ) from None
+                    raise ApiError(
+                        502, f'Không thể upload file "{file.filename}" lên Google Drive'
+                    ) from None
             url_value = "\n".join(urls)
         else:
             raise ApiError(400, "mode chỉ nhận manual hoặc import")

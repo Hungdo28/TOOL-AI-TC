@@ -56,7 +56,9 @@ function requireAdmin() {
 const BACKEND_API_BASE = (window.AUTO_TC_API_BASE || 'http://127.0.0.1:3000/api').replace(/\/$/, '');
 const URL_GET_LIST = `${BACKEND_API_BASE}/tasks`;
 const URL_POST_RUN = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/luong-chuc-nang';
-const URL_POST_ADD = `${BACKEND_API_BASE}/tasks`;
+// Thêm URL/import file tiếp tục dùng credential Google Drive đã cấu hình trong n8n.
+const URL_POST_ADD = window.AUTO_TC_ADD_WEBHOOK
+    || 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/7dea3b89-0dcf-4a98-b60b-191bdcb78e67';
 const URL_POST_EDIT = `${BACKEND_API_BASE}/tasks`;
 const URL_POST_DELETE = `${BACKEND_API_BASE}/tasks`;
 const URL_POST_UPDATE_STATUS = `${BACKEND_API_BASE}/tasks/status`;
@@ -337,7 +339,7 @@ async function readApiResponse(response) {
     }
 }
 
-async function showBackendResponse(response, successMessage, errorMessage) {
+async function showActionResponse(response, successMessage, errorMessage) {
     const responseData = await readApiResponse(response);
     const succeeded = response.ok && responseData.data?.success !== false;
     showResultPopup(
@@ -819,14 +821,13 @@ async function addDocument(e) {
 
         const res = await fetchWithTimeout(URL_POST_ADD, {
             method: 'POST',
-            headers: getBackendHeaders(),
             body: formData
         }, 60000);
 
-        const result = await showBackendResponse(
+        const result = await showActionResponse(
             res,
-            'Đã thêm bài toán thành công.',
-            'Backend không thể thêm dữ liệu.'
+            'Đã thêm bài toán thành công qua n8n.',
+            'n8n không thể thêm dữ liệu.'
         );
 
         if (result.succeeded) {
@@ -835,7 +836,7 @@ async function addDocument(e) {
         }
     } catch (err) {
         console.error(err);
-        showResultPopup('Không thể kết nối backend để thêm tài liệu.', 'error');
+        showResultPopup('Không thể kết nối webhook n8n để thêm tài liệu.', 'error');
     } finally {
         btnAdd.innerText = 'Lưu vào Sheet';
         btnAdd.disabled = false;
@@ -872,7 +873,7 @@ async function deleteDocument(index) {
             body: JSON.stringify({ baiToan: tenBaiToan })
         });
 
-        const result = await showBackendResponse(
+        const result = await showActionResponse(
             res,
             'Đã xóa bài toán thành công.',
             'Backend không thể xóa dữ liệu.'
@@ -959,7 +960,7 @@ async function confirmTransfer() {
             })
         });
 
-        const result = await showBackendResponse(
+        const result = await showActionResponse(
             res,
             `Đã chuyển giao bài toán "${currentTransferTask}" cho ${newUser}.`,
             'Backend không thể chuyển giao bài toán.'
@@ -1057,7 +1058,7 @@ document.getElementById('btnSaveEdit').onclick = async function () {
             })
         });
 
-        const result = await showBackendResponse(
+        const result = await showActionResponse(
             res,
             'Đã cập nhật bài toán thành công.',
             'Backend không thể cập nhật dữ liệu.'
@@ -1494,7 +1495,7 @@ async function updateStatus(index, newStatus) {
             })
         });
 
-        const result = await showBackendResponse(
+        const result = await showActionResponse(
             res,
             'Đã cập nhật trạng thái.',
             'Backend không thể cập nhật trạng thái.'

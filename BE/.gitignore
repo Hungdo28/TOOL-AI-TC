@@ -1,5 +1,6 @@
 .env
 service-account*.json
+oauth-client*.json
+authorized-user*.json
 __pycache__/
 *.py[cod]
-

@@ -183,8 +183,17 @@ class GoogleWorkspace:
                 },
             ).execute()
 
-    def upload_file(self, filename: str, content_type: str, content: bytes) -> str:
-        metadata: dict[str, Any] = {"name": filename}
+    def upload_file(
+        self,
+        filename: str,
+        content_type: str,
+        content: bytes,
+        target_mime_type: str,
+    ) -> str:
+        metadata: dict[str, Any] = {
+            "name": filename,
+            "mimeType": target_mime_type,
+        }
         if self.settings.drive_folder_id:
             metadata["parents"] = [self.settings.drive_folder_id]
 

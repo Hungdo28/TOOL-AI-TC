@@ -1,6 +1,6 @@
 # AutoTC Backend
 
-Backend thuần Python cho các chức năng quản lý bài toán: lấy danh sách, thêm URL/import file, sửa, xóa, chuyển giao và cập nhật trạng thái. Chức năng chạy AI vẫn gọi n8n từ frontend.
+Backend Python cho các chức năng quản lý bài toán: lấy danh sách, sửa, xóa, chuyển giao và cập nhật trạng thái. Frontend mặc định gửi chức năng thêm URL/import file và chạy AI sang n8n để dùng credential Google đã cấu hình tại đó.
 
 Yêu cầu Python 3.10 trở lên.
 
@@ -36,6 +36,28 @@ Luồng xử lý: `HTTP handler → Router → Controller → Service → Google
 2. Chia sẻ Google Sheet hiện tại cho email của service account với quyền Editor.
 3. Nếu dùng service account để import file, nên dùng thư mục trong **Shared Drive**, chia sẻ cho service account và điền `GOOGLE_DRIVE_FOLDER_ID`. Service account thông thường không có quota My Drive.
 4. Tải JSON key về `BE/service-account.json`. File này đã được `.gitignore` loại trừ.
+
+### Import file với tài khoản Google cá nhân
+
+Service account không có quota My Drive, vì vậy phần Import File sẽ nhận lỗi `storageQuotaExceeded` nếu không dùng Shared Drive. Với tài khoản Google cá nhân, cấu hình OAuth một lần như sau:
+
+1. Vào **Google Auth Platform → Branding**, cấu hình consent screen. Nếu app ở chế độ External/Testing, thêm chính email của bạn vào **Test users**.
+2. Vào **Google Auth Platform → Clients → Create Client**.
+3. Chọn **Application type: Desktop app**, tạo và tải JSON.
+4. Đổi tên JSON thành `oauth-client.json`, đặt trong thư mục `BE`.
+5. Chạy `py BE/scripts/setup_google_oauth.py`, đăng nhập tài khoản sở hữu Drive và chấp nhận quyền.
+6. Công cụ sẽ tạo `BE/authorized-user.json` và tự cập nhật `.env`. Khởi động lại bằng `py BE/app.py`.
+
+Các file OAuth đều đã được `.gitignore` loại trừ. Quy trình Desktop OAuth này tuân theo hướng dẫn Python Quickstart của Google Drive.
+
+Sau khi OAuth được cấu hình, luồng Import File hoạt động như sau:
+
+```text
+File local → validation/chuẩn hóa → Google Drive import → Google Docs/Sheets → lưu link vào Sheet quản lý
+```
+
+- `.doc`, `.docx`, `.txt`, `.pdf` được chuyển thành Google Docs.
+- `.xls`, `.xlsx` được chuyển thành Google Sheets.
 
 ## Chạy local
 

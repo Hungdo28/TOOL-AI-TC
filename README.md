@@ -5,7 +5,7 @@ Mã nguồn được tách thành hai phần:
 - `FE`: giao diện quản lý bài toán kiểm thử, kết nối Supabase, n8n và Dify.
 - `BE`: backend Python xử lý dữ liệu Google Sheets/Drive.
 
-Các thao tác lấy danh sách, thêm, sửa, xóa, chuyển giao và cập nhật trạng thái nằm trong thư mục `BE`. n8n chỉ còn xử lý luồng AI. Xem hướng dẫn tại `BE/README.md`.
+Các thao tác lấy danh sách, sửa, xóa, chuyển giao và cập nhật trạng thái nằm trong thư mục `BE`. Chức năng thêm tài liệu (URL hoặc file local) và luồng AI tiếp tục chạy bằng n8n để dùng credential Google Drive hiện có. Xem hướng dẫn tại `BE/README.md`.
 
 ## Chạy local
 

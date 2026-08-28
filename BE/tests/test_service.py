@@ -30,7 +30,7 @@ class FakeWorkspace:
             raise KeyError(name)
         self.tasks.remove(task)
 
-    def upload_file(self, filename, content_type, content):
+    def upload_file(self, filename, content_type, content, target_mime_type):
         self.uploads.append(filename)
         return f"https://drive.example/{filename}"
 
@@ -72,7 +72,7 @@ class TaskServiceTests(unittest.TestCase):
             {"baiToan": "Thanh toán", "mode": "import", "username": "qa01"},
             [file],
         )
-        self.assertEqual(task["URL"], "https://drive.example/spec.pdf")
+        self.assertEqual(task["URL"], "https://drive.example/spec")
 
     def test_rejects_duplicate_and_bad_url(self):
         payload = {"baiToan": "A", "mode": "manual", "urlGoc": "https://example.com"}
@@ -93,6 +93,19 @@ class TaskServiceTests(unittest.TestCase):
                 {"baiToan": "Import lỗi", "mode": "import"}, files
             )
         self.assertEqual(self.workspace.uploads, [])
+
+    def test_drive_quota_error_has_actionable_message(self):
+        def fail_upload(*_args):
+            raise RuntimeError("storageQuotaExceeded: Service Accounts do not have storage quota")
+
+        self.workspace.upload_file = fail_upload
+        with self.assertRaises(ApiError) as error:
+            self.service.add_task(
+                {"baiToan": "Import OAuth", "mode": "import"},
+                [UploadedFile("spec.pdf", "application/pdf", b"123")],
+            )
+        self.assertEqual(error.exception.status, 503)
+        self.assertIn("setup_google_oauth.py", error.exception.message)
 
 
 if __name__ == "__main__":
