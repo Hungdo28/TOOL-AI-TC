@@ -53,11 +53,7 @@ function requireAdmin() {
 }
 
 // ================= CẤU HÌNH API =================
-const defaultBackendApiBase = window.location.protocol === 'file:'
-    || ['localhost', '127.0.0.1'].includes(window.location.hostname)
-    ? 'http://127.0.0.1:3000/api'
-    : `${window.location.origin}/api`;
-const BACKEND_API_BASE = (window.AUTO_TC_API_BASE || defaultBackendApiBase).replace(/\/$/, '');
+const BACKEND_API_BASE = (window.AUTO_TC_API_BASE || 'http://127.0.0.1:3000/api').replace(/\/$/, '');
 const URL_GET_LIST = `${BACKEND_API_BASE}/tasks`;
 const URL_POST_RUN = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/luong-chuc-nang';
 // Thêm URL/import file tiếp tục dùng credential Google Drive đã cấu hình trong n8n.
