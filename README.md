@@ -9,7 +9,8 @@ Các thao tác lấy danh sách, sửa, xóa, chuyển giao và cập nhật tr�
 
 ## Chạy local
 
-Chạy backend theo hướng dẫn trong `BE/README.md`. Sau đó phục vụ thư mục `FE` bằng một web server tĩnh, ví dụ Live Server, rồi mở `FE/login.html`. Không mở trực tiếp bằng giao thức `file://` vì một số API trình duyệt và request CORS có thể không hoạt động đúng.
+1. Chạy nhanh backend bằng cách click đúp vào file `run_backend.bat` ở thư mục gốc (hoặc chạy lệnh `cd BE && py app.py`).
+2. Phục vụ thư mục `FE` bằng một web server tĩnh, ví dụ Live Server trong IDE (bấm "Go Live" ở cổng 5500), rồi mở `FE/login.html`. Không mở trực tiếp bằng giao thức `file://` vì một số API trình duyệt và request CORS có thể không hoạt động đúng.
 
 ## Tailscale
 
