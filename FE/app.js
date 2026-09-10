@@ -250,9 +250,8 @@ function showResultPopup(message, type = 'success') {
     document.getElementById('loadingOverlay')?.classList.add('hidden');
     title.textContent = isSuccess ? 'Thành công' : 'Có lỗi xảy ra';
     messageElement.textContent = message;
-    icon.className = `mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full ${
-        isSuccess ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'
-    }`;
+    icon.className = `mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full ${isSuccess ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'
+        }`;
     icon.innerHTML = `<i data-lucide="${isSuccess ? 'check-circle-2' : 'circle-alert'}" class="h-7 w-7"></i>`;
     popup.classList.remove('hidden');
     popup.classList.add('flex');
