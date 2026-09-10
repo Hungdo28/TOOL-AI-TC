@@ -35,6 +35,14 @@ class TaskController:
         task = self.service.update_status(request.read_json())
         return ApiResponse(200, {"success": True, "message": "Đã cập nhật trạng thái", "data": task})
 
+    def start_executions(self, request) -> ApiResponse:
+        executions = self.service.start_executions(request.read_json())
+        return ApiResponse(200, {"success": True, "data": executions})
+
+    def stop_executions(self, request) -> ApiResponse:
+        self.service.stop_executions(request.read_json())
+        return ApiResponse(200, {"success": True})
+
     def transfer_task(self, request) -> ApiResponse:
         require_admin(request, self.settings)
         task = self.service.transfer_task(request.read_json())

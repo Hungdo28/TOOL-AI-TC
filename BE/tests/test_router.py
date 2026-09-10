@@ -13,6 +13,9 @@ class FakeService:
     def update_status(self, payload):
         return {"Bài toán": payload["baiToan"], "Trạng thái": payload["trangThai"]}
 
+    def start_executions(self, payload):
+        return [{"taskName": payload["taskNames"][0], "requestId": payload["requestId"]}]
+
 
 class FakeRequest:
     def __init__(self, path, payload=None, role="admin"):
@@ -43,6 +46,14 @@ class RouterTests(unittest.TestCase):
         self.assertEqual(response.status, 200)
         self.assertEqual(response.body["data"]["Trạng thái"], "Đã xong")
 
+    def test_routes_start_execution(self):
+        request = FakeRequest(
+            "/api/tasks/executions", {"taskNames": ["Đăng nhập"], "requestId": "run-1"}
+        )
+        response = self.router.dispatch("POST", request)
+        self.assertEqual(response.status, 200)
+        self.assertEqual(response.body["data"][0]["requestId"], "run-1")
+
     def test_rejects_viewer_mutation(self):
         request = FakeRequest("/api/tasks/status", role="viewer")
         with self.assertRaises(ApiError) as error:
@@ -57,4 +68,3 @@ class RouterTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

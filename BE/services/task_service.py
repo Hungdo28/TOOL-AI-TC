@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
+import threading
 from typing import Any
 from urllib.parse import urlparse
 
@@ -9,6 +11,10 @@ from services.file_processing import prepare_workspace_file
 
 ALLOWED_EXTENSIONS = {"doc", "docx", "xls", "xlsx", "pdf", "txt"}
 ALLOWED_STATUSES = {"Chưa làm", "Waiting", "Đã xong"}
+
+
+def _normalized(value: Any) -> str:
+    return str(value or "").strip().casefold()
 
 
 class ApiError(Exception):
@@ -50,9 +56,85 @@ class TaskService:
         self.workspace = workspace
         self.max_file_size = max_file_size
         self.max_total_file_size = max_total_file_size
+        # Nguồn trạng thái dùng chung cho mọi phiên frontend đang kết nối backend.
+        self._running_tasks: dict[str, dict[str, str]] = {}
+        self._running_tasks_lock = threading.RLock()
 
     def list_tasks(self) -> list[dict[str, Any]]:
-        return self.workspace.list_tasks()
+        # Không làm thay đổi object do repository trả về khi gắn metadata tạm thời.
+        tasks = [dict(task) for task in self.workspace.list_tasks()]
+        active_names = {
+            _normalized(task.get("Bài toán"))
+            for task in tasks
+            if not self._is_terminal_status(task.get("Trạng thái"))
+        }
+        with self._running_tasks_lock:
+            # n8n cập nhật trạng thái hoàn thành/lỗi trong Sheet; khi đó không phát
+            # execution cũ nữa để tất cả tài khoản dừng đồng hồ đồng thời.
+            self._running_tasks = {
+                name: execution
+                for name, execution in self._running_tasks.items()
+                if name in active_names
+            }
+            for task in tasks:
+                execution = self._running_tasks.get(_normalized(task.get("Bài toán")))
+                if execution:
+                    task["_execution"] = dict(execution)
+        return tasks
+
+    @staticmethod
+    def _is_terminal_status(status: Any) -> bool:
+        normalized = _normalized(status)
+        return (
+            normalized == _normalized("Đã xong")
+            or "lỗi" in normalized
+            or "thất bại" in normalized
+            or "error" in normalized
+        )
+
+    def start_executions(self, payload: dict[str, Any]) -> list[dict[str, str]]:
+        raw_names = payload.get("taskNames")
+        if not isinstance(raw_names, list) or not raw_names:
+            raise ApiError(400, "taskNames phải là danh sách bài toán không rỗng")
+        request_id = required_text(payload, "requestId", 150)
+        names = list(dict.fromkeys(required_text({"taskName": name}, "taskName") for name in raw_names))
+
+        existing_tasks = {_normalized(task.get("Bài toán")) for task in self.workspace.list_tasks()}
+        missing = [name for name in names if _normalized(name) not in existing_tasks]
+        if missing:
+            raise ApiError(404, f'Không tìm thấy bài toán: {", ".join(missing)}')
+
+        started_at = datetime.now(timezone.utc).isoformat()
+        executions: list[dict[str, str]] = []
+        with self._running_tasks_lock:
+            already_running = [
+                name for name in names if _normalized(name) in self._running_tasks
+            ]
+            if already_running:
+                raise ApiError(409, f'Bài toán đang được xử lý: {", ".join(already_running)}')
+            for name in names:
+                key = _normalized(name)
+                execution = {
+                    "taskName": name,
+                    "requestId": request_id,
+                    "startedAt": started_at,
+                }
+                self._running_tasks[key] = execution
+                executions.append(dict(execution))
+        return executions
+
+    def stop_executions(self, payload: dict[str, Any]) -> None:
+        raw_names = payload.get("taskNames")
+        if not isinstance(raw_names, list) or not raw_names:
+            raise ApiError(400, "taskNames phải là danh sách bài toán không rỗng")
+        request_id = required_text(payload, "requestId", 150)
+        with self._running_tasks_lock:
+            for name in raw_names:
+                key = _normalized(name)
+                execution = self._running_tasks.get(key)
+                # Không xóa lượt chạy mới hơn nếu một phản hồi cũ về muộn.
+                if execution and execution["requestId"] == request_id:
+                    self._running_tasks.pop(key, None)
 
     def add_task(self, payload: dict[str, Any], files: list[UploadedFile]) -> dict[str, Any]:
         name = required_text(payload, "baiToan")
@@ -140,7 +222,11 @@ class TaskService:
         if status not in ALLOWED_STATUSES:
             raise ApiError(400, "Trạng thái không hợp lệ")
         try:
-            return self.workspace.update_task(name, {"Trạng thái": status})
+            task = self.workspace.update_task(name, {"Trạng thái": status})
+            if self._is_terminal_status(status):
+                with self._running_tasks_lock:
+                    self._running_tasks.pop(_normalized(name), None)
+            return task
         except KeyError:
             raise ApiError(404, f'Không tìm thấy bài toán "{name}"') from None
 

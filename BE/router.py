@@ -20,6 +20,8 @@ class Router:
             ("PUT", "/api/tasks"): task_controller.edit_task,
             ("DELETE", "/api/tasks"): task_controller.delete_task,
             ("PATCH", "/api/tasks/status"): task_controller.update_status,
+            ("POST", "/api/tasks/executions"): task_controller.start_executions,
+            ("DELETE", "/api/tasks/executions"): task_controller.stop_executions,
             ("PATCH", "/api/tasks/assignee"): task_controller.transfer_task,
         }
 

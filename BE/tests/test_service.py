@@ -83,6 +83,17 @@ class TaskServiceTests(unittest.TestCase):
         with self.assertRaises(ApiError):
             validate_urls("javascript:alert(1)")
 
+    def test_running_execution_is_returned_to_every_client_and_stops_when_done(self):
+        self.workspace.append_task({"Bài toán": "Đăng nhập", "Trạng thái": "Chưa làm"})
+        execution = self.service.start_executions(
+            {"taskNames": ["Đăng nhập"], "requestId": "request-1"}
+        )[0]
+        self.assertEqual(execution["requestId"], "request-1")
+        self.assertIn("_execution", self.service.list_tasks()[0])
+
+        self.service.update_status({"baiToan": "Đăng nhập", "trangThai": "Đã xong"})
+        self.assertNotIn("_execution", self.service.list_tasks()[0])
+
     def test_invalid_import_does_not_upload_partial_files(self):
         files = [
             UploadedFile("valid.pdf", "application/pdf", b"123"),

@@ -63,8 +63,10 @@ const URL_POST_EDIT = `${BACKEND_API_BASE}/tasks`;
 const URL_POST_DELETE = `${BACKEND_API_BASE}/tasks`;
 const URL_POST_UPDATE_STATUS = `${BACKEND_API_BASE}/tasks/status`;
 const URL_POST_TRANSFER = `${BACKEND_API_BASE}/tasks/assignee`;
+const URL_POST_EXECUTIONS = `${BACKEND_API_BASE}/tasks/executions`;
 const REQUEST_TIMEOUT_MS = 30000;
 const PROCESSING_POLL_INTERVAL_MS = 2 * 60 * 1000;
+const SHARED_STATUS_REFRESH_INTERVAL_MS = 30 * 1000;
 const MAX_POLL_RETRY_INTERVAL_MS = 10 * 60 * 1000;
 const PROCESSING_TIMEOUT_MS = 60 * 60 * 1000;
 const RUN_REQUEST_TIMEOUT_MS = PROCESSING_TIMEOUT_MS;
@@ -317,6 +319,86 @@ async function syncExecutionMetadataFromResponse(response, taskNames) {
     }
 }
 
+async function registerRunningTasks(taskNames, requestId) {
+    const response = await fetchWithTimeout(URL_POST_EXECUTIONS, {
+        method: 'POST',
+        headers: getBackendHeaders(true),
+        body: JSON.stringify({ taskNames, requestId })
+    });
+    const responseData = await readApiResponse(response);
+    if (!response.ok || responseData.data?.success === false) {
+        throw new Error(responseData.message || 'Không thể đồng bộ trạng thái đang chạy.');
+    }
+
+    const executions = responseData.data?.data || responseData.data?.executions || [];
+    executions.forEach(execution => {
+        const startedAt = Date.parse(execution.startedAt);
+        if (execution.taskName && Number.isFinite(startedAt)) {
+            taskStartTime[execution.taskName] = startedAt;
+            taskExecutionInfo[execution.taskName] = {
+                ...taskExecutionInfo[execution.taskName],
+                requestId: execution.requestId || requestId,
+                startedAt: execution.startedAt
+            };
+        }
+    });
+}
+
+async function unregisterRunningTasks(taskNames, requestId) {
+    try {
+        await fetchWithTimeout(URL_POST_EXECUTIONS, {
+            method: 'DELETE',
+            headers: getBackendHeaders(true),
+            body: JSON.stringify({ taskNames, requestId })
+        });
+    } catch (_) {
+        // Nếu backend mất kết nối, lần tải danh sách sau vẫn tự dọn khi n8n cập nhật trạng thái.
+    }
+}
+
+function syncRunningTasksFromServer(rows) {
+    const activeServerTasks = new Set();
+    rows.forEach(row => {
+        const taskName = getColVal(row, 'Bài toán');
+        const execution = row._execution;
+        const startedAt = Date.parse(execution?.startedAt || '');
+        if (!taskName || !execution?.requestId || !Number.isFinite(startedAt)) return;
+
+        activeServerTasks.add(taskName);
+        if (!processingTasks.includes(taskName)) processingTasks.push(taskName);
+        taskStartTime[taskName] = startedAt;
+        taskExecutionInfo[taskName] = {
+            ...taskExecutionInfo[taskName],
+            requestId: execution.requestId,
+            startedAt: execution.startedAt
+        };
+    });
+
+    processingTasks = processingTasks.filter(taskName => {
+        const row = rows.find(item => getColVal(item, 'Bài toán') === taskName);
+        const status = String(getColVal(row, 'Trạng thái') || '').toLowerCase();
+        const isTerminal = status === 'đã xong' || status.includes('lỗi') || status.includes('thất bại') || status.includes('error');
+        // Với task do chính phiên này khởi chạy, polling cần nhìn thấy trạng thái
+        // hoàn tất trước để mở popup review testcase. Chỉ tự dọn task đồng bộ từ
+        // phiên khác (không có run context) tại đây.
+        const shouldKeep = activeServerTasks.has(taskName)
+            || !isTerminal
+            || Boolean(runContextByTask[taskName]);
+        if (!shouldKeep) {
+            delete taskStartTime[taskName];
+            delete taskExecutionInfo[taskName];
+            delete runContextByTask[taskName];
+        }
+        return shouldKeep;
+    });
+
+    if (processingTasks.length > 0) {
+        persistProcessingState();
+        startElapsedTimeUpdates();
+        startPollingIfNeeded();
+    }
+}
+
 async function readApiResponse(response) {
     try {
         const responseBody = await response.clone().json();
@@ -541,10 +623,10 @@ function resetAddForm() {
 }
 
 // 1. TẢI DỮ LIỆU & RENDER BẢNG
-async function loadData() {
+async function loadData(silent = false) {
     const tbody = document.getElementById('tableBody');
 
-    if (!pollingInProgress) {
+    if (!pollingInProgress && !silent) {
         tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-10 text-center text-slate-500"><div class="flex flex-col items-center gap-2"><i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i> Đang tải dữ liệu...</div></td></tr>';
         if (typeof lucide !== 'undefined') lucide.createIcons();
     }
@@ -561,11 +643,12 @@ async function loadData() {
         }
 
         dataRows = responseData;
+        syncRunningTasksFromServer(dataRows);
         renderTable();
         return true;
     } catch (err) {
         console.error(err);
-        if (!pollingInProgress) {
+        if (!pollingInProgress && !silent) {
             tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-10 text-center text-red-500"><div class="flex flex-col items-center gap-2"><i data-lucide="alert-circle" class="w-5 h-5"></i> Lỗi kết nối backend.</div></td></tr>`;
             if (typeof lucide !== 'undefined') lucide.createIcons();
         }
@@ -1350,6 +1433,21 @@ async function doRunSingle(tenBaiToan, testcasePrompt, mode) {
     persistProcessingState();
     renderTable();
 
+    try {
+        await registerRunningTasks([tenBaiToan], requestId);
+        persistProcessingState();
+        renderTable();
+    } catch (error) {
+        processingTasks = processingTasks.filter(item => item !== tenBaiToan);
+        delete taskStartTime[tenBaiToan];
+        delete taskExecutionInfo[tenBaiToan];
+        delete runContextByTask[tenBaiToan];
+        persistProcessingState();
+        renderTable();
+        showRunError(error.message);
+        return;
+    }
+
     document.getElementById('loadingText').innerText = `Đang gửi lệnh sang n8n...`;
     document.getElementById('loadingOverlay').classList.remove('hidden');
 
@@ -1377,6 +1475,7 @@ async function doRunSingle(tenBaiToan, testcasePrompt, mode) {
             await startPollingIfNeeded(true);
             showToast(responseData.message || 'Xử lý bài toán thành công.', 'success');
         } else {
+            await unregisterRunningTasks([tenBaiToan], requestId);
             processingTasks = processingTasks.filter(item => item !== tenBaiToan);
             delete taskStartTime[tenBaiToan];
             delete taskExecutionInfo[tenBaiToan];
@@ -1418,6 +1517,21 @@ async function doRunMultiple(selectedTasks, testcasePrompt) {
     persistProcessingState();
     renderTable();
 
+    try {
+        await registerRunningTasks(selectedTasks, requestId);
+        persistProcessingState();
+        renderTable();
+    } catch (error) {
+        processingTasks = processingTasks.filter(item => !selectedTasks.includes(item));
+        selectedTasks.forEach(taskName => delete taskStartTime[taskName]);
+        selectedTasks.forEach(taskName => delete taskExecutionInfo[taskName]);
+        selectedTasks.forEach(taskName => delete runContextByTask[taskName]);
+        persistProcessingState();
+        renderTable();
+        showRunError(error.message);
+        return;
+    }
+
     document.getElementById('loadingText').innerText = `Đang gửi lệnh sang n8n...`;
     document.getElementById('loadingOverlay').classList.remove('hidden');
 
@@ -1445,6 +1559,7 @@ async function doRunMultiple(selectedTasks, testcasePrompt) {
             showToast(responseData.message || `Đã xử lý thành công ${selectedTasks.length} bài toán.`, 'success');
             document.getElementById('selectAll').checked = false;
         } else {
+            await unregisterRunningTasks(selectedTasks, requestId);
             processingTasks = processingTasks.filter(item => !selectedTasks.includes(item));
             selectedTasks.forEach(taskName => delete taskStartTime[taskName]);
             selectedTasks.forEach(taskName => delete taskExecutionInfo[taskName]);
@@ -1646,6 +1761,11 @@ window.addEventListener('load', async () => {
     } else {
         await loadData();
     }
+
+    // Các phiên chỉ đang xem cũng tự nhận trạng thái chạy từ backend.
+    window.setInterval(() => {
+        if (!document.hidden) loadData(true);
+    }, SHARED_STATUS_REFRESH_INTERVAL_MS);
 });
 
 document.addEventListener('visibilitychange', () => {

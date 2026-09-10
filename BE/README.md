@@ -79,6 +79,7 @@ Kiểm tra: `GET http://127.0.0.1:3000/api/health`.
 | PUT | `/api/tasks` | Sửa tên và URL |
 | DELETE | `/api/tasks` | Xóa bài toán |
 | PATCH | `/api/tasks/status` | Chọn/cập nhật trạng thái |
+| POST | `/api/tasks/executions` | Đăng ký mốc bắt đầu chạy dùng chung giữa các tài khoản |
 | PATCH | `/api/tasks/assignee` | Phân chia/chuyển giao bài toán |
 
 Các API thay đổi dữ liệu yêu cầu header `X-User-Role: admin`. Đây chỉ là lớp tương thích với cơ chế đăng nhập hiện tại ở frontend, không phải xác thực an toàn vì header trình duyệt có thể bị giả mạo. Khi public backend ra Internet, nên thay đăng nhập hiện tại bằng Supabase Auth/JWT và xác minh JWT ở backend.
