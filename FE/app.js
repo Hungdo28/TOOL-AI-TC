@@ -53,7 +53,7 @@ function requireAdmin() {
 }
 
 // ================= CẤU HÌNH API =================
-const BACKEND_API_BASE = (window.AUTO_TC_API_BASE || 'https://vdtc-hungdv.tailfb2503.ts.net:10000/api').replace(/\/$/, '');
+const BACKEND_API_BASE = (window.AUTO_TC_API_BASE || 'https://tool-ai-tc.onrender.com/api').replace(/\/$/, '');
 const URL_GET_LIST = `${BACKEND_API_BASE}/tasks`;
 const URL_POST_RUN = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/luong-chuc-nang';
 // Thêm URL/import file tiếp tục dùng credential Google Drive đã cấu hình trong n8n.
