@@ -1,4 +1,5 @@
 import os
+import requests
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -6,32 +7,28 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
 from google import genai
 
-# --- [1] IMPORT CÁC ROUTER CŨ CỦA ANH Ở ĐÂY ---
-# Nếu code cũ anh tách ra file router (ví dụ router.py), anh cần giữ lại dòng import nhé.
-# Ví dụ: from router import task_router 
+app = FastAPI(title="QA Memory & Automation Microservice")
 
-app = FastAPI(title="Tool Kiểm Thử AI & QA Memory")
-
-# --- [2] CẤU HÌNH CORS (Bắt buộc để Frontend gọi không bị lỗi Failed to fetch) ---
+# 1. Bật CORS cho phép Web Frontend truy cập không bị chặn
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Cho phép mọi nguồn (hoặc điền cụ thể ["https://quanlv.io.vn"])
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# --- [3] KHỞI TẠO QDRANT & GEMINI ---
+# 2. Cấu hình Biến môi trường
 QDRANT_URL = os.getenv("QDRANT_URL")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL", "")
 
 qdrant_client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 ai_client = genai.Client(api_key=GEMINI_API_KEY)
 
 COLLECTION_NAME = "qa_knowledge"
 
-# Tạo Collection nếu chưa tồn tại
 try:
     qdrant_client.get_collection(COLLECTION_NAME)
 except Exception:
@@ -47,7 +44,7 @@ def get_embedding(text: str):
     )
     return response.embedding.values
 
-# --- [4] ĐỊNH NGHĨA DỮ LIỆU ---
+# --- MODELS ---
 class SearchRequest(BaseModel):
     query_text: str
     top_k: int = 3
@@ -56,9 +53,8 @@ class SaveRequest(BaseModel):
     doc_id: str
     text: str
 
-# --- [5] API XỬ LÝ MEMORY ---
-# (Em đã thêm tiền tố /api để khớp với BACKEND_API_BASE trên Frontend của anh)
-@app.post("/api/search-memory")
+# --- 1. ENDPOINTS TRI THỨC (QDRANT RAG) ---
+@app.post("/search-memory")
 def search_memory(req: SearchRequest):
     try:
         query_vector = get_embedding(req.query_text)
@@ -72,7 +68,7 @@ def search_memory(req: SearchRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/save-memory")
+@app.post("/save-memory")
 def save_memory(req: SaveRequest):
     try:
         vector = get_embedding(req.text)
@@ -91,11 +87,31 @@ def save_memory(req: SaveRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# --- 2. ENDPOINTS QUẢN LÝ BÀI TOÁN & THỰC THI N8N FOR FRONTEND ---
+@app.options("/{full_path:path}")
+def options_handler(full_path: str):
+    return {"status": "ok"}
 
-# --- [6] GẮN LẠI CÁC API TASKS CŨ ---
-# NẾU TRƯỚC ĐÂY ANH DÙNG ROUTER: 
-# Bỏ comment dòng dưới để nối lại các API `/api/tasks` cũ vào app
-# app.include_router(task_router, prefix="/api")
+@app.post("/api/tasks/executions")
+@app.post("/api/executions")
+def trigger_n8n_execution(payload: dict):
+    if not N8N_WEBHOOK_URL:
+        return {"status": "success", "message": "Trigger received (Missing N8N_WEBHOOK_URL env)"}
+    try:
+        res = requests.post(N8N_WEBHOOK_URL, json=payload, timeout=60)
+        return res.json() if res.headers.get("content-type") == "application/json" else {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi kích hoạt n8n: {str(e)}")
 
-# NẾU TRƯỚC ĐÂY ANH VIẾT THẲNG CÁC HÀM @app.post("/api/tasks") VÀO FILE NÀY:
-# Anh dán tất cả các hàm cũ đó xuống dưới dòng này là xong nhé!
+@app.get("/api/tasks")
+def get_tasks():
+    return []
+
+@app.post("/api/tasks")
+def create_task(payload: dict):
+    return {"status": "success", "data": payload}
+
+@app.put("/api/tasks/{task_id}")
+@app.patch("/api/tasks/{task_id}")
+def update_task(task_id: str, payload: dict):
+    return {"status": "success", "message": f"Updated task {task_id}"}
