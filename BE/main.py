@@ -1,20 +1,31 @@
 import os
-import chromadb
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from qdrant_client import QdrantClient
+from qdrant_client.models import Distance, VectorParams, PointStruct
 from google import genai
 
 app = FastAPI(title="QA Memory Microservice")
 
-# 1. Khởi tạo ChromaDB (Dữ liệu tự động lưu vào thư mục ./chroma_db)
-chroma_client = chromadb.PersistentClient(path="./chroma_db")
-collection = chroma_client.get_or_create_collection(name="qa_knowledge")
+# 1. Khởi tạo Qdrant Cloud & Gemini Client
+QDRANT_URL = os.getenv("QDRANT_URL")
+QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# 2. Khởi tạo Gemini API Client (Lấy API Key từ môi trường hoặc điền trực tiếp)
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY_HERE")
+qdrant_client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 ai_client = genai.Client(api_key=GEMINI_API_KEY)
 
-# Hàm chuyển đổi văn bản thành Vector bằng mô hình Embedding của Gemini
+COLLECTION_NAME = "qa_knowledge"
+
+# Tạo Collection nếu chưa tồn tại (Vector 768 chiều cho text-embedding-004)
+try:
+    qdrant_client.get_collection(COLLECTION_NAME)
+except Exception:
+    qdrant_client.create_collection(
+        collection_name=COLLECTION_NAME,
+        vectors_config=VectorParams(size=768, distance=Distance.COSINE)
+    )
+
 def get_embedding(text: str):
     response = ai_client.models.embed_content(
         model="text-embedding-004",
@@ -22,7 +33,6 @@ def get_embedding(text: str):
     )
     return response.embedding.values
 
-# Define Schema cho Request đầu vào
 class SearchRequest(BaseModel):
     query_text: str
     top_k: int = 3
@@ -31,33 +41,35 @@ class SaveRequest(BaseModel):
     doc_id: str
     text: str
 
-# ---------------- API ENDPOINTS ---------------- #
-
 @app.post("/search-memory")
 def search_memory(req: SearchRequest):
-    """Tìm kiếm k tri thức cũ có nội dung liên quan nhất với tài liệu mới"""
     try:
         query_vector = get_embedding(req.query_text)
-        results = collection.query(
-            query_embeddings=[query_vector],
-            n_results=req.top_k
+        search_result = qdrant_client.search(
+            collection_name=COLLECTION_NAME,
+            query_vector=query_vector,
+            limit=req.top_k
         )
-        docs = results.get('documents', [[]])[0]
-        context = "\n---\n".join(docs) if docs else "Chưa có dữ liệu cũ liên quan."
-        return {"status": "success", "context": context}
+        context_list = [hit.payload.get("text", "") for hit in search_result]
+        return {"context": "\n---\n".join(context_list)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/save-memory")
 def save_memory(req: SaveRequest):
-    """Lưu phân tích nghiệp vụ hoặc Test Case mới vào ChromaDB"""
     try:
-        doc_vector = get_embedding(req.text)
-        collection.add(
-            ids=[req.doc_id],
-            embeddings=[doc_vector],
-            documents=[req.text]
+        vector = get_embedding(req.text)
+        point_id = abs(hash(req.doc_id))
+        qdrant_client.upsert(
+            collection_name=COLLECTION_NAME,
+            points=[
+                PointStruct(
+                    id=point_id,
+                    vector=vector,
+                    payload={"doc_id": req.doc_id, "text": req.text}
+                )
+            ]
         )
-        return {"status": "success", "message": f"Đã lưu thành công ID: {req.doc_id}"}
+        return {"status": "success", "message": f"Saved {req.doc_id}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
