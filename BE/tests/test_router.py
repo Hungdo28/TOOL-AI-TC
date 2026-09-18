@@ -18,10 +18,10 @@ class FakeService:
 
 
 class FakeRequest:
-    def __init__(self, path, payload=None, role="admin"):
+    def __init__(self, path, payload=None, role="admin", username=""):
         self.path = path
         self.payload = payload or {}
-        self.headers = {"X-User-Role": role}
+        self.headers = {"X-User-Role": role, "X-User-Name": username}
 
     def read_json(self):
         return self.payload
@@ -59,6 +59,23 @@ class RouterTests(unittest.TestCase):
         with self.assertRaises(ApiError) as error:
             self.router.dispatch("PATCH", request)
         self.assertEqual(error.exception.status, 403)
+
+    def test_rejects_faked_admin_with_supabase_check(self):
+        from unittest.mock import patch
+        settings = SimpleNamespace(
+            enforce_role_header=True,
+            supabase_url="https://mock.supabase.co",
+            supabase_anon_key="mock-key"
+        )
+        router = Router(TaskController(FakeService(), settings))
+
+        # Giả lập người dùng F12 sửa role='admin' nhưng DB lưu là 'user'
+        fake_req = FakeRequest("/api/tasks/status", {"baiToan": "T"}, role="admin", username="fake_admin")
+        with patch("middleware.auth.fetch_role_from_supabase", return_value="user"):
+            with self.assertRaises(ApiError) as error:
+                router.dispatch("PATCH", fake_req)
+            self.assertEqual(error.exception.status, 403)
+            self.assertIn("không có quyền Admin", error.exception.message)
 
     def test_unknown_route_returns_not_found(self):
         with self.assertRaises(ApiError) as error:

@@ -1,10 +1,14 @@
-// ================= KIỂM TRA ĐĂNG NHẬP =================
+// ================= KIỂM TRA ĐĂNG NHẬP & QUẢN LÝ PHIÊN =================
+const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // Thời hạn phiên: 7 ngày
+
 const currentUserJson = localStorage.getItem('currentUser');
 if (!currentUserJson) {
     window.location.replace('login.html');
 }
+
 let currentUser = { role: 'viewer', fullName: 'Khách' };
 let hasValidSession = false;
+
 if (currentUserJson) {
     try {
         const parsedUser = JSON.parse(currentUserJson);
@@ -17,10 +21,27 @@ if (currentUserJson) {
         ) {
             throw new Error('Dữ liệu đăng nhập không hợp lệ');
         }
+
+        const now = Date.now();
+        // Kiểm tra xem phiên đã hết hạn hay chưa
+        if (parsedUser.expiresAt && typeof parsedUser.expiresAt === 'number' && now > parsedUser.expiresAt) {
+            localStorage.removeItem('currentUser');
+            window.location.replace('login.html?expired=1');
+        }
+
+        // Tương thích ngược: nếu phiên cũ chưa có expiresAt, gán hạn 7 ngày
+        if (!parsedUser.expiresAt) {
+            parsedUser.loggedInAt = now;
+            parsedUser.expiresAt = now + SESSION_DURATION_MS;
+            localStorage.setItem('currentUser', JSON.stringify(parsedUser));
+        }
+
         currentUser = {
             username: parsedUser.username.trim(),
             role: parsedUser.role,
-            fullName: typeof parsedUser.fullName === 'string' ? parsedUser.fullName : parsedUser.username.trim()
+            fullName: typeof parsedUser.fullName === 'string' ? parsedUser.fullName : parsedUser.username.trim(),
+            loggedInAt: parsedUser.loggedInAt || now,
+            expiresAt: parsedUser.expiresAt
         };
         hasValidSession = true;
     } catch (error) {
@@ -29,6 +50,35 @@ if (currentUserJson) {
         window.location.replace('login.html');
     }
 }
+
+// Tự động gia hạn phiên làm việc khi người dùng tương tác (Rolling Renewal)
+function touchUserSession() {
+    try {
+        const raw = localStorage.getItem('currentUser');
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        const now = Date.now();
+        // Nếu thời hạn còn lại dưới 6 ngày (nghĩa là đã hoạt động được hơn 1 ngày), gia hạn lại đủ 7 ngày
+        if (parsed && parsed.expiresAt && (parsed.expiresAt - now < 6 * 24 * 60 * 60 * 1000)) {
+            parsed.expiresAt = now + SESSION_DURATION_MS;
+            localStorage.setItem('currentUser', JSON.stringify(parsed));
+            if (currentUser) currentUser.expiresAt = parsed.expiresAt;
+        }
+    } catch (e) {
+        console.warn('Không thể gia hạn phiên:', e);
+    }
+}
+
+let lastSessionTouchTime = 0;
+['click', 'keydown', 'scroll'].forEach((evtType) => {
+    window.addEventListener(evtType, () => {
+        const now = Date.now();
+        if (now - lastSessionTouchTime > 10 * 60 * 1000) { // Mỗi 10 phút kiểm tra gia hạn 1 lần
+            lastSessionTouchTime = now;
+            touchUserSession();
+        }
+    }, { passive: true });
+});
 
 // Khởi tạo Supabase để lấy danh sách User cho form Chuyển giao
 const SUPABASE_URL = 'https://zrwlzthteixjxdhsevkh.supabase.co';
@@ -1729,8 +1779,38 @@ window.askAIToReview = function (url) {
     });
 };
 
+// Đồng bộ quyền thực tế từ Database Supabase để ngăn chặn việc sửa đổi qua F12
+async function syncUserRoleFromDatabase() {
+    if (!supabaseClient || !currentUser.username) return;
+    try {
+        const { data, error } = await supabaseClient
+            .from('users')
+            .select('role')
+            .eq('username', currentUser.username)
+            .limit(1);
+
+        if (error || !data || data.length === 0) return;
+        const dbRole = data[0].role === 'admin' ? 'admin' : 'viewer';
+        if (currentUser.role !== dbRole) {
+            console.warn(`[Security] Phát hiện quyền bị sửa lệch (${currentUser.role} -> ${dbRole}). Đang phục hồi theo Database.`);
+            currentUser.role = dbRole;
+            const raw = localStorage.getItem('currentUser');
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                parsed.role = dbRole;
+                localStorage.setItem('currentUser', JSON.stringify(parsed));
+            }
+        }
+    } catch (e) {
+        console.warn('Lỗi khi đồng bộ quyền người dùng:', e);
+    }
+}
+
 window.addEventListener('load', async () => {
     if (!hasValidSession) return;
+
+    // Xác minh lại quyền thực tế với Database trước khi vẽ giao diện
+    await syncUserRoleFromDatabase();
 
     // Hiển thị thông tin user trên Header
     const displayFullName = document.getElementById('displayFullName');

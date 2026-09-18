@@ -88,10 +88,6 @@ def save_memory(req: SaveRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 # --- 2. ENDPOINTS QUẢN LÝ BÀI TOÁN & THỰC THI N8N FOR FRONTEND ---
-@app.options("/{full_path:path}")
-def options_handler(full_path: str):
-    return {"status": "ok"}
-
 @app.post("/api/tasks/executions")
 @app.post("/api/executions")
 def trigger_n8n_execution(payload: dict):

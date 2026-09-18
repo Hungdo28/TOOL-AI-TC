@@ -44,6 +44,8 @@ class Settings:
     enforce_role_header: bool
     max_file_size: int
     max_total_file_size: int
+    supabase_url: str = "https://zrwlzthteixjxdhsevkh.supabase.co"
+    supabase_anon_key: str = "sb_publishable_yA_P7i5OXAffRJwHx3hGvw_Wyo02_u3"
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -94,4 +96,6 @@ class Settings:
             enforce_role_header=env_bool("ENFORCE_ROLE_HEADER", True),
             max_file_size=int(float(os.getenv("MAX_FILE_SIZE_MB", "20")) * 1024 * 1024),
             max_total_file_size=int(float(os.getenv("MAX_TOTAL_FILE_SIZE_MB", "50")) * 1024 * 1024),
+            supabase_url=os.getenv("SUPABASE_URL", "https://zrwlzthteixjxdhsevkh.supabase.co").strip().rstrip("/"),
+            supabase_anon_key=os.getenv("SUPABASE_ANON_KEY", "sb_publishable_yA_P7i5OXAffRJwHx3hGvw_Wyo02_u3").strip(),
         )

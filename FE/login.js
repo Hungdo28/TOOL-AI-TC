@@ -1,4 +1,27 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 ngày
+
+    const loginForm = document.getElementById('loginForm');
+    const errorMessage = document.getElementById('errorMessage');
+    const btnSubmit = loginForm?.querySelector('button[type="submit"]');
+
+    const showError = (message) => {
+        if (!errorMessage) return;
+        errorMessage.textContent = message;
+        errorMessage.classList.remove('hidden');
+    };
+
+    const refreshIcons = () => {
+        if (window.lucide) window.lucide.createIcons();
+    };
+
+    // Kiểm tra thông báo hết hạn từ redirect
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('expired') === '1') {
+        showError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+    }
+
+    // Kiểm tra phiên đăng nhập hiện tại
     const storedUser = localStorage.getItem('currentUser');
     if (storedUser) {
         try {
@@ -10,28 +33,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 && parsedUser.username.trim()
                 && ['admin', 'viewer'].includes(parsedUser.role)
             ) {
-                window.location.replace('index.html');
-                return;
+                const now = Date.now();
+                if (parsedUser.expiresAt && typeof parsedUser.expiresAt === 'number' && now > parsedUser.expiresAt) {
+                    localStorage.removeItem('currentUser');
+                    showError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+                } else {
+                    // Tương thích ngược cho phiên cũ chưa có expiresAt
+                    if (!parsedUser.expiresAt) {
+                        parsedUser.loggedInAt = now;
+                        parsedUser.expiresAt = now + SESSION_DURATION_MS;
+                        localStorage.setItem('currentUser', JSON.stringify(parsedUser));
+                    }
+                    window.location.replace('index.html');
+                    return;
+                }
+            } else {
+                localStorage.removeItem('currentUser');
             }
         } catch (error) {
             console.warn('Thông tin đăng nhập cũ không hợp lệ:', error);
+            localStorage.removeItem('currentUser');
         }
-
-        localStorage.removeItem('currentUser');
     }
-
-    const loginForm = document.getElementById('loginForm');
-    const errorMessage = document.getElementById('errorMessage');
-    const btnSubmit = loginForm?.querySelector('button[type="submit"]');
-
-    const showError = (message) => {
-        errorMessage.textContent = message;
-        errorMessage.classList.remove('hidden');
-    };
-
-    const refreshIcons = () => {
-        if (window.lucide) window.lucide.createIcons();
-    };
 
     if (!loginForm || !errorMessage || !btnSubmit) {
         console.error('Trang đăng nhập thiếu thành phần bắt buộc.');
@@ -87,12 +110,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 const role = dbUser.role === 'admin' ? 'admin' : 'viewer';
                 // Schema hiện tại không đảm bảo có cột full_name.
                 const fullName = usernameInput;
+                const now = Date.now();
 
                 localStorage.setItem('currentUser', JSON.stringify({
                     username: usernameInput,
                     email: dbUser.username,
                     role: role,
-                    fullName: fullName
+                    fullName: fullName,
+                    loggedInAt: now,
+                    expiresAt: now + SESSION_DURATION_MS
                 }));
 
                 window.location.replace('index.html');
