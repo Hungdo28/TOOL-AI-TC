@@ -5,7 +5,7 @@ import mimetypes
 from email.parser import BytesParser
 from email.policy import default
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 
 from core.config import Settings
 from services.task_service import ApiError, UploadedFile
@@ -15,6 +15,8 @@ class HttpRequest:
     def __init__(self, handler, settings: Settings):
         self.handler = handler
         self.settings = settings
+        # Được inject bởi Router khi route có path param (vd: /api/jobs/:id/status)
+        self.path_params: dict[str, str] = {}
 
     @property
     def path(self) -> str:
@@ -23,6 +25,12 @@ class HttpRequest:
     @property
     def headers(self):
         return self.handler.headers
+
+    @property
+    def query_params(self) -> dict[str, str]:
+        """Trả về query string dưới dạng dict (giá trị đầu tiên của mỗi key)."""
+        qs = urlparse(self.handler.path).query
+        return {k: v[0] for k, v in parse_qs(qs).items()} if qs else {}
 
     def read_body(self) -> bytes:
         content_length = int(self.headers.get("Content-Length", "0") or 0)
