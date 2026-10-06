@@ -199,15 +199,37 @@ class SupabaseQueue:
             },
         )
 
-    def is_task_already_queued(self, task_name: str) -> bool:
-        """Kiểm tra xem bài toán này có đang chờ hoặc đang xử lý chưa.
+    def is_task_already_queued(self, task_name: str, max_age_seconds: int = 1800) -> bool:
+        """Kiểm tra xem bài toán này có đang chờ hoặc đang xử lý gần đây không.
         Tránh enqueue trùng khi nhiều người bấm cùng một bài.
+        Tự động giải phóng các job cũ hơn max_age_seconds (mặc định 30 phút) để tránh bị kẹt vĩnh viễn.
         """
         url = (
             f"{self._table_url}"
             f"?task_name=eq.{urllib.parse.quote(task_name)}"
             f"&status=in.(queued,processing)"
-            f"&select=id&limit=1"
+            f"&order=created_at.desc&limit=1"
         )
         result = self._request("GET", url)
-        return bool(result)
+        if not result or not isinstance(result, list) or len(result) == 0:
+            return False
+
+        job = result[0]
+        created_at_str = job.get("created_at")
+        if created_at_str:
+            try:
+                from datetime import datetime, timezone
+                ts_str = str(created_at_str).replace("Z", "+00:00")
+                created_dt = datetime.fromisoformat(ts_str)
+                age = (datetime.now(timezone.utc) - created_dt).total_seconds()
+                if age > max_age_seconds:
+                    LOGGER.info(
+                        "Job %s cho task '%s' da cu (%.0fs > %ss), giai phong khoi hang doi",
+                        job.get("id"), task_name, age, max_age_seconds
+                    )
+                    self.mark_failed(job.get("id"), "Hết thời gian chờ (Stale job)")
+                    return False
+            except Exception as e:
+                LOGGER.warning("Khong the parse created_at cua job %s: %s", job.get("id"), e)
+
+        return True
