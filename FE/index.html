@@ -390,6 +390,43 @@
         </div>
     </div>
 
+    <!-- MODAL XÁC NHẬN DỪNG LUỒNG -->
+    <div id="stopStreamModal"
+        class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4"
+        role="dialog" aria-modal="true" aria-labelledby="stopStreamTitle">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div class="px-6 py-5 border-b border-slate-100 bg-red-50/60 flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                    <i data-lucide="octagon-x" class="w-5 h-5 text-red-600"></i>
+                </div>
+                <div>
+                    <h3 id="stopStreamTitle" class="font-extrabold text-slate-800 text-base">Dừng luồng xử lý</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">Hành động này không thể hoàn tác</p>
+                </div>
+            </div>
+            <div class="p-6 space-y-4">
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    Bạn có chắc muốn dừng luồng AI đang xử lý bài toán
+                    <strong id="stopStreamTaskName" class="text-slate-900 break-words"></strong>?
+                </p>
+                <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 leading-relaxed">
+                    ⚠️ Các job đang <em>queued</em> và <em>processing</em> sẽ bị đánh dấu <strong>cancelled</strong> trong Supabase.
+                    n8n sẽ bỏ qua job đó trong lần quét tiếp theo.
+                </p>
+                <div class="flex justify-end gap-3 pt-2 border-t border-slate-100">
+                    <button id="btnCancelStop" onclick="closeStopStreamModal()"
+                        class="px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-sm font-semibold transition-all">
+                        Tiếp tục chạy
+                    </button>
+                    <button id="btnConfirmStop" onclick="confirmStopStream()"
+                        class="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold transition-all shadow-sm flex items-center gap-2">
+                        <i data-lucide="square" class="w-4 h-4 fill-white"></i> Dừng ngay
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- BACKEND RESULT POPUP -->
     <div id="resultPopup"
         class="hidden fixed inset-0 z-[90] bg-slate-900/45 backdrop-blur-sm items-center justify-center p-4"
@@ -407,7 +444,7 @@
     </div>
 
     <!-- MAIN APP SCRIPT -->
-    <script src="app.js?v=15"></script>
+    <script src="app.js?v=16"></script>
 
     <!-- Floating AI Chat Button -->
     <button id="aiToggle"

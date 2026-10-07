@@ -154,3 +154,39 @@ class JobService:
             self._queue.mark_failed(job_id, error_msg)
         except Exception as exc:
             raise ApiError(502, f"Khong the cap nhat trang thai failed: {exc}") from exc
+
+    def cancel_jobs(self, payload: dict) -> dict:
+        """
+        Hủy các job đang queued/processing.
+
+        Payload chấp nhận (1 trong 2):
+          - { "requestId": "uuid" }              -- hủy theo lần chạy
+          - { "taskNames": ["TC_A", ...],        -- hủy theo tên bài toán
+              "username": "hungdv" }
+        """
+        request_id = str(payload.get("requestId", "")).strip()
+        task_names = payload.get("taskNames")
+        username = str(payload.get("username", "")).strip() or None
+
+        cancelled = 0
+        try:
+            if request_id:
+                cancelled = self._queue.cancel_jobs_by_request(request_id)
+            elif isinstance(task_names, list) and task_names:
+                cancelled = self._queue.cancel_jobs_by_task_names(
+                    [str(n).strip() for n in task_names if str(n).strip()],
+                    username=username,
+                )
+            else:
+                raise ApiError(400, "Thieu requestId hoac taskNames")
+        except ApiError:
+            raise
+        except Exception as exc:
+            LOGGER.error("Loi cancel jobs: %s", exc)
+            raise ApiError(502, f"Khong the huy job: {exc}") from exc
+
+        LOGGER.info("Da huy %d job (requestId=%s, taskNames=%s)", cancelled, request_id, task_names)
+        return {
+            "cancelled": cancelled,
+            "message": f"Da huy {cancelled} job thanh cong." if cancelled else "Khong co job nao dang cho de huy.",
+        }

@@ -117,6 +117,7 @@ const URL_POST_EXECUTIONS = `${BACKEND_API_BASE}/tasks/executions`;
 // ---- Hang doi AI (Queue) ----
 const URL_POST_JOBS = `${BACKEND_API_BASE}/jobs`;           // Luong Me: enqueue
 const URL_JOBS_STATUS = `${BACKEND_API_BASE}/jobs/status`;  // FE polling trang thai job
+const URL_CANCEL_JOBS = `${BACKEND_API_BASE}/jobs`;         // Huy job (DELETE)
 const JOBS_POLL_INTERVAL_MS = 15 * 1000;  // Poll trang thai job moi 15 giay
 const JOBS_POLL_MAX_AGE_MS  = 2 * 60 * 60 * 1000; // Dung poll sau 2 gio
 const REQUEST_TIMEOUT_MS = 30000;
@@ -159,6 +160,9 @@ let toastTimer = null;
 // { [requestId]: { taskNames: [], startedAt: number, pollTimer: null } }
 let activeJobQueues = {};
 let jobQueuePollTimers = {}; // { [requestId]: timer }
+
+// Bien luu trang thai task can dung (dung cho stop modal)
+let stopStreamContext = null; // { taskName, requestId }
 
 function getExecutionStorageKey() {
     return `autotc:processing:${currentUser.username || 'anonymous'}`;
@@ -752,6 +756,9 @@ function renderTable() {
             trangThai = 'Đang xử lý AI...';
         }
 
+        // Tim requestId cua task nay (de truyen vao stop modal)
+        const taskReqId = taskExecutionInfo[ten]?.requestId || '';
+
         const escapeHtml = (value = '') => {
             return String(value)
                 .replace(/&/g, '&amp;')
@@ -837,7 +844,19 @@ function renderTable() {
 
                 <td class="px-4 py-5 align-top">
                     ${isActivelyProcessing
-                ? `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-600 border border-blue-100 shadow-sm" title="Thời gian xử lý được cập nhật mỗi giây"><i data-lucide="loader-2" class="w-3 h-3 animate-spin"></i><span>Đang chạy</span><span class="task-elapsed-time font-mono tabular-nums text-blue-800" data-task-name="${escapeHtml(ten)}">${formatElapsedTime(taskStartTime[ten] || Date.now())}</span></span>`
+                ? `<span
+                    onclick="openStopStreamModal('${escapeHtml(ten)}', '${escapeHtml(taskReqId)}')"
+                    class="relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-600 border border-blue-100 shadow-sm cursor-pointer hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all duration-200 group/spin"
+                    title="Bấm để dừng luồng AI này">
+                    <!-- Noi dung binh thuong (luon chiem khong gian) -->
+                    <i data-lucide="loader-2" class="w-3 h-3 animate-spin shrink-0 group-hover/spin:opacity-0 transition-opacity duration-150"></i>
+                    <span class="group-hover/spin:opacity-0 transition-opacity duration-150">Đang chạy</span>
+                    <span class="task-elapsed-time font-mono tabular-nums text-blue-800 group-hover/spin:opacity-0 transition-opacity duration-150" data-task-name="${escapeHtml(ten)}">${formatElapsedTime(taskStartTime[ten] || Date.now())}</span>
+                    <!-- Lop "Dung" hien len phia tren khi hover, khong lam thay doi kich thuoc -->
+                    <span class="absolute inset-0 flex items-center justify-center gap-1.5 opacity-0 group-hover/spin:opacity-100 transition-opacity duration-150 text-red-600 font-semibold text-xs rounded-lg">
+                        <i data-lucide="octagon-x" class="w-3 h-3 shrink-0"></i> Dừng
+                    </span>
+                   </span>`
                 : (currentUser.role === 'admin'
                     ? `<select onchange="updateStatus(${originalIndex}, this.value)" class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 cursor-pointer font-semibold outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm appearance-none pr-7 relative bg-no-repeat bg-right hover:border-blue-300 ${trangThai === 'Đã xong' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : (trangThai.toLowerCase().includes('lỗi') || trangThai.toLowerCase().includes('thất bại') || trangThai.toLowerCase().includes('error') ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-600')}" style="background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2394a3b8%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E'); background-size: 8px; background-position: calc(100% - 8px) center;">
                             <option value="Chưa làm" ${trangThai === 'Chưa làm' ? 'selected' : ''}>Chưa làm</option>
@@ -1629,6 +1648,15 @@ function startJobPolling(requestId) {
     jobQueuePollTimers[requestId] = setTimeout(pollJobStatus, 5000);
 }
 
+// Dung polling theo requestId (khi nguoi dung cancel)
+function stopJobPolling(requestId) {
+    if (jobQueuePollTimers[requestId]) {
+        clearTimeout(jobQueuePollTimers[requestId]);
+        delete jobQueuePollTimers[requestId];
+    }
+    delete activeJobQueues[requestId];
+}
+
 
 async function doRunMultiple(selectedTasks, testcasePrompt) {
     selectedTasks = [...new Set(selectedTasks)].filter(taskName => taskName && !processingTasks.includes(taskName));
@@ -1940,3 +1968,91 @@ document.addEventListener('visibilitychange', () => {
 });
 
 window.addEventListener('beforeunload', persistProcessingState);
+
+// =================================================================
+// CHUC NANG DUNG LUONG AI
+// =================================================================
+
+/**
+ * Mo modal xac nhan dung luong.
+ * @param {string} taskName  - Ten bai toan (hien thi cho user)
+ * @param {string} requestId - requestId dang chay (de huy theo lo)
+ */
+window.openStopStreamModal = function (taskName, requestId) {
+    stopStreamContext = { taskName, requestId };
+    const nameEl = document.getElementById('stopStreamTaskName');
+    if (nameEl) nameEl.textContent = taskName || '(khong ro ten)';
+    const modal = document.getElementById('stopStreamModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+};
+
+window.closeStopStreamModal = function () {
+    const modal = document.getElementById('stopStreamModal');
+    if (modal) modal.classList.add('hidden');
+    stopStreamContext = null;
+};
+
+window.confirmStopStream = async function () {
+    if (!stopStreamContext) return;
+    const { taskName, requestId } = stopStreamContext;
+    closeStopStreamModal();
+
+    // Lay tat ca taskNames trong cung requestId (hoac chi task do neu khong co requestId)
+    const taskNamesToStop = requestId
+        ? (activeJobQueues[requestId]?.taskNames || [taskName])
+        : [taskName];
+
+    // Dung polling FE ngay lap tuc
+    if (requestId) stopJobPolling(requestId);
+
+    // Don trang thai FE
+    taskNamesToStop.forEach(name => {
+        processingTasks = processingTasks.filter(t => t !== name);
+        delete taskStartTime[name];
+        delete taskExecutionInfo[name];
+        delete runContextByTask[name];
+    });
+    persistProcessingState();
+    renderTable();
+
+    // Goi API backend de huy job tren Supabase
+    try {
+        const body = requestId
+            ? { requestId, username: currentUser.username }
+            : { taskNames: taskNamesToStop, username: currentUser.username };
+
+        const res = await fetchWithTimeout(URL_CANCEL_JOBS, {
+            method: 'DELETE',
+            headers: getBackendHeaders(true),
+            body: JSON.stringify(body)
+        });
+
+        const resData = await readApiResponse(res);
+        if (res.ok && resData.data?.success !== false) {
+            const cancelled = resData.data?.cancelled ?? 0;
+            showToast(
+                cancelled > 0
+                    ? `Da dung ${cancelled} job cua "${taskNamesToStop.join(', ')}".`
+                    : `Khong tim thay job dang cho de dung (co the da hoan thanh roi).`,
+                cancelled > 0 ? 'success' : 'warning',
+                7000
+            );
+        } else {
+            showToast(resData.message || 'Khong the huy job tren Supabase, nhung FE da don xong.', 'warning', 8000);
+        }
+    } catch (err) {
+        console.error('Loi khi goi API cancel jobs:', err);
+        showToast('Khong the ket noi backend de huy job. FE da don xong trang thai cuc bo.', 'warning', 8000);
+    }
+
+    // Unregister tren Google Sheet (tra trang thai ve cho backend biet)
+    try {
+        if (requestId) {
+            await unregisterRunningTasks(taskNamesToStop, requestId);
+        }
+    } catch (_) { /* bo qua loi phu */ }
+};
+

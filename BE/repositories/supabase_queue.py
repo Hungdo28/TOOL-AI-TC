@@ -38,6 +38,7 @@ STATUS_QUEUED = "queued"
 STATUS_PROCESSING = "processing"
 STATUS_COMPLETED = "completed"
 STATUS_FAILED = "failed"
+STATUS_CANCELLED = "cancelled"
 
 
 class SupabaseQueue:
@@ -211,3 +212,77 @@ class SupabaseQueue:
         )
         result = self._request("GET", url)
         return bool(result)
+
+    def cancel_jobs_by_request(self, request_id: str) -> int:
+        """Hủy tất cả job queued/processing của một lần chạy (theo request_id).
+        Chỉ hủy các job chưa hoàn thành (queued hoặc processing).
+        Trả về số lượng job đã được hủy.
+        """
+        # Lấy danh sách job cần hủy
+        url_get = (
+            f"{self._table_url}"
+            f"?request_id=eq.{urllib.parse.quote(request_id)}"
+            f"&status=in.(queued,processing)"
+            f"&select=id"
+        )
+        jobs = self._request("GET", url_get)
+        if not isinstance(jobs, list) or not jobs:
+            return 0
+
+        # Cập nhật tất cả job đó thành cancelled
+        url_patch = (
+            f"{self._table_url}"
+            f"?request_id=eq.{urllib.parse.quote(request_id)}"
+            f"&status=in.(queued,processing)"
+        )
+        self._request(
+            "PATCH",
+            url_patch,
+            body={
+                "status": STATUS_CANCELLED,
+                "completed_at": "now()",
+                "error_msg": "Nguoi dung yeu cau dung luong",
+            },
+        )
+        return len(jobs)
+
+    def cancel_jobs_by_task_names(
+        self, task_names: list[str], username: str | None = None
+    ) -> int:
+        """Hủy các job queued/processing theo danh sách tên bài toán.
+        Nếu truyền username, chỉ hủy job của user đó.
+        """
+        if not task_names:
+            return 0
+
+        cancelled = 0
+        for task_name in task_names:
+            url_get = (
+                f"{self._table_url}"
+                f"?task_name=eq.{urllib.parse.quote(task_name)}"
+                f"&status=in.(queued,processing)"
+                + (f"&username=eq.{urllib.parse.quote(username)}" if username else "")
+                + "&select=id"
+            )
+            jobs = self._request("GET", url_get)
+            if not isinstance(jobs, list) or not jobs:
+                continue
+
+            url_patch = (
+                f"{self._table_url}"
+                f"?task_name=eq.{urllib.parse.quote(task_name)}"
+                f"&status=in.(queued,processing)"
+                + (f"&username=eq.{urllib.parse.quote(username)}" if username else "")
+            )
+            self._request(
+                "PATCH",
+                url_patch,
+                body={
+                    "status": STATUS_CANCELLED,
+                    "completed_at": "now()",
+                    "error_msg": "Nguoi dung yeu cau dung luong",
+                },
+            )
+            cancelled += len(jobs)
+
+        return cancelled

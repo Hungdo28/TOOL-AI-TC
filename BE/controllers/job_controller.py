@@ -64,3 +64,16 @@ class JobController:
             raise ApiError(400, f"Trang thai khong hop le: {new_status}")
 
         return ApiResponse(200, {"success": True, "jobId": job_id, "status": new_status})
+
+    def cancel_jobs(self, request) -> ApiResponse:
+        """
+        DELETE /api/jobs
+        FE goi khi nguoi dung bam Dung luong.
+        Body: {"requestId": "uuid"} hoac {"taskNames": [...], "username": "..."}
+        """
+        payload = request.read_json()
+        # Bo sung username tu header neu FE khong gui
+        if not payload.get("username"):
+            payload["username"] = request.headers.get("X-User-Name", "")
+        result = self.service.cancel_jobs(payload)
+        return ApiResponse(200, {"success": True, **result})

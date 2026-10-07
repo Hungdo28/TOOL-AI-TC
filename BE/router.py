@@ -44,6 +44,7 @@ class Router:
             ("POST",   "/api/jobs"):                job_controller.enqueue_jobs,
             ("GET",    "/api/jobs/status"):         job_controller.get_jobs_status,
             ("GET",    "/api/jobs/next"):            job_controller.get_next_job,
+            ("DELETE", "/api/jobs"):                job_controller.cancel_jobs,
         }
 
         # --- Routes động (có path params) ---
