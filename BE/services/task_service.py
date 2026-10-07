@@ -209,13 +209,15 @@ class TaskService:
         except KeyError:
             raise ApiError(404, f'Không tìm thấy bài toán "{old_name}"') from None
 
-    def delete_task(self, payload: dict[str, Any]) -> None:
-        name = required_text(payload, "baiToan")
+        def delete_task(self, payload: dict[str, Any]) -> None:
+        task_id = payload.get("id") or payload.get("baiToan")
+        if not task_id:
+            raise ApiError(400, "Thiếu id bài toán")
         try:
-            self.workspace.delete_task(name)
+            self.workspace.delete_task_by_id(task_id)
         except KeyError:
-            raise ApiError(404, f'Không tìm thấy bài toán "{name}"') from None
-
+            raise ApiError(404, f'Không tìm thấy bài toán có id "{task_id}"') from None
+            
     def update_status(self, payload: dict[str, Any]) -> dict[str, Any]:
         name = required_text(payload, "baiToan")
         status = required_text(payload, "trangThai", 100)

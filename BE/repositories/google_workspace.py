@@ -183,6 +183,28 @@ class GoogleWorkspace:
                 },
             ).execute()
 
+def delete_task_by_id(self, row_number: int) -> None:
+    with self._mutation_lock:
+        row_number = int(row_number)
+        self.sheets.spreadsheets().batchUpdate(
+            spreadsheetId=self.settings.spreadsheet_id,
+            body={
+                "requests": [
+                    {
+                        "deleteDimension": {
+                            "range": {
+                                "sheetId": self.settings.sheet_id,
+                                "dimension": "ROWS",
+                                "startIndex": row_number - 1,
+                                "endIndex": row_number,
+                            }
+                        }
+                    }
+                ]
+            },
+        ).execute()
+
+
     def upload_file(
         self,
         filename: str,

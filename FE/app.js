@@ -1010,7 +1010,7 @@ async function deleteDocument(index) {
 
     const row = dataRows[index];
     const tenBaiToan = getColVal(row, 'Bài toán') || '';
-
+    const taskId = row.row_number;  // Backend luôn trả về row_number
     if (!confirm(`⚠️ Anh có chắc chắn muốn xóa bài toán: "${tenBaiToan}" không? Hành động này không thể hoàn tác!`)) return;
 
     document.getElementById('loadingText').innerText = 'Đang xóa...';
@@ -1020,7 +1020,7 @@ async function deleteDocument(index) {
         const res = await fetchWithTimeout(URL_POST_DELETE, {
             method: 'DELETE',
             headers: getBackendHeaders(true),
-            body: JSON.stringify({ baiToan: tenBaiToan })
+            body: JSON.stringify({ id: taskId })
         });
 
         const result = await showActionResponse(
@@ -1624,6 +1624,8 @@ async function updateStatus(index, newStatus) {
 
     const row = dataRows[index];
     const tenBaiToan = getColVal(row, 'Bài toán') || '';
+    const taskId = getColVal(row, 'ID') || row.id;
+
 
     if (!tenBaiToan) {
         alert("❌ Không tìm thấy tên bài toán.");
