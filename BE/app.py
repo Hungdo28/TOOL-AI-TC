@@ -29,7 +29,11 @@ def build_server(settings: Settings) -> ThreadingHTTPServer:
 
     # --- Hàng đợi AI (Supabase) ---
     queue = SupabaseQueue(settings)
-    job_service = JobService(queue)
+    job_service = JobService(
+        queue,
+        n8n_webhook_url=settings.n8n_webhook_url,
+        workspace=workspace,
+    )
     job_controller = JobController(job_service)
 
     router = Router(task_controller, job_controller)
