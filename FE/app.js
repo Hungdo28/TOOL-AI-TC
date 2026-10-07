@@ -114,6 +114,12 @@ const URL_POST_DELETE = `${BACKEND_API_BASE}/tasks`;
 const URL_POST_UPDATE_STATUS = `${BACKEND_API_BASE}/tasks/status`;
 const URL_POST_TRANSFER = `${BACKEND_API_BASE}/tasks/assignee`;
 const URL_POST_EXECUTIONS = `${BACKEND_API_BASE}/tasks/executions`;
+// ---- Hang doi AI (Queue) ----
+const URL_POST_JOBS = `${BACKEND_API_BASE}/jobs`;           // Luong Me: enqueue
+const URL_JOBS_STATUS = `${BACKEND_API_BASE}/jobs/status`;  // FE polling trang thai job
+const URL_CANCEL_JOBS = `${BACKEND_API_BASE}/jobs`;         // Huy job (DELETE)
+const JOBS_POLL_INTERVAL_MS = 15 * 1000;  // Poll trang thai job moi 15 giay
+const JOBS_POLL_MAX_AGE_MS  = 2 * 60 * 60 * 1000; // Dung poll sau 2 gio
 const REQUEST_TIMEOUT_MS = 30000;
 const PROCESSING_POLL_INTERVAL_MS = 2 * 60 * 1000;
 const SHARED_STATUS_REFRESH_INTERVAL_MS = 30 * 1000;
@@ -149,6 +155,11 @@ let activeTestcaseReview = null;
 let taskExecutionInfo = {};
 let elapsedTimeTimer = null;
 let toastTimer = null;
+
+// ---- Trang thai hang doi AI (Queue) ----
+// { [requestId]: { taskNames: [], startedAt: number, pollTimer: null } }
+let activeJobQueues = {};
+let jobQueuePollTimers = {}; // { [requestId]: timer }
 
 // Bien luu trang thai task can dung (dung cho stop modal)
 let stopStreamContext = null; // { taskName, requestId }
@@ -1398,7 +1409,8 @@ async function rerunTestcaseFromReview() {
 
     activeTestcaseReview = null;
     document.getElementById('testcaseReviewModal').classList.add('hidden');
-    await doRunSingle(review.taskName, revisedPrompt, 'testcase');
+    // Dua vao hang doi thay vi goi truc tiep n8n
+    await enqueueJobsToQueue([review.taskName], 'testcase', revisedPrompt);
     openNextTestcaseReview();
 
 }
@@ -1477,76 +1489,172 @@ async function executeRunAI() {
     closeRunAIModal();
 
     if (currentRunMode === 'single' || currentRunMode === 'phan_tich' || currentRunMode === 'testcase') {
-        await doRunSingle(currentRunTask, testcasePrompt, currentRunMode);
+        // Luong Me: dua vao hang doi Supabase
+        await enqueueJobsToQueue([currentRunTask], currentRunMode, testcasePrompt);
     } else if (currentRunMode === 'multiple') {
-        await doRunMultiple(currentRunTasksList, testcasePrompt);
+        // Luong Me: dua nhieu bai vao hang doi
+        await enqueueJobsToQueue(currentRunTasksList, 'single', testcasePrompt);
     }
 }
 
 
-// 7. THỰC THI CHẠY AI (API CALL)
-async function doRunSingle(tenBaiToan, testcasePrompt, mode) {
-    if (!tenBaiToan || processingTasks.includes(tenBaiToan)) {
-        alert('⚠️ Bài toán này đang được xử lý. Vui lòng chờ hoàn thành.');
-        return;
-    }
+// =================================================================
+// LUONG ME: ENQUEUE vao hang doi Supabase (thay vi goi thang n8n)
+// =================================================================
+async function enqueueJobsToQueue(taskNames, mode, testcasePrompt) {
+    if (!Array.isArray(taskNames) || taskNames.length === 0) return;
 
     const requestId = createRequestId();
-    taskStartTime[tenBaiToan] = Date.now();
-    processingTasks.push(tenBaiToan);
-    taskExecutionInfo[tenBaiToan] = { requestId, startedAt: new Date().toISOString() };
+    const startedAt = Date.now();
+
+    // Danh dau UI ngay lap tuc (khong can cho response)
+    taskNames.forEach(name => {
+        if (!processingTasks.includes(name)) processingTasks.push(name);
+        taskStartTime[name] = startedAt;
+        taskExecutionInfo[name] = { requestId, startedAt: new Date(startedAt).toISOString() };
+        runContextByTask[name] = {
+            testcasePrompt,
+            requiresTestcaseReview: mode !== 'phan_tich'
+        };
+    });
     startElapsedTimeUpdates();
-    runContextByTask[tenBaiToan] = {
-        testcasePrompt,
-        requiresTestcaseReview: mode !== 'phan_tich'
-    };
     persistProcessingState();
     renderTable();
 
-    document.getElementById('loadingText').innerText = `Đang gửi lệnh sang n8n...`;
+    document.getElementById('loadingText').innerText = 'Dang xep hang xu ly...';
     document.getElementById('loadingOverlay').classList.remove('hidden');
 
-    const payload = {
-        baiToan: tenBaiToan,
-        loaiChay: mode,
-        requestId,
-        promptAI2: mode === 'phan_tich' ? '' : (testcasePrompt || '')
-    };
-
     try {
-        const responsePromise = fetchWithTimeout(URL_POST_RUN, {
+        // Ghi vao Supabase queue, nhan ve ngay (khong cho n8n)
+        const res = await fetchWithTimeout(URL_POST_JOBS, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        }, RUN_REQUEST_TIMEOUT_MS);
-        startPollingIfNeeded();
-        document.getElementById('loadingOverlay').classList.add('hidden');
-        const res = await responsePromise;
-        const responseData = await readApiResponse(res);
-        const responseFailed = !res.ok || responseData.data?.success === false;
+            headers: getBackendHeaders(true),
+            body: JSON.stringify({
+                taskNames,
+                requestId,
+                username: currentUser.username,
+                mode,
+                promptAI2: testcasePrompt || ''
+            })
+        }, REQUEST_TIMEOUT_MS);
 
-        if (!responseFailed) {
-            await syncExecutionMetadataFromResponse(res, [tenBaiToan]);
-            await startPollingIfNeeded(true);
-            showToast(responseData.message || 'Xử lý bài toán thành công.', 'success');
-        } else {
-            processingTasks = processingTasks.filter(item => item !== tenBaiToan);
-            delete taskStartTime[tenBaiToan];
-            delete taskExecutionInfo[tenBaiToan];
-            delete runContextByTask[tenBaiToan];
+        const resData = await readApiResponse(res);
+
+        if (!res.ok || resData.data?.success === false) {
+            // Huy trang thai neu backend tu choi
+            taskNames.forEach(name => {
+                processingTasks = processingTasks.filter(t => t !== name);
+                delete taskStartTime[name];
+                delete taskExecutionInfo[name];
+                delete runContextByTask[name];
+            });
             persistProcessingState();
             renderTable();
-            showRunError(responseData.message || 'n8n từ chối yêu cầu chạy. Vui lòng kiểm tra lại dữ liệu.');
+            showRunError(resData.message || 'Khong the xep hang cho bai toan. Vui long thu lai.');
+            return;
         }
-    } catch (err) {
-        // Request có thể đã tới n8n dù trình duyệt không nhận được response.
-        // Giữ trạng thái để tránh người dùng vô tình chạy trùng.
+
+        // Bat dau polling trang thai job
+        activeJobQueues[requestId] = { taskNames, startedAt };
+        startJobPolling(requestId);
+
+        // Tam thoi bo buoc registerRunningTasks vao DB (session luu lan chay)
+        // await registerRunningTasks(taskNames, requestId);
         persistProcessingState();
+        renderTable();
         startPollingIfNeeded();
-        showToast('Chưa nhận được phản hồi từ n8n. Hệ thống vẫn theo dõi task để tránh chạy trùng.', 'warning', 10000);
+
+        showToast(
+            `Da xep hang ${taskNames.length} bai toan. He thong xu ly tung doan mot, vui long cho!`,
+            'success',
+            8000
+        );
+    } catch (err) {
+        console.error('Loi enqueue jobs:', err);
+        persistProcessingState();
+        showToast('Chua nhan duoc phan hoi. He thong van theo doi de tranh chay trung.', 'warning', 10000);
     } finally {
         document.getElementById('loadingOverlay').classList.add('hidden');
     }
+}
+
+// =================================================================
+// FE POLLING: Theo doi trang thai job trong Supabase
+// =================================================================
+function startJobPolling(requestId) {
+    if (jobQueuePollTimers[requestId]) return; // Tranh double polling
+
+    const pollJobStatus = async () => {
+        const queueInfo = activeJobQueues[requestId];
+        if (!queueInfo) return; // Da huy
+
+        // Dung polling neu qua lau
+        if (Date.now() - queueInfo.startedAt > JOBS_POLL_MAX_AGE_MS) {
+            delete activeJobQueues[requestId];
+            delete jobQueuePollTimers[requestId];
+            showToast('Mot so bai toan qua 2 gio van chua hoan thanh, vui long kiem tra lai.', 'warning', 12000);
+            return;
+        }
+
+        try {
+            const res = await fetchWithTimeout(
+                `${URL_JOBS_STATUS}?requestId=${encodeURIComponent(requestId)}`,
+                { headers: getBackendHeaders() }
+            );
+            if (!res.ok) throw new Error('Poll loi');
+
+            const resData = await res.json();
+            const jobs = resData.jobs || [];
+
+            if (jobs.length === 0) {
+                delete activeJobQueues[requestId];
+                delete jobQueuePollTimers[requestId];
+                return;
+            }
+
+            const allDone = jobs.every(j => j.status === 'completed' || j.status === 'failed');
+            const completedJobs = jobs.filter(j => j.status === 'completed');
+            const failedJobs    = jobs.filter(j => j.status === 'failed');
+            const queuedJobs    = jobs.filter(j => j.status === 'queued');
+            const processingJ   = jobs.filter(j => j.status === 'processing');
+
+            // Hien thi trang thai chi tiet cho user
+            const parts = [];
+            if (processingJ.length > 0)  parts.push(`Dang xu ly: ${processingJ.map(j => j.task_name).join(', ')}`);
+            if (queuedJobs.length > 0)   parts.push(`Con ${queuedJobs.length} bai dang cho hang`);
+            if (completedJobs.length > 0) parts.push(`Xong: ${completedJobs.length} bai`);
+            if (failedJobs.length > 0)   parts.push(`Loi: ${failedJobs.map(j => j.task_name).join(', ')}`);
+
+            if (parts.length > 0) {
+                showToast(parts.join(' | '), allDone ? (failedJobs.length > 0 ? 'error' : 'success') : 'info', allDone ? 8000 : 0);
+            }
+
+            if (allDone) {
+                delete activeJobQueues[requestId];
+                delete jobQueuePollTimers[requestId];
+                // Tai lai du lieu tu Sheet sau khi xong
+                await loadData();
+                return;
+            }
+        } catch (err) {
+            console.warn('Loi poll job status:', err);
+        }
+
+        // Dat timer poll lan sau
+        jobQueuePollTimers[requestId] = setTimeout(pollJobStatus, JOBS_POLL_INTERVAL_MS);
+    };
+
+    // Bat dau poll lan dau sau 5s
+    jobQueuePollTimers[requestId] = setTimeout(pollJobStatus, 5000);
+}
+
+// Dung polling theo requestId (khi nguoi dung cancel)
+function stopJobPolling(requestId) {
+    if (jobQueuePollTimers[requestId]) {
+        clearTimeout(jobQueuePollTimers[requestId]);
+        delete jobQueuePollTimers[requestId];
+    }
+    delete activeJobQueues[requestId];
 }
 
 
@@ -1571,6 +1679,21 @@ async function doRunMultiple(selectedTasks, testcasePrompt) {
     });
     persistProcessingState();
     renderTable();
+
+    try {
+        await registerRunningTasks(selectedTasks, requestId);
+        persistProcessingState();
+        renderTable();
+    } catch (error) {
+        processingTasks = processingTasks.filter(item => !selectedTasks.includes(item));
+        selectedTasks.forEach(taskName => delete taskStartTime[taskName]);
+        selectedTasks.forEach(taskName => delete taskExecutionInfo[taskName]);
+        selectedTasks.forEach(taskName => delete runContextByTask[taskName]);
+        persistProcessingState();
+        renderTable();
+        showRunError(error.message);
+        return;
+    }
 
     document.getElementById('loadingText').innerText = `Đang gửi lệnh sang n8n...`;
     document.getElementById('loadingOverlay').classList.remove('hidden');
@@ -1599,6 +1722,7 @@ async function doRunMultiple(selectedTasks, testcasePrompt) {
             showToast(responseData.message || `Đã xử lý thành công ${selectedTasks.length} bài toán.`, 'success');
             document.getElementById('selectAll').checked = false;
         } else {
+            await unregisterRunningTasks(selectedTasks, requestId);
             processingTasks = processingTasks.filter(item => !selectedTasks.includes(item));
             selectedTasks.forEach(taskName => delete taskStartTime[taskName]);
             selectedTasks.forEach(taskName => delete taskExecutionInfo[taskName]);
@@ -1875,20 +1999,64 @@ window.closeStopStreamModal = function () {
 
 window.confirmStopStream = async function () {
     if (!stopStreamContext) return;
-    const { taskName } = stopStreamContext;
+    const { taskName, requestId } = stopStreamContext;
     closeStopStreamModal();
 
-    if (!taskName) return;
+    // Lay tat ca taskNames trong cung requestId (hoac chi task do neu khong co requestId)
+    const taskNamesToStop = requestId
+        ? (activeJobQueues[requestId]?.taskNames || [taskName])
+        : [taskName];
+
+    // Dung polling FE ngay lap tuc
+    if (requestId) stopJobPolling(requestId);
 
     // Don trang thai FE
-    processingTasks = processingTasks.filter(t => t !== taskName);
-    delete taskStartTime[taskName];
-    delete taskExecutionInfo[taskName];
-    delete runContextByTask[taskName];
-
+    taskNamesToStop.forEach(name => {
+        processingTasks = processingTasks.filter(t => t !== name);
+        delete taskStartTime[name];
+        delete taskExecutionInfo[name];
+        delete runContextByTask[name];
+    });
     persistProcessingState();
     renderTable();
 
-    showToast(`Đã dừng theo dõi bài toán "${taskName}".`, 'info', 5000);
+    // Goi API backend de huy job tren Supabase
+    try {
+        const body = requestId
+            ? { requestId, username: currentUser.username }
+            : { taskNames: taskNamesToStop, username: currentUser.username };
+
+        const res = await fetchWithTimeout(URL_CANCEL_JOBS, {
+            method: 'DELETE',
+            headers: getBackendHeaders(true),
+            body: JSON.stringify(body)
+        });
+
+        const resData = await readApiResponse(res);
+        if (res.ok && resData.data?.success !== false) {
+            const cancelled = resData.data?.cancelled ?? 0;
+            showToast(
+                cancelled > 0
+                    ? `Da dung ${cancelled} job cua "${taskNamesToStop.join(', ')}".`
+                    : `Khong tim thay job dang cho de dung (co the da hoan thanh roi).`,
+                cancelled > 0 ? 'success' : 'warning',
+                7000
+            );
+        } else {
+            showToast(resData.message || 'Khong the huy job tren Supabase, nhung FE da don xong.', 'warning', 8000);
+        }
+    } catch (err) {
+        console.error('Loi khi goi API cancel jobs:', err);
+        showToast('Khong the ket noi backend de huy job. FE da don xong trang thai cuc bo.', 'warning', 8000);
+    }
+
+    // Tam thoi bo buoc unregister DB vi da bo register session
+    /*
+    try {
+        if (requestId) {
+            await unregisterRunningTasks(taskNamesToStop, requestId);
+        }
+    } catch (_) { }
+    */
 };
 
