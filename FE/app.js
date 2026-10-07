@@ -1558,8 +1558,8 @@ async function enqueueJobsToQueue(taskNames, mode, testcasePrompt) {
         activeJobQueues[requestId] = { taskNames, startedAt };
         startJobPolling(requestId);
 
-        // Dong thoi bat polling trang thai Google Sheet nhu cu
-        await registerRunningTasks(taskNames, requestId);
+        // Tam thoi bo buoc registerRunningTasks vao DB (session luu lan chay)
+        // await registerRunningTasks(taskNames, requestId);
         persistProcessingState();
         renderTable();
         startPollingIfNeeded();
@@ -2048,11 +2048,13 @@ window.confirmStopStream = async function () {
         showToast('Khong the ket noi backend de huy job. FE da don xong trang thai cuc bo.', 'warning', 8000);
     }
 
-    // Unregister tren Google Sheet (tra trang thai ve cho backend biet)
+    // Tam thoi bo buoc unregister DB vi da bo register session
+    /*
     try {
         if (requestId) {
             await unregisterRunningTasks(taskNamesToStop, requestId);
         }
-    } catch (_) { /* bo qua loi phu */ }
+    } catch (_) { }
+    */
 };
 
