@@ -213,7 +213,7 @@ class TaskService:
         name = payload.get("baiToan")
         if task_id is not None:
             try:
-                self.workspace.delete_task_by_id(int(task_id))
+                self.workspace.delete_task_by_id(task_id)
             except (KeyError, ValueError):
                 raise ApiError(404, f'Không tìm thấy bài toán có id "{task_id}"') from None
         elif name:

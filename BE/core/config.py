@@ -46,7 +46,9 @@ class Settings:
     max_total_file_size: int
     supabase_url: str = "https://zrwlzthteixjxdhsevkh.supabase.co"
     supabase_anon_key: str = "sb_publishable_yA_P7i5OXAffRJwHx3hGvw_Wyo02_u3"
+    supabase_service_role_key: str | None = None
     n8n_webhook_url: str = "https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/luong-chuc-nang"
+
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -75,12 +77,11 @@ class Settings:
             raise ValueError("GOOGLE_DRIVE_SHARE_MODE chỉ nhận private hoặc anyone")
 
         spreadsheet_id = os.getenv("GOOGLE_SPREADSHEET_ID", "").strip()
-        if not spreadsheet_id:
-            raise ValueError("Thiếu GOOGLE_SPREADSHEET_ID trong BE/.env")
-        if not credentials_file and not credentials_json:
-            raise ValueError(
-                "Thiếu GOOGLE_APPLICATION_CREDENTIALS hoặc JSON credential Google trong BE/.env"
-            )
+        supabase_service_role_key = (
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+            or os.getenv("SUPABASE_SERVICE_KEY", "").strip()
+            or None
+        )
 
         return cls(
             host=os.getenv("HOST", "0.0.0.0"),
@@ -99,6 +100,7 @@ class Settings:
             max_total_file_size=int(float(os.getenv("MAX_TOTAL_FILE_SIZE_MB", "50")) * 1024 * 1024),
             supabase_url=os.getenv("SUPABASE_URL", "https://zrwlzthteixjxdhsevkh.supabase.co").strip().rstrip("/"),
             supabase_anon_key=os.getenv("SUPABASE_ANON_KEY", "sb_publishable_yA_P7i5OXAffRJwHx3hGvw_Wyo02_u3").strip(),
+            supabase_service_role_key=supabase_service_role_key,
             n8n_webhook_url=os.getenv(
                 "N8N_WEBHOOK_URL",
                 "https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/luong-chuc-nang",

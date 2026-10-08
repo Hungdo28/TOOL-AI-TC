@@ -6,7 +6,7 @@ from http.server import ThreadingHTTPServer
 from controllers.task_controller import TaskController
 from core.config import Settings
 from web.handler import create_handler
-from repositories.google_workspace import GoogleWorkspace
+from repositories.supabase_repository import SupabaseRepository
 from router import Router
 from services.task_service import TaskService
 
@@ -16,7 +16,7 @@ LOGGER = logging.getLogger("autotc-backend")
 
 
 def build_server(settings: Settings) -> ThreadingHTTPServer:
-    workspace = GoogleWorkspace(settings)
+    workspace = SupabaseRepository(settings)
     task_service = TaskService(
         workspace,
         max_file_size=settings.max_file_size,
