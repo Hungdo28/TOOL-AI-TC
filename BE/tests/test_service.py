@@ -118,6 +118,22 @@ class TaskServiceTests(unittest.TestCase):
         self.assertEqual(error.exception.status, 503)
         self.assertIn("setup_google_oauth.py", error.exception.message)
 
+    def test_handle_ai_callback_updates_task_and_stops_execution(self):
+        self.workspace.append_task({"Bài toán": "Đăng nhập", "Trạng thái": "Waiting"})
+        self.service.start_executions({"taskNames": ["Đăng nhập"], "requestId": "req-1"})
+
+        result = self.service.handle_ai_callback({
+            "baiToan": "Đăng nhập",
+            "testcase_url": "https://docs.google.com/sheet-test",
+            "analysis_doc_url": "https://docs.google.com/doc-test",
+            "status": "Đã xong"
+        })
+        self.assertEqual(result["Trạng thái"], "Đã xong")
+        self.assertEqual(result["Link Testcase"], "https://docs.google.com/sheet-test")
+        self.assertEqual(result["Link tài liệu phân tích"], "https://docs.google.com/doc-test")
+        self.assertNotIn("_execution", self.service.list_tasks()[0])
+
 
 if __name__ == "__main__":
     unittest.main()
+

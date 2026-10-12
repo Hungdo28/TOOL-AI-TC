@@ -211,3 +211,18 @@ class SupabaseRepository:
         raise RuntimeError(
             "Chưa cấu hình tài khoản Google Workspace / Drive để upload file."
         )
+
+    def create_analysis_doc(self, task_name: str, analysis_text: str) -> str:
+        if self._google_workspace:
+            return self._google_workspace.create_analysis_doc(task_name, analysis_text)
+        raise RuntimeError(
+            "Chưa cấu hình Google Workspace để tạo Google Doc phân tích."
+        )
+
+    def create_testcase_sheet(self, task_name: str, testcases: list[dict[str, Any]]) -> str:
+        if self._google_workspace:
+            return self._google_workspace.create_testcase_sheet(task_name, testcases)
+        raise RuntimeError(
+            "Chưa cấu hình Google Workspace để tạo Google Sheet Testcase."
+        )
+

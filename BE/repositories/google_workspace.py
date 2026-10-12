@@ -15,6 +15,10 @@ from core.config import Settings
 
 SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets"
 DRIVE_SCOPE = "https://www.googleapis.com/auth/drive"
+DOCS_SCOPE = "https://www.googleapis.com/auth/documents"
+
+TEMPLATE_TC_SHEET_ID = "1JOirPM9SyeyNgdnUtjyrrgrRQ1MmaoZIk5o-cepgV5Y"
+TEMPLATE_DOC_ID = "1FWzRAf5wouAzWUVLl9azJAuBKc7m8VTqeNb3YtFr5lM"
 
 
 def _column_name(index: int) -> str:
@@ -33,7 +37,7 @@ def _normalized(value: Any) -> str:
 class GoogleWorkspace:
     def __init__(self, settings: Settings):
         self.settings = settings
-        scopes = [SHEETS_SCOPE, DRIVE_SCOPE]
+        scopes = [SHEETS_SCOPE, DRIVE_SCOPE, DOCS_SCOPE]
         if settings.credentials_json:
             credential_type = settings.credentials_json.get("type")
             if credential_type == "service_account":
@@ -51,6 +55,7 @@ class GoogleWorkspace:
 
         self.sheets = build("sheets", "v4", credentials=credentials, cache_discovery=False)
         self.drive = build("drive", "v3", credentials=credentials, cache_discovery=False)
+        self.docs = build("docs", "v1", credentials=credentials, cache_discovery=False)
         self._mutation_lock = threading.RLock()
 
     @property
@@ -246,3 +251,103 @@ class GoogleWorkspace:
             ).execute()
 
         return uploaded.get("webViewLink") or f"https://drive.google.com/file/d/{file_id}/view"
+
+    def create_analysis_doc(self, task_name: str, analysis_text: str) -> str:
+        """Tạo Google Doc phân tích từ file template và ghi nội dung do AI sinh."""
+        with self._mutation_lock:
+            body: dict[str, Any] = {"name": f"Tài liệu phân tích  {task_name}"}
+            if self.settings.drive_folder_id:
+                body["parents"] = [self.settings.drive_folder_id]
+            copied = (
+                self.drive.files()
+                .copy(
+                    fileId=TEMPLATE_DOC_ID,
+                    body=body,
+                    fields="id,webViewLink",
+                    supportsAllDrives=True,
+                )
+                .execute()
+            )
+            doc_id = copied["id"]
+
+            try:
+                self.drive.permissions().create(
+                    fileId=doc_id,
+                    body={"type": "anyone", "role": "reader"},
+                    fields="id",
+                    supportsAllDrives=True,
+                ).execute()
+            except Exception:
+                pass
+
+            if analysis_text and analysis_text.strip():
+                try:
+                    self.docs.documents().batchUpdate(
+                        documentId=doc_id,
+                        body={
+                            "requests": [
+                                {
+                                    "insertText": {
+                                        "location": {"index": 1},
+                                        "text": analysis_text.strip() + "\n\n",
+                                    }
+                                }
+                            ]
+                        },
+                    ).execute()
+                except Exception:
+                    pass
+
+            return copied.get("webViewLink") or f"https://docs.google.com/document/d/{doc_id}/edit"
+
+    def create_testcase_sheet(self, task_name: str, testcases: list[dict[str, Any]]) -> str:
+        """Tạo Google Sheet Testcase từ file template và ghi các dòng Test Case bắt đầu từ dòng 14."""
+        with self._mutation_lock:
+            body: dict[str, Any] = {"name": f"[TC] {task_name}"}
+            if self.settings.drive_folder_id:
+                body["parents"] = [self.settings.drive_folder_id]
+            copied = (
+                self.drive.files()
+                .copy(
+                    fileId=TEMPLATE_TC_SHEET_ID,
+                    body=body,
+                    fields="id,webViewLink",
+                    supportsAllDrives=True,
+                )
+                .execute()
+            )
+            sheet_id = copied["id"]
+
+            try:
+                self.drive.permissions().create(
+                    fileId=sheet_id,
+                    body={"type": "anyone", "role": "reader"},
+                    fields="id",
+                    supportsAllDrives=True,
+                ).execute()
+            except Exception:
+                pass
+
+            if testcases and isinstance(testcases, list):
+                rows = []
+                for tc in testcases:
+                    muc_dich = str(tc.get("muc_dich") or tc.get("Mục đích kiểm thử ") or "").strip()
+                    cac_buoc = str(tc.get("cac_buoc") or tc.get("Các bước thực hiện") or "").strip()
+                    ket_qua = str(tc.get("ket_qua_mong_muon") or tc.get("Kết quả mong muốn ") or "").strip()
+                    ghi_chu = str(tc.get("ghi_chu") or tc.get("Ghi chú") or "").strip()
+                    if muc_dich or cac_buoc or ket_qua:
+                        rows.append([muc_dich, cac_buoc, ket_qua, ghi_chu])
+
+                if rows:
+                    try:
+                        self.sheets.spreadsheets().values().append(
+                            spreadsheetId=sheet_id,
+                            range="'Trang tính1'!B14:E",
+                            valueInputOption="USER_ENTERED",
+                            body={"values": rows},
+                        ).execute()
+                    except Exception:
+                        pass
+
+            return copied.get("webViewLink") or f"https://docs.google.com/spreadsheets/d/{sheet_id}/edit"
+

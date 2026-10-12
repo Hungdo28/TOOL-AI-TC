@@ -23,7 +23,9 @@ class Router:
             ("POST", "/api/tasks/executions"): task_controller.start_executions,
             ("DELETE", "/api/tasks/executions"): task_controller.stop_executions,
             ("PATCH", "/api/tasks/assignee"): task_controller.transfer_task,
+            ("POST", "/api/tasks/ai-callback"): task_controller.ai_callback,
         }
+
 
     def dispatch(self, method: str, request) -> ApiResponse:
         handler = self.routes.get((method.upper(), request.path))

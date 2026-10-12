@@ -47,3 +47,8 @@ class TaskController:
         require_admin(request, self.settings)
         task = self.service.transfer_task(request.read_json())
         return ApiResponse(200, {"success": True, "message": "Đã chuyển giao bài toán", "data": task})
+
+    def ai_callback(self, request) -> ApiResponse:
+        task = self.service.handle_ai_callback(request.read_json())
+        return ApiResponse(200, {"success": True, "message": "Đã cập nhật kết quả AI", "data": task})
+

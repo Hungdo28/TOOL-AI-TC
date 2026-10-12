@@ -245,3 +245,63 @@ class TaskService:
             return self.workspace.update_task(name, {"Người làm": assignee})
         except KeyError:
             raise ApiError(404, f'Không tìm thấy bài toán "{name}"') from None
+
+    def handle_ai_callback(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Xử lý callback kết quả từ n8n sau khi AI chạy xong."""
+        task_id = (
+            payload.get("problem_id")
+            or payload.get("id")
+            or payload.get("baiToan")
+            or payload.get("taskName")
+            or payload.get("job_id")
+        )
+        if not task_id:
+            raise ApiError(400, "Thiếu định danh bài toán (problem_id hoặc baiToan)")
+
+        task = self.workspace.find_task(str(task_id))
+        if not task:
+            raise ApiError(404, f'Không tìm thấy bài toán "{task_id}"')
+
+        task_name = task.get("Bài toán", "")
+        changes: dict[str, Any] = {}
+
+        # 1. Trạng thái
+        status = str(payload.get("status") or payload.get("trangThai") or "Đã xong").strip()
+        changes["Trạng thái"] = status
+
+        # 2. Xử lý Link tài liệu phân tích Docs
+        analysis_doc_url = payload.get("analysis_doc_url") or payload.get("linkTaiLieuPhanTich")
+        analysis_text = payload.get("analysis_text") or payload.get("final_text")
+        if analysis_doc_url:
+            changes["Link tài liệu phân tích"] = str(analysis_doc_url).strip()
+        elif analysis_text and hasattr(self.workspace, "create_analysis_doc"):
+            try:
+                changes["Link tài liệu phân tích"] = self.workspace.create_analysis_doc(
+                    task_name, str(analysis_text)
+                )
+            except Exception:
+                pass
+
+        # 3. Xử lý Link Sheet Testcase
+        testcase_url = payload.get("testcase_url") or payload.get("linkTestcase")
+        testcases = payload.get("testcases") or payload.get("test_cases")
+        if testcase_url:
+            changes["Link Testcase"] = str(testcase_url).strip()
+        elif testcases and isinstance(testcases, list) and hasattr(self.workspace, "create_testcase_sheet"):
+            try:
+                changes["Link Testcase"] = self.workspace.create_testcase_sheet(
+                    task_name, testcases
+                )
+            except Exception:
+                pass
+
+        # 4. Cập nhật vào Supabase / Workspace
+        target_id = task.get("id") or task_name
+        updated = self.workspace.update_task(target_id, changes)
+
+        # 5. Dừng đồng hồ đang chạy ở Backend
+        with self._running_tasks_lock:
+            self._running_tasks.pop(_normalized(task_name), None)
+
+        return updated
+

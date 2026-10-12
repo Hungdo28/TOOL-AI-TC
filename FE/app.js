@@ -106,9 +106,7 @@ function requireAdmin() {
 const BACKEND_API_BASE = (window.AUTO_TC_API_BASE || 'https://tool-ai-tc.onrender.com/api').replace(/\/$/, '');
 const URL_GET_LIST = `${BACKEND_API_BASE}/tasks`;
 const URL_POST_RUN = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/luong-chuc-nang';
-// Thêm URL/import file tiếp tục dùng credential Google Drive đã cấu hình trong n8n.
-const URL_POST_ADD = window.AUTO_TC_ADD_WEBHOOK
-    || 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/7dea3b89-0dcf-4a98-b60b-191bdcb78e67';
+const URL_POST_ADD = `${BACKEND_API_BASE}/tasks`;
 const URL_POST_EDIT = `${BACKEND_API_BASE}/tasks`;
 const URL_POST_DELETE = `${BACKEND_API_BASE}/tasks`;
 const URL_POST_UPDATE_STATUS = `${BACKEND_API_BASE}/tasks/status`;
@@ -971,13 +969,14 @@ async function addDocument(e) {
 
         const res = await fetchWithTimeout(URL_POST_ADD, {
             method: 'POST',
+            headers: getBackendHeaders(false),
             body: formData
         }, 60000);
 
         const result = await showActionResponse(
             res,
-            'Đã thêm bài toán thành công qua n8n.',
-            'n8n không thể thêm dữ liệu.'
+            'Đã thêm bài toán thành công.',
+            'Backend không thể thêm dữ liệu.'
         );
 
         if (result.succeeded) {
@@ -986,9 +985,9 @@ async function addDocument(e) {
         }
     } catch (err) {
         console.error(err);
-        showResultPopup('Không thể kết nối webhook n8n để thêm tài liệu.', 'error');
+        showResultPopup('Không thể kết nối backend để thêm tài liệu.', 'error');
     } finally {
-        btnAdd.innerText = 'Lưu vào Sheet';
+        btnAdd.innerText = 'Lưu bài toán';
         btnAdd.disabled = false;
     }
 }
