@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -11,7 +12,8 @@ TOKEN_FILE = BACKEND_ROOT / "authorized-user.json"
 ENV_FILE = BACKEND_ROOT / ".env"
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive.file",
+    "https://www.googleapis.com/auth/drive",
+    "https://www.googleapis.com/auth/documents",
 ]
 
 
@@ -37,13 +39,20 @@ def main() -> None:
         )
 
     flow = InstalledAppFlow.from_client_secrets_file(str(CLIENT_FILE), SCOPES)
+    print("Đang khởi động cổng xác thực...")
     credentials = flow.run_local_server(
-        port=0,
-        access_type="offline",
-        prompt="consent",
-        success_message="Đã cấp quyền cho AutoTC. Bạn có thể đóng cửa sổ này.",
+        host="localhost",
+        port=8080,
+        authorization_prompt_message="👉 Vui lòng mở đường link sau trong trình duyệt để đăng nhập Google:\n\n{url}\n",
+        success_message="Đã cấp quyền cho AutoTC thành công! Bạn có thể đóng cửa sổ này.",
+        open_browser=True,
     )
-    TOKEN_FILE.write_text(credentials.to_json(), encoding="utf-8")
+    
+    # Chuẩn hóa token JSON để chứa trường "type": "authorized_user"
+    creds_dict = json.loads(credentials.to_json())
+    creds_dict["type"] = "authorized_user"
+    TOKEN_FILE.write_text(json.dumps(creds_dict, indent=2), encoding="utf-8")
+    
     update_env()
     print(f"Đã tạo: {TOKEN_FILE}")
     print("Đã cập nhật BE/.env để sử dụng OAuth người dùng.")
@@ -52,4 +61,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
