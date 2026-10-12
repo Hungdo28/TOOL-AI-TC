@@ -14,9 +14,15 @@ BE/
 │   ├── health_controller.py       # API health check
 │   └── task_controller.py         # Nhận request quản lý bài toán
 ├── services/
-│   └── task_service.py            # Validation và nghiệp vụ CRUD
+│   ├── common.py                  # DTO, ngoại lệ ApiError và validation dùng chung
+│   ├── execution_tracker.py       # Quản lý trạng thái đếm giờ (running tasks)
+│   ├── task_crud_service.py       # Nghiệp vụ Thêm, Sửa, Xóa, Đổi trạng thái, Chuyển giao
+│   ├── ai_callback_service.py     # Tiếp nhận kết quả từ n8n / AI Worker
+│   ├── file_processing.py         # Chuẩn hóa file upload và mimeType Google
+│   └── task_service.py            # Facade tổng hợp dịch vụ bài toán
 ├── repositories/
-│   └── google_workspace.py        # Đọc/ghi Google Sheets và Drive
+│   ├── supabase_repository.py     # Quản lý dữ liệu trên Supabase (public.problems)
+│   └── google_workspace.py        # Thao tác Google Drive / Docs / Sheets
 ├── middleware/
 │   └── auth.py                    # Kiểm tra quyền admin
 ├── web/
@@ -28,7 +34,7 @@ BE/
 └── tests/                         # Unit test service và router
 ```
 
-Luồng xử lý: `HTTP handler → Router → Controller → Service → Google repository`.
+Luồng xử lý: `HTTP handler → Router → Controller → Service → Repository (Supabase / Google Drive)`.
 
 ## Chuẩn bị Google
 
