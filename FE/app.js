@@ -103,7 +103,12 @@ function requireAdmin() {
 }
 
 // ================= CẤU HÌNH API =================
-const BACKEND_API_BASE = (window.AUTO_TC_API_BASE || 'https://tool-ai-tc.onrender.com/api').replace(/\/$/, '');
+const BACKEND_API_BASE = (
+    window.AUTO_TC_API_BASE ||
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+        ? 'http://localhost:8088/api'
+        : 'https://tool-ai-tc.onrender.com/api')
+).replace(/\/$/, '');
 const URL_GET_LIST = `${BACKEND_API_BASE}/tasks`;
 const URL_POST_RUN = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/luong-chuc-nang';
 const URL_POST_ADD = `${BACKEND_API_BASE}/tasks`;
@@ -792,11 +797,6 @@ function renderTable() {
                 const label = prefix ? `${prefix} - ${shortTaskName}` : shortTaskName;
                 const title = `${prefix ? prefix + ' - ' : ''}${tenBaiToan || 'Tài liệu'}\n${cleanUrl}`;
 
-                let extraBtn = '';
-                if (type === 'testcase') {
-                    extraBtn = `<button type="button" data-review-url="${escapeHtml(cleanUrl)}" class="review-testcase-btn shrink-0 px-2.5 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-semibold transition-all shadow-sm flex items-center gap-1 border border-blue-200" title="Nhờ AI Review"><i data-lucide="zap" class="w-3 h-3 fill-blue-600 text-blue-600"></i> Review</button>`;
-                }
-
                 return `
                         <div class="flex items-center gap-1.5">
                             <a href="${escapeHtml(cleanUrl)}"
@@ -807,7 +807,6 @@ function renderTable() {
                                 <span class="shrink-0 text-sm">${icon}</span>
                                 <span class="truncate">${escapeHtml(label)}</span>
                             </a>
-                            ${extraBtn}
                         </div>`;
             }).join('') + `</div>`;
         };
@@ -1741,33 +1740,7 @@ document.addEventListener("DOMContentLoaded", () => {
         aiPanel.classList.add("hidden");
         aiPanel.classList.remove("flex");
     });
-
-    document.addEventListener('click', (event) => {
-        const reviewButton = event.target.closest('.review-testcase-btn');
-        if (!reviewButton) return;
-
-        const reviewUrl = reviewButton.dataset.reviewUrl;
-        if (reviewUrl) window.askAIToReview(reviewUrl);
-    });
 });
-
-window.askAIToReview = function (url) {
-    const prompt = `Review giúp tôi test case ở link sau. Hãy phân tích điểm mạnh, điểm yếu và đề xuất 3-5 kịch bản test bổ sung:\n\n${url}`;
-
-    navigator.clipboard.writeText(prompt).then(() => {
-        alert('✅ Đã copy yêu cầu review cùng link Testcase!\n\nHãy mở bảng AI và nhấn Ctrl+V (hoặc Chuột phải -> Paste) vào khung chat để gửi cho bot nhé!');
-
-        // Mở bảng AI
-        const aiPanel = document.getElementById("aiPanel");
-        if (aiPanel) {
-            aiPanel.classList.remove("hidden");
-            aiPanel.classList.add("flex");
-        }
-    }).catch(err => {
-        console.error('Lỗi copy:', err);
-        alert('❌ Có lỗi xảy ra khi copy. Vui lòng copy link thủ công nhé!');
-    });
-};
 
 // Đồng bộ quyền thực tế từ Database Supabase để ngăn chặn việc sửa đổi qua F12
 async function syncUserRoleFromDatabase() {
