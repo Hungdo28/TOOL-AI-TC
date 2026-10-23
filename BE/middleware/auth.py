@@ -91,6 +91,28 @@ def fetch_role_from_supabase(username: str, settings: Settings) -> Optional[str]
         return None
 
 
+def resolve_role(request, settings: Settings) -> tuple[str, str]:
+    """Xác định (username, role) tin cậy của request để lọc dữ liệu.
+
+    Role được ưu tiên lấy từ Supabase DB (chống giả mạo header X-User-Role).
+    Nếu DB không trả được kết quả (lỗi mạng / user không tồn tại) thì coi như
+    viewer để fail-closed: người dùng chỉ thấy task của chính mình.
+    """
+    username = (request.headers.get("X-User-Name") or "").strip()
+    if not username:
+        return "", "viewer"
+
+    if not settings.enforce_role_header:
+        # Chế độ dev/tin cậy nội bộ: dùng role client gửi lên
+        role = (request.headers.get("X-User-Role") or "viewer").strip().lower()
+        return username, "admin" if role == "admin" else "viewer"
+
+    db_role = fetch_role_from_supabase(username, settings)
+    if db_role in {"admin", "viewer"}:
+        return username, db_role
+    return username, "viewer"
+
+
 def require_admin(request, settings: Settings) -> None:
     if not settings.enforce_role_header:
         return

@@ -37,8 +37,18 @@ class TaskService:
     def _is_terminal_status(status: Any) -> bool:
         return ExecutionTracker.is_terminal_status(status)
 
-    def list_tasks(self) -> list[dict[str, Any]]:
+    def list_tasks(self, assignee: str | None = None) -> list[dict[str, Any]]:
         raw_tasks = self.workspace.list_tasks()
+        if assignee:
+            # Viewer chỉ nhận được task của chính mình ngay từ tầng API,
+            # tránh lộ dữ liệu người khác qua Network tab.
+            wanted = _normalized(assignee)
+            raw_tasks = [
+                task for task in raw_tasks
+                if _normalized(
+                    task.get("Người làm") or task.get("Username") or task.get("Tài khoản")
+                ) == wanted
+            ]
         return self.tracker.attach_executions(raw_tasks)
 
     def start_executions(self, payload: dict[str, Any]) -> list[dict[str, str]]:

@@ -1,14 +1,19 @@
 import unittest
 from types import SimpleNamespace
-
 from controllers.task_controller import TaskController
 from router import Router
 from services.task_service import ApiError
 
 
 class FakeService:
-    def list_tasks(self):
-        return [{"Bài toán": "Đăng nhập"}]
+    def list_tasks(self, assignee=None):
+        tasks = [
+            {"Bài toán": "Đăng nhập", "Người làm": "tester"},
+            {"Bài toán": "Thanh toán", "Người làm": "qa02"},
+        ]
+        if assignee:
+            return [t for t in tasks if t.get("Người làm") == assignee]
+        return tasks
 
     def update_status(self, payload):
         return {"Bài toán": payload["baiToan"], "Trạng thái": payload["trangThai"]}
@@ -40,10 +45,25 @@ class RouterTests(unittest.TestCase):
         settings = SimpleNamespace(enforce_role_header=True)
         self.router = Router(TaskController(FakeService(), settings))
 
-    def test_routes_list_tasks(self):
-        response = self.router.dispatch("GET", FakeRequest("/api/tasks", role="viewer"))
+    def test_list_tasks_viewer_sees_only_own(self):
+        request = FakeRequest("/api/tasks", username="tester")
+        response = self.router.dispatch("GET", request)
         self.assertEqual(response.status, 200)
+        self.assertEqual(len(response.body), 1)
         self.assertEqual(response.body[0]["Bài toán"], "Đăng nhập")
+
+    def test_list_tasks_admin_sees_all(self):
+        from unittest.mock import patch
+        with patch("middleware.auth.fetch_role_from_supabase", return_value="admin"):
+            request = FakeRequest("/api/tasks", username="boss")
+            response = self.router.dispatch("GET", request)
+        self.assertEqual(response.status, 200)
+        self.assertEqual(len(response.body), 2)
+
+    def test_list_tasks_rejects_missing_username(self):
+        with self.assertRaises(ApiError) as error:
+            self.router.dispatch("GET", FakeRequest("/api/tasks"))
+        self.assertEqual(error.exception.status, 401)
 
     def test_routes_status_update(self):
         request = FakeRequest(

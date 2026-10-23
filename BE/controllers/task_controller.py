@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from core.config import Settings
 from web.models import ApiResponse
-from middleware.auth import require_admin, require_callback_token, require_user
-from services.task_service import TaskService
+from middleware.auth import require_admin, require_callback_token, require_user, resolve_role
+from services.task_service import ApiError, TaskService
 
 
 class TaskController:
@@ -11,8 +11,16 @@ class TaskController:
         self.service = service
         self.settings = settings
 
-    def list_tasks(self, _request) -> ApiResponse:
-        return ApiResponse(200, self.service.list_tasks())
+        # MỚI
+    def list_tasks(self, request) -> ApiResponse:
+        if not self.settings.enforce_role_header:
+            return ApiResponse(200, self.service.list_tasks())
+
+        username = require_user(request)          # 401 nếu thiếu X-User-Name
+        _, role = resolve_role(request, self.settings)
+        # Admin thấy tất cả; viewer chỉ thấy task có "Người làm" == username
+        assignee = None if role == "admin" else username
+        return ApiResponse(200, self.service.list_tasks(assignee))
 
     def create_task(self, request) -> ApiResponse:
         require_admin(request, self.settings)
