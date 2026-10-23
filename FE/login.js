@@ -90,8 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
         refreshIcons();
 
         try {
-            // Giữ tương thích với dữ liệu hiện tại. Nên chuyển sang Supabase Auth ở backend.
-            // ✅ MỚI - xác thực qua RPC, mật khẩu không bao giờ rời khỏi query so sánh hash
+            // Xác thực qua RPC: mật khẩu chỉ được so sánh bên trong database (bcrypt).
             const { data: matchedUsers, error: dbError } = await supabaseClient
                 .rpc('verify_login', {
                     p_username: usernameInput,

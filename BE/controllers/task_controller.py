@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from core.config import Settings
 from web.models import ApiResponse
-from middleware.auth import require_admin
+from middleware.auth import require_admin, require_callback_token, require_user
 from services.task_service import TaskService
 
 
@@ -36,10 +36,12 @@ class TaskController:
         return ApiResponse(200, {"success": True, "message": "Đã cập nhật trạng thái", "data": task})
 
     def start_executions(self, request) -> ApiResponse:
+        require_user(request)
         executions = self.service.start_executions(request.read_json())
         return ApiResponse(200, {"success": True, "data": executions})
 
     def stop_executions(self, request) -> ApiResponse:
+        require_user(request)
         self.service.stop_executions(request.read_json())
         return ApiResponse(200, {"success": True})
 
@@ -49,6 +51,7 @@ class TaskController:
         return ApiResponse(200, {"success": True, "message": "Đã chuyển giao bài toán", "data": task})
 
     def ai_callback(self, request) -> ApiResponse:
+        require_callback_token(request, self.settings)
         task = self.service.handle_ai_callback(request.read_json())
         return ApiResponse(200, {"success": True, "message": "Đã cập nhật kết quả AI", "data": task})
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hmac
 import json
 import logging
 import time
@@ -15,6 +16,38 @@ LOGGER = logging.getLogger("autotc-backend.auth")
 # In-memory cache: {username: (role, expire_timestamp)}
 _ROLE_CACHE: dict[str, tuple[str, float]] = {}
 CACHE_TTL_SECONDS = 180  # 3 phút
+
+
+def require_user(request) -> str:
+    """Đảm bảo request mang định danh người dùng (header X-User-Name).
+
+    Dùng cho các endpoint mà mọi user đã đăng nhập đều được phép
+    (vd: đăng ký/dừng theo dõi execution), khác với require_admin.
+    """
+    username = (request.headers.get("X-User-Name") or "").strip()
+    if not username:
+        raise ApiError(401, "Yêu cầu đăng nhập để thực hiện thao tác này")
+    return username
+
+
+def require_callback_token(request, settings: Settings) -> None:
+    """Xác thực lời gọi từ n8n / AI Worker bằng shared secret trong header.
+
+    Fail-closed: nếu backend chưa cấu hình AI_CALLBACK_TOKEN thì từ chối mọi
+    callback để tránh vô tình mở endpoint ra công chúng.
+    """
+    expected = getattr(settings, "ai_callback_token", None)
+    if not expected:
+        LOGGER.error("Từ chối AI callback vì backend chưa cấu hình AI_CALLBACK_TOKEN")
+        raise ApiError(
+            503,
+            "Backend chưa cấu hình AI_CALLBACK_TOKEN. Hãy khai báo trong .env và khởi động lại.",
+        )
+
+    provided = (request.headers.get("X-Callback-Token") or "").strip()
+    if not hmac.compare_digest(provided, expected):
+        LOGGER.warning("Từ chối AI callback: token không hợp lệ")
+        raise ApiError(401, "Token callback không hợp lệ")
 
 
 def fetch_role_from_supabase(username: str, settings: Settings) -> Optional[str]:

@@ -48,6 +48,7 @@ class Settings:
     supabase_anon_key: str = "sb_publishable_yA_P7i5OXAffRJwHx3hGvw_Wyo02_u3"
     supabase_service_role_key: str | None = None
     n8n_webhook_url: str = "https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/luong-chuc-nang"
+    ai_callback_token: str | None = None
 
 
     @classmethod
@@ -105,4 +106,5 @@ class Settings:
                 "N8N_WEBHOOK_URL",
                 "https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/luong-chuc-nang",
             ).strip(),
+            ai_callback_token=os.getenv("AI_CALLBACK_TOKEN", "").strip() or None,
         )

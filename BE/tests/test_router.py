@@ -16,12 +16,20 @@ class FakeService:
     def start_executions(self, payload):
         return [{"taskName": payload["taskNames"][0], "requestId": payload["requestId"]}]
 
+    def stop_executions(self, payload):
+        return None
+
+    def handle_ai_callback(self, payload):
+        return {"Bài toán": payload.get("baiToan", ""), "Trạng thái": "Đã xong"}
+
 
 class FakeRequest:
-    def __init__(self, path, payload=None, role="admin", username=""):
+    def __init__(self, path, payload=None, role="admin", username="", extra_headers=None):
         self.path = path
         self.payload = payload or {}
         self.headers = {"X-User-Role": role, "X-User-Name": username}
+        if extra_headers:
+            self.headers.update(extra_headers)
 
     def read_json(self):
         return self.payload
@@ -48,11 +56,59 @@ class RouterTests(unittest.TestCase):
 
     def test_routes_start_execution(self):
         request = FakeRequest(
-            "/api/tasks/executions", {"taskNames": ["Đăng nhập"], "requestId": "run-1"}
+            "/api/tasks/executions",
+            {"taskNames": ["Đăng nhập"], "requestId": "run-1"},
+            username="qa01",
         )
         response = self.router.dispatch("POST", request)
         self.assertEqual(response.status, 200)
         self.assertEqual(response.body["data"][0]["requestId"], "run-1")
+
+    def test_rejects_execution_without_username(self):
+        request = FakeRequest(
+            "/api/tasks/executions", {"taskNames": ["Đăng nhập"], "requestId": "run-1"}
+        )
+        with self.assertRaises(ApiError) as error:
+            self.router.dispatch("POST", request)
+        self.assertEqual(error.exception.status, 401)
+
+    def test_rejects_ai_callback_without_token_config(self):
+        request = FakeRequest("/api/tasks/ai-callback", {"baiToan": "Đăng nhập"})
+        with self.assertRaises(ApiError) as error:
+            self.router.dispatch("POST", request)
+        self.assertEqual(error.exception.status, 503)
+
+    def test_rejects_ai_callback_with_wrong_token(self):
+        settings = SimpleNamespace(
+            enforce_role_header=True,
+            ai_callback_token="secret-token",
+            supabase_url=None,
+        )
+        router = Router(TaskController(FakeService(), settings))
+        request = FakeRequest(
+            "/api/tasks/ai-callback",
+            {"baiToan": "Đăng nhập"},
+            extra_headers={"X-Callback-Token": "wrong-token"},
+        )
+        with self.assertRaises(ApiError) as error:
+            router.dispatch("POST", request)
+        self.assertEqual(error.exception.status, 401)
+
+    def test_accepts_ai_callback_with_valid_token(self):
+        settings = SimpleNamespace(
+            enforce_role_header=True,
+            ai_callback_token="secret-token",
+            supabase_url=None,
+        )
+        router = Router(TaskController(FakeService(), settings))
+        request = FakeRequest(
+            "/api/tasks/ai-callback",
+            {"baiToan": "Đăng nhập"},
+            extra_headers={"X-Callback-Token": "secret-token"},
+        )
+        response = router.dispatch("POST", request)
+        self.assertEqual(response.status, 200)
+        self.assertEqual(response.body["data"]["Trạng thái"], "Đã xong")
 
     def test_rejects_viewer_mutation(self):
         request = FakeRequest("/api/tasks/status", role="viewer")
