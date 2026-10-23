@@ -91,15 +91,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             // Giữ tương thích với dữ liệu hiện tại. Nên chuyển sang Supabase Auth ở backend.
+            // ✅ MỚI - xác thực qua RPC, mật khẩu không bao giờ rời khỏi query so sánh hash
             const { data: matchedUsers, error: dbError } = await supabaseClient
-                .from('users')
-                // Không trả cột password hoặc các trường riêng tư khác về trình duyệt.
-                .select('username, role')
-                .eq('username', usernameInput)
-                .eq('password', passwordInput)
-                .limit(1);
+                .rpc('verify_login', {
+                    p_username: usernameInput,
+                    p_password: passwordInput
+                });
 
-            const dbUser = Array.isArray(matchedUsers) ? matchedUsers[0] : null;
+            const dbUser = Array.isArray(matchedUsers) && matchedUsers.length > 0 ? matchedUsers[0] : null;
 
             if (dbError) {
                 console.error("Lỗi Supabase:", dbError);
