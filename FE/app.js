@@ -854,13 +854,23 @@ function renderTable() {
                 </td>
 
                 <td class="px-4 py-5 align-top min-w-[220px] text-center">${makeLink(urlGoc, ten, 'source')}</td>
-                <td class="px-4 py-5 align-top min-w-[220px] text-center">${makeLink(linkTC, ten, 'testcase')}</td>
+                <td class="px-4 py-5 align-top min-w-[220px] text-center">
+                    <div class="flex flex-col items-center gap-2">
+                        ${makeLink(linkTC, ten, 'testcase')}
+                        <button onclick="openTestcaseReviewModalForTask('${escapeHtml(ten)}')"
+                            class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold text-blue-600 bg-blue-50/70 hover:bg-blue-100 hover:text-blue-700 transition-all border border-blue-200/50 shadow-xs cursor-pointer"
+                            title="Xem trước & Duyệt từng testcase của bài toán này">
+                            <i data-lucide="clipboard-check" class="w-3.5 h-3.5"></i> Duyệt testcase
+                        </button>
+                    </div>
+                </td>
                 <td class="px-4 py-5 align-top min-w-[220px] text-center">${makeLink(linkPT, ten, 'analysis')}</td>
 
                 <!-- CỘT THAO TÁC -->
                 <td class="px-4 py-5 align-top min-w-[170px] text-center">
                     <div class="flex items-center justify-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity duration-300">
                         <button onclick="downloadSingleTaskFiles(${originalIndex})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-emerald-50 text-slate-600 hover:text-emerald-600 rounded-lg transition-all shadow-sm" title="Tải tài liệu"><i data-lucide="download" class="w-4 h-4"></i></button>
+                        <button onclick="openTestcaseReviewModalForTask('${escapeHtml(ten)}')" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-blue-50 text-slate-600 hover:text-blue-600 rounded-lg transition-all shadow-sm" title="Xem trước & Duyệt testcase"><i data-lucide="clipboard-check" class="w-4 h-4 text-blue-600"></i></button>
                         <button onclick="runSingleTask(${originalIndex})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-blue-50 text-slate-600 hover:text-blue-600 rounded-lg transition-all shadow-sm" title="Chạy AI"><i data-lucide="play" class="w-4 h-4 fill-current"></i></button>
                         ${currentUser.role === 'admin' ? `
                         <button onclick="openTransferModal(${originalIndex})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-orange-50 text-slate-600 hover:text-orange-600 rounded-lg transition-all shadow-sm" title="Chuyển giao"><i data-lucide="send" class="w-4 h-4"></i></button>
@@ -1317,40 +1327,502 @@ function queueTestcaseReview(taskName) {
     openNextTestcaseReview();
 }
 
+// ================= QUẢN LÝ DUYỆT TESTCASE (TRỰC TIẾP TRÊN MODAL & TỰ ĐỘNG KHI CHẠY XONG) =================
+let modalTestcaseRows = [];
+let modalChoice = {};
+let currentModalFilter = 'all';
+let modalSearchQuery = '';
+let isModalMockMode = false;
+
 function openNextTestcaseReview() {
     if (activeTestcaseReview || testcaseReviewQueue.length === 0) return;
 
     activeTestcaseReview = testcaseReviewQueue.shift();
-    document.getElementById('testcaseReviewTaskName').textContent = activeTestcaseReview.taskName;
+    openTestcaseReviewModalForTask(activeTestcaseReview.taskName);
+}
+
+function openTestcaseReviewModalForTask(taskName) {
+    if (!taskName) return;
+
+    const row = dataRows.find(item => getColVal(item, 'Bài toán') === taskName);
+    const context = runContextByTask[taskName] || {};
+
+    activeTestcaseReview = {
+        taskName,
+        testcaseUrls: splitHttpLinks(getColVal(row, 'Link Testcase')),
+        testcasePrompt: context.testcasePrompt || context.prompt2 || ''
+    };
+
+    document.getElementById('testcaseReviewTaskName').textContent = taskName;
     document.getElementById('testcaseReviewFeedback').value = '';
     selectedTestcaseReviewSuggestions.clear();
     renderTestcaseReviewSuggestions();
-    document.getElementById('testcaseReviewDecision').classList.remove('hidden');
-    document.getElementById('testcaseReviewRevision').classList.add('hidden');
 
     const linksContainer = document.getElementById('testcaseReviewLinks');
     linksContainer.replaceChildren();
 
-    if (activeTestcaseReview.testcaseUrls.length === 0) {
-        const emptyMessage = document.createElement('p');
-        emptyMessage.className = 'text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3';
-        emptyMessage.textContent = 'Chưa tìm thấy link testcase. Bạn vẫn có thể yêu cầu AI điều chỉnh và chạy lại.';
-        linksContainer.appendChild(emptyMessage);
-    } else {
+    if (activeTestcaseReview.testcaseUrls.length > 0) {
         activeTestcaseReview.testcaseUrls.forEach((url, index) => {
             const link = document.createElement('a');
             link.href = url;
             link.target = '_blank';
             link.rel = 'noopener noreferrer';
-            link.className = 'inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-semibold transition-all';
-            link.textContent = activeTestcaseReview.testcaseUrls.length > 1
-                ? `Mở testcase ${index + 1}`
-                : 'Mở testcase để xem lại';
+            link.className = 'inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-semibold transition-all shadow-xs';
+            link.innerHTML = `<i data-lucide="table" class="w-3.5 h-3.5"></i> ${activeTestcaseReview.testcaseUrls.length > 1 ? `Google Sheet ${index + 1}` : 'Mở Google Sheet testcase'}`;
             linksContainer.appendChild(link);
         });
     }
 
+    const revEl = document.getElementById('testcaseReviewRevision');
+    if (revEl) revEl.classList.add('hidden');
+
     document.getElementById('testcaseReviewModal').classList.remove('hidden');
+    loadModalTestcases(taskName);
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+async function loadModalTestcases(taskName) {
+    const container = document.getElementById('modalTestcaseList');
+    if (!container) return;
+
+    container.innerHTML = `
+        <div class="py-10 text-center space-y-2 bg-white rounded-xl border border-slate-200">
+            <div class="w-8 h-8 border-3 border-slate-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
+            <p class="text-xs font-semibold text-slate-500">Đang tải testcase từ Supabase...</p>
+        </div>
+    `;
+
+    currentModalFilter = 'all';
+    modalSearchQuery = '';
+    const searchInput = document.getElementById('modalSearchInput');
+    if (searchInput) searchInput.value = '';
+
+    try {
+        const encoded = encodeURIComponent(taskName);
+        const queryPath = `qa_memory?kind=eq.testcase&or=(problem_id.eq.${encoded},problem_title.eq.${encoded})&select=id,problem_id,problem_title,test_suite,content,review_status,approved&order=created_at.asc,id.asc&limit=2000`;
+        const url = `${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/${queryPath}`;
+
+        const res = await fetch(url, {
+            headers: {
+                apikey: SUPABASE_ANON_KEY,
+                Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!res.ok) throw new Error(`Lỗi kết nối Supabase (${res.status})`);
+        const data = await res.json();
+
+        isModalMockMode = false;
+
+        if (!Array.isArray(data) || data.length === 0) {
+            modalTestcaseRows = [];
+            modalChoice = {};
+            container.innerHTML = `
+                <div class="p-8 text-center space-y-3 bg-white rounded-2xl border border-slate-200">
+                    <div class="w-12 h-12 bg-slate-100 text-slate-400 rounded-2xl mx-auto flex items-center justify-center">
+                        <i data-lucide="inbox" class="w-6 h-6"></i>
+                    </div>
+                    <p class="text-sm font-bold text-slate-800">Chưa có testcase trong Supabase cho bài toán này</p>
+                    <p class="text-xs text-slate-500 max-w-md mx-auto">AI có thể đang ghi dữ liệu hoặc kết quả được lưu tại Google Sheets. Bạn có thể bấm nạp dữ liệu mẫu bên dưới để trải nghiệm duyệt testcase.</p>
+                    <button type="button" onclick="loadModalMockTestcases()"
+                        class="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-semibold transition-all inline-flex items-center gap-1.5 shadow-xs">
+                        <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> Nạp testcase mẫu để thử duyệt
+                    </button>
+                </div>
+            `;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            updateModalCounters();
+            return;
+        }
+
+        modalTestcaseRows = data.map(normalizeModalTestcaseRow);
+        modalChoice = {};
+        modalTestcaseRows.forEach(r => {
+            modalChoice[r.id] = r.review_status || (r.approved === true ? 'approved' : (r.approved === false ? 'rejected' : 'pending'));
+        });
+
+        renderModalTestcaseCards();
+        updateModalCounters();
+    } catch (err) {
+        console.error('Lỗi khi tải testcase cho modal:', err);
+        container.innerHTML = `
+            <div class="p-6 text-center space-y-2 bg-white rounded-2xl border border-slate-200">
+                <p class="text-xs text-red-500 font-semibold">Không thể kết nối Supabase: ${escapeHtml(err.message)}</p>
+                <button type="button" onclick="loadModalMockTestcases()"
+                    class="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-semibold transition-all inline-flex items-center gap-1">
+                    <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> Nạp testcase mẫu để duyệt thử
+                </button>
+            </div>
+        `;
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+}
+
+function loadModalMockTestcases() {
+    isModalMockMode = true;
+    const mockList = [
+        {
+            id: 'mock_1',
+            test_suite: 'Xác thực',
+            review_status: 'pending',
+            content: {
+                id: 'TC_AUTH_01',
+                muc_dich: 'Đăng nhập thành công với tài khoản và mật khẩu hợp lệ',
+                cac_buoc: '1. Mở trang đăng nhập\n2. Nhập username đúng\n3. Nhập password đúng\n4. Nhấn Đăng nhập',
+                ket_qua_mong_muon: 'Đăng nhập thành công, chuyển hướng vào Dashboard và hiển thị tên người dùng.',
+                ghi_chu: 'Kiểm tra token phiên làm việc được lưu an toàn.'
+            }
+        },
+        {
+            id: 'mock_2',
+            test_suite: 'Xác thực',
+            review_status: 'pending',
+            content: {
+                id: 'TC_AUTH_02',
+                muc_dich: 'Hiển thị lỗi khi bỏ trống username hoặc mật khẩu',
+                cac_buoc: '1. Mở trang đăng nhập\n2. Để trống ô username hoặc password\n3. Nhấn Đăng nhập',
+                ket_qua_mong_muon: 'Hiển thị cảnh báo màu đỏ yêu cầu nhập đầy đủ thông tin.',
+                ghi_chu: ''
+            }
+        },
+        {
+            id: 'mock_3',
+            test_suite: 'Bảo mật',
+            review_status: 'pending',
+            content: {
+                id: 'TC_SEC_01',
+                muc_dich: 'Khóa tài khoản tạm thời khi nhập sai mật khẩu quá 5 lần liên tiếp',
+                cac_buoc: '1. Mở trang đăng nhập\n2. Nhập sai mật khẩu 5 lần liên tiếp\n3. Quan sát phản hồi hệ thống',
+                ket_qua_mong_muon: 'Hệ thống thông báo tài khoản bị tạm khóa 15 phút để bảo vệ chống dò quét.',
+                ghi_chu: 'Kiểm tra ghi log bảo mật.'
+            }
+        },
+        {
+            id: 'mock_4',
+            test_suite: 'Phân quyền',
+            review_status: 'pending',
+            content: {
+                id: 'TC_ROLE_01',
+                muc_dich: 'Người dùng role Viewer không thấy các nút thao tác Thêm / Sửa / Xóa bài toán',
+                cac_buoc: '1. Đăng nhập với quyền Viewer\n2. Quan sát giao diện Dashboard\n3. Kiểm tra các nút quản trị',
+                ket_qua_mong_muon: 'Giao diện ẩn các nút Thêm / Sửa / Xóa, chỉ cho phép Xem và Chạy AI.',
+                ghi_chu: ''
+            }
+        }
+    ];
+
+    modalTestcaseRows = mockList.map(normalizeModalTestcaseRow);
+    modalChoice = {};
+    modalTestcaseRows.forEach(r => modalChoice[r.id] = 'pending');
+    renderModalTestcaseCards();
+    updateModalCounters();
+    showToast('Đã nạp 4 testcase mẫu vào bản xem trước!', 'info');
+}
+
+function normalizeModalTestcaseRow(item) {
+    let content = item.content;
+    if (typeof content === 'string') {
+        try { content = JSON.parse(content); } catch (_) { content = { raw: content }; }
+    }
+    content = content || {};
+
+    return {
+        id: item.id || `tc_${Math.random().toString(36).substring(2, 9)}`,
+        test_suite: item.test_suite || content.test_suite || content.suite || 'Chung',
+        review_status: item.review_status || 'pending',
+        approved: item.approved,
+        content: {
+            id: content.id || content.ma_testcase || '',
+            muc_dich: content.muc_dich || content.mục_đích || content.name || content.title || content.description || '',
+            cac_buoc: content.cac_buoc || content.các_bước || content.steps || '',
+            ket_qua_mong_muon: content.ket_qua_mong_muon || content.kết_quả_mong_muốn || content.expected || content.expected_result || '',
+            ghi_chu: content.ghi_chu || content.ghi_chú || content.notes || ''
+        },
+        _open: false
+    };
+}
+
+function renderModalTestcaseCards() {
+    const container = document.getElementById('modalTestcaseList');
+    if (!container) return;
+
+    container.innerHTML = '';
+    const visible = modalTestcaseRows.filter(r => {
+        const st = modalChoice[r.id] || 'pending';
+        if (currentModalFilter !== 'all' && st !== currentModalFilter) return false;
+        if (!modalSearchQuery) return true;
+
+        const c = r.content || {};
+        const text = [r.test_suite, c.id, c.muc_dich, c.cac_buoc, c.ket_qua_mong_muon, c.ghi_chu].join(' ').toLowerCase();
+        return text.includes(modalSearchQuery);
+    });
+
+    if (visible.length === 0) {
+        container.innerHTML = `
+            <div class="p-6 text-center text-xs text-slate-500 bg-white rounded-xl border border-slate-200">
+                Không có testcase nào khớp với bộ lọc hiện tại.
+            </div>
+        `;
+        return;
+    }
+
+    const grouped = {};
+    visible.forEach(r => {
+        const s = r.test_suite || 'Chung';
+        (grouped[s] = grouped[s] || []).push(r);
+    });
+
+    Object.entries(grouped).forEach(([suite, list]) => {
+        const suiteEl = document.createElement('div');
+        suiteEl.className = 'space-y-2';
+
+        const approvedCount = list.filter(r => modalChoice[r.id] === 'approved').length;
+        const rejectedCount = list.filter(r => modalChoice[r.id] === 'rejected').length;
+
+        suiteEl.innerHTML = `
+            <div class="flex items-center justify-between text-xs font-bold text-slate-700 px-1 pt-1">
+                <span class="flex items-center gap-1.5">
+                    <i data-lucide="folder" class="w-3.5 h-3.5 text-blue-600"></i> ${escapeHtml(suite)} (${list.length})
+                </span>
+                <span class="text-[11px] font-semibold text-slate-500">
+                    ${approvedCount > 0 ? `<span class="text-emerald-600">Giữ: ${approvedCount}</span> ` : ''}
+                    ${rejectedCount > 0 ? `<span class="text-rose-600">Bỏ: ${rejectedCount}</span>` : ''}
+                </span>
+            </div>
+            <div class="cards-box space-y-2"></div>
+        `;
+
+        const cardsBox = suiteEl.querySelector('.cards-box');
+        list.forEach(r => cardsBox.appendChild(createModalCard(r)));
+        container.appendChild(suiteEl);
+    });
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function createModalCard(r) {
+    const c = r.content || {};
+    const st = modalChoice[r.id] || 'pending';
+    const card = document.createElement('div');
+    card.id = `modal_tc_${r.id}`;
+
+    let borderClass = 'border-l-slate-300 bg-white';
+    if (st === 'approved') borderClass = 'border-l-emerald-500 bg-emerald-50/25';
+    if (st === 'rejected') borderClass = 'border-l-rose-500 bg-rose-50/20 opacity-80';
+
+    card.className = `rounded-xl border border-slate-200 border-l-4 p-3 transition-all ${borderClass} shadow-xs`;
+
+    const codeBadge = c.id ? `<span class="font-mono text-[11px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 shrink-0">${escapeHtml(c.id)}</span>` : '';
+    const purposeText = c.muc_dich ? escapeHtml(c.muc_dich) : '<span class="italic text-slate-400">Không có mục đích</span>';
+
+    card.innerHTML = `
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div class="flex items-start sm:items-center gap-2 flex-1 min-w-0 cursor-pointer select-none" onclick="toggleModalCardDetail('${r.id}')">
+                <button type="button" class="p-0.5 text-slate-400 hover:text-slate-600 rounded shrink-0">
+                    <i data-lucide="${r._open ? 'chevron-up' : 'chevron-down'}" class="w-3.5 h-3.5"></i>
+                </button>
+                ${codeBadge}
+                <div class="text-xs sm:text-sm font-bold text-slate-800 truncate flex-1" title="${escapeHtml(c.muc_dich || '')}">
+                    ${purposeText}
+                </div>
+            </div>
+
+            <div class="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
+                <div class="inline-flex rounded-lg bg-slate-100 p-0.5 border border-slate-200 shadow-xs">
+                    <button type="button" onclick="setModalChoice('${r.id}', 'approved')"
+                        class="px-2.5 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1 ${st === 'approved' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-emerald-700 hover:bg-white'}">
+                        <i data-lucide="check" class="w-3 h-3"></i> Giữ
+                    </button>
+                    <button type="button" onclick="setModalChoice('${r.id}', 'rejected')"
+                        class="px-2.5 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1 ${st === 'rejected' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-600 hover:text-rose-700 hover:bg-white'}">
+                        <i data-lucide="x" class="w-3 h-3"></i> Bỏ
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="modal_detail_${r.id}" class="${r._open ? 'block' : 'hidden'} mt-3 pt-2.5 border-t border-slate-100 space-y-2 text-xs">
+            <div>
+                <span class="font-bold text-slate-500 uppercase text-[10px] block mb-1">Các bước thực hiện:</span>
+                <div class="p-2.5 bg-slate-50 rounded-lg border border-slate-200 font-mono text-[11px] text-slate-800 whitespace-pre-wrap">${c.cac_buoc ? escapeHtml(c.cac_buoc) : '<span class="italic text-slate-400">Không có bước</span>'}</div>
+            </div>
+            <div>
+                <span class="font-bold text-emerald-700 uppercase text-[10px] block mb-1">Kết quả mong muốn:</span>
+                <div class="p-2.5 bg-emerald-50/50 rounded-lg border border-emerald-200/80 text-[11px] text-emerald-950 font-medium whitespace-pre-wrap">${c.ket_qua_mong_muon ? escapeHtml(c.ket_qua_mong_muon) : '<span class="italic text-slate-400">Không có kết quả mong muốn</span>'}</div>
+            </div>
+            ${c.ghi_chu ? `
+            <div>
+                <span class="font-bold text-amber-700 uppercase text-[10px] block mb-1">Ghi chú:</span>
+                <div class="p-2 bg-amber-50/40 rounded-lg border border-amber-200/60 text-[11px] text-amber-900 whitespace-pre-wrap">${escapeHtml(c.ghi_chu)}</div>
+            </div>
+            ` : ''}
+        </div>
+    `;
+
+    return card;
+}
+
+function toggleModalCardDetail(id) {
+    const row = modalTestcaseRows.find(r => r.id === id);
+    if (!row) return;
+    row._open = !row._open;
+    renderModalTestcaseCards();
+}
+
+function setModalChoice(id, targetStatus) {
+    const current = modalChoice[id] || 'pending';
+    modalChoice[id] = current === targetStatus ? 'pending' : targetStatus;
+    renderModalTestcaseCards();
+    updateModalCounters();
+}
+
+function bulkSetModalStatus(targetStatus) {
+    const visible = modalTestcaseRows.filter(r => {
+        const st = modalChoice[r.id] || 'pending';
+        if (currentModalFilter !== 'all' && st !== currentModalFilter) return false;
+        if (!modalSearchQuery) return true;
+        const c = r.content || {};
+        const text = [r.test_suite, c.id, c.muc_dich, c.cac_buoc, c.ket_qua_mong_muon, c.ghi_chu].join(' ').toLowerCase();
+        return text.includes(modalSearchQuery);
+    });
+
+    if (visible.length === 0) return;
+    visible.forEach(r => modalChoice[r.id] = targetStatus);
+    renderModalTestcaseCards();
+    updateModalCounters();
+}
+
+function setModalFilter(filter) {
+    currentModalFilter = filter;
+    document.querySelectorAll('.modal-tab').forEach(tab => {
+        const isActive = tab.getAttribute('data-modal-filter') === filter;
+        tab.className = isActive
+            ? 'modal-tab px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-slate-900 text-white shadow-xs'
+            : 'modal-tab px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-slate-100 text-slate-600 hover:bg-slate-200';
+    });
+    renderModalTestcaseCards();
+}
+
+function handleModalSearch(val) {
+    modalSearchQuery = (val || '').toLowerCase().trim();
+    renderModalTestcaseCards();
+}
+
+function updateModalCounters() {
+    const total = modalTestcaseRows.length;
+    let approved = 0, rejected = 0, pending = 0;
+    modalTestcaseRows.forEach(r => {
+        const st = modalChoice[r.id] || 'pending';
+        if (st === 'approved') approved++;
+        else if (st === 'rejected') rejected++;
+        else pending++;
+    });
+
+    const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    setEl('modalStatTotal', total);
+    setEl('modalStatApproved', approved);
+    setEl('modalStatRejected', rejected);
+
+    setEl('modalTabAllCount', total);
+    setEl('modalTabPendingCount', pending);
+    setEl('modalTabApprovedCount', approved);
+    setEl('modalTabRejectedCount', rejected);
+
+    const unsaved = modalTestcaseRows.filter(r => (modalChoice[r.id] || 'pending') !== (r.review_status || 'pending')).length;
+    const dot = document.getElementById('modalSaveNoticeDot');
+    const noticeText = document.getElementById('modalSaveNoticeText');
+    if (dot && noticeText) {
+        if (unsaved > 0) {
+            dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse';
+            noticeText.textContent = `Bạn đã chọn giữ ${approved} và bỏ ${rejected} testcase (${unsaved} thay đổi chưa lưu).`;
+            noticeText.className = 'text-amber-700 font-bold';
+        } else {
+            dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
+            noticeText.textContent = `Hiện có: ${approved} Đã giữ, ${rejected} Đã bỏ, ${pending} Chưa duyệt.`;
+            noticeText.className = 'text-slate-600';
+        }
+    }
+}
+
+async function saveAndApproveTestcaseReview() {
+    if (!activeTestcaseReview) return;
+
+    const btn = document.getElementById('btnSaveApprove');
+    const label = document.getElementById('btnSaveApproveLabel');
+    if (btn) btn.disabled = true;
+    if (label) label.textContent = 'Đang lưu vào Supabase...';
+
+    try {
+        if (!isModalMockMode && modalTestcaseRows.length > 0) {
+            for (const s of ['approved', 'rejected', 'pending']) {
+                const ids = modalTestcaseRows
+                    .filter(r => (modalChoice[r.id] || 'pending') === s && (r.review_status || 'pending') !== s)
+                    .map(r => r.id);
+
+                if (ids.length > 0) {
+                    const url = `${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/qa_memory?id=in.(${ids.join(',')})`;
+                    await fetch(url, {
+                        method: 'PATCH',
+                        headers: {
+                            apikey: SUPABASE_ANON_KEY,
+                            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+                            'Content-Type': 'application/json',
+                            Prefer: 'return=minimal'
+                        },
+                        body: JSON.stringify({
+                            review_status: s,
+                            approved: s === 'approved',
+                            reviewed_at: new Date().toISOString()
+                        })
+                    });
+                }
+            }
+        }
+
+        modalTestcaseRows.forEach(r => {
+            r.review_status = modalChoice[r.id];
+            r.approved = modalChoice[r.id] === 'approved';
+        });
+
+        showToast(`Đã duyệt & lưu kết quả testcase cho "${activeTestcaseReview.taskName}"!`, 'success');
+        approveTestcaseReview();
+    } catch (err) {
+        console.error('Lỗi khi lưu duyệt testcase:', err);
+        alert(`❌ Lỗi khi lưu vào Supabase: ${err.message}`);
+    } finally {
+        if (btn) btn.disabled = false;
+        if (label) label.textContent = 'Lưu kết quả & Đồng ý';
+    }
+}
+
+function toggleTestcaseRevisionForm() {
+    const revEl = document.getElementById('testcaseReviewRevision');
+    if (!revEl) return;
+    const isHidden = revEl.classList.contains('hidden');
+    revEl.classList.toggle('hidden', !isHidden);
+
+    if (isHidden) {
+        // Auto-fill rejected testcases into prompt if any
+        const rejected = modalTestcaseRows.filter(r => modalChoice[r.id] === 'rejected');
+        const feedbackInput = document.getElementById('testcaseReviewFeedback');
+        if (rejected.length > 0 && feedbackInput && !feedbackInput.value.trim()) {
+            const rejectedNames = rejected.map(r => `${r.content.id || 'TC'}: ${r.content.muc_dich || ''}`).join('\n- ');
+            feedbackInput.value = `Yêu cầu loại bỏ hoặc viết lại các testcase sau không đạt yêu cầu:\n- ${rejectedNames}\n\nVui lòng sinh lại bộ testcase bổ sung bao quát hơn.`;
+        }
+        if (feedbackInput) feedbackInput.focus();
+    }
+}
+
+function cancelTestcaseRevision() {
+    document.getElementById('testcaseReviewRevision').classList.add('hidden');
+}
+
+function closeTestcaseReviewModal() {
+    document.getElementById('testcaseReviewModal').classList.add('hidden');
+    activeTestcaseReview = null;
+    openNextTestcaseReview();
 }
 
 function approveTestcaseReview() {
@@ -1363,15 +1835,18 @@ function approveTestcaseReview() {
     openNextTestcaseReview();
 }
 
-function showTestcaseRevisionForm() {
-    document.getElementById('testcaseReviewDecision').classList.add('hidden');
-    document.getElementById('testcaseReviewRevision').classList.remove('hidden');
-    document.getElementById('testcaseReviewFeedback').focus();
+function openTestcaseReviewPage(taskName) {
+    if (!taskName) return;
+    const url = `review.html?problem_id=${encodeURIComponent(taskName)}&back=index.html`;
+    window.open(url, '_blank');
 }
 
-function cancelTestcaseRevision() {
-    document.getElementById('testcaseReviewRevision').classList.add('hidden');
-    document.getElementById('testcaseReviewDecision').classList.remove('hidden');
+function openTestcaseReviewFromActiveModal() {
+    if (!activeTestcaseReview || !activeTestcaseReview.taskName) {
+        window.open('review.html', '_blank');
+        return;
+    }
+    openTestcaseReviewPage(activeTestcaseReview.taskName);
 }
 
 async function rerunTestcaseFromReview() {
@@ -1398,8 +1873,20 @@ async function rerunTestcaseFromReview() {
     document.getElementById('testcaseReviewModal').classList.add('hidden');
     await doRunSingle(review.taskName, revisedPrompt, 'testcase');
     openNextTestcaseReview();
-
 }
+
+window.openTestcaseReviewPage = openTestcaseReviewPage;
+window.openTestcaseReviewModalForTask = openTestcaseReviewModalForTask;
+window.openTestcaseReviewFromActiveModal = openTestcaseReviewFromActiveModal;
+window.closeTestcaseReviewModal = closeTestcaseReviewModal;
+window.toggleTestcaseRevisionForm = toggleTestcaseRevisionForm;
+window.saveAndApproveTestcaseReview = saveAndApproveTestcaseReview;
+window.setModalChoice = setModalChoice;
+window.bulkSetModalStatus = bulkSetModalStatus;
+window.setModalFilter = setModalFilter;
+window.handleModalSearch = handleModalSearch;
+window.toggleModalCardDetail = toggleModalCardDetail;
+window.loadModalMockTestcases = loadModalMockTestcases;
 
 function closeRunAIModal() {
     document.getElementById('runAIModal').classList.add('hidden');

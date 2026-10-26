@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xem trước & Duyệt Testcase - AI Automation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="style.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 9999px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
+        .tc-card { transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+        .tc-card.approved { border-left-color: #10b981; background-color: rgba(240, 253, 244, 0.5); }
+        .tc-card.rejected { border-left-color: #ef4444; background-color: rgba(254, 242, 242, 0.4); opacity: 0.85; }
+        .tc-card.pending { border-left-color: #94a3b8; }
+        .tc-card.open .tc-body { display: block; }
+        .badge-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+    </style>
+</head>
+
+<body class="bg-slate-50 min-h-screen font-sans text-slate-800 pb-28 relative selection:bg-blue-100 selection:text-blue-900">
+
+    <!-- Background Decoration -->
+    <div class="fixed inset-0 z-0 overflow-hidden pointer-events-none">
+        <div class="absolute -top-[15%] -left-[10%] w-[45%] h-[45%] rounded-full bg-blue-100/50 blur-[130px]"></div>
+        <div class="absolute top-[40%] -right-[10%] w-[40%] h-[50%] rounded-full bg-emerald-100/40 blur-[120px]"></div>
+    </div>
+
+    <!-- STICKY TOP HEADER -->
+    <header class="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200/80 shadow-xs transition-all">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+            
+            <div class="flex items-center gap-3">
+                <a id="btnBack" href="index.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-all">
+                    <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                    <span>Danh sách bài toán</span>
+                </a>
+                <div class="h-4 w-px bg-slate-200"></div>
+                <div>
+                    <h1 class="text-base sm:text-lg font-extrabold text-slate-900 flex items-center gap-2 tracking-tight">
+                        <span class="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-sm shadow-blue-500/20">
+                            <i data-lucide="clipboard-check" class="w-4 h-4"></i>
+                        </span>
+                        Duyệt & Xem trước Testcase
+                    </h1>
+                </div>
+            </div>
+
+            <!-- Problem Selector & User Info -->
+            <div class="flex flex-wrap items-center gap-2.5 w-full md:w-auto justify-between md:justify-end">
+                <div class="flex items-center gap-2 flex-1 md:flex-none">
+                    <label for="probSelect" class="text-xs font-bold text-slate-500 uppercase shrink-0 flex items-center gap-1">
+                        <i data-lucide="file-question" class="w-3.5 h-3.5 text-blue-600"></i> Bài toán:
+                    </label>
+                    <select id="probSelect" aria-label="Chọn bài toán" class="w-full md:w-72 px-3 py-1.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition cursor-pointer shadow-xs truncate">
+                        <option value="">Đang tải danh sách bài toán...</option>
+                    </select>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <button id="btnReload" onclick="loadTestcases()" title="Làm mới dữ liệu" class="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all" aria-label="Tải lại">
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                    </button>
+                    <div id="userBadge" class="hidden sm:flex items-center gap-2 px-2.5 py-1.5 bg-slate-100/80 rounded-xl border border-slate-200 text-xs">
+                        <div class="w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center text-[10px] font-bold">
+                            <i data-lucide="user" class="w-3 h-3"></i>
+                        </div>
+                        <span id="userName" class="font-bold text-slate-700">User</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN CONTAINER -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 relative z-10 space-y-6">
+
+        <!-- STATS BANNER -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+            <div class="bg-white/90 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                    <i data-lucide="layers" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Tổng Testcase</div>
+                    <div id="statTotal" class="text-xl font-extrabold text-slate-900 leading-none mt-1">0</div>
+                </div>
+            </div>
+
+            <div class="bg-white/90 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                    <i data-lucide="clock" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Chưa duyệt</div>
+                    <div id="statPending" class="text-xl font-extrabold text-amber-600 leading-none mt-1">0</div>
+                </div>
+            </div>
+
+            <div class="bg-white/90 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                    <i data-lucide="check-circle" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Đã giữ lại</div>
+                    <div id="statApproved" class="text-xl font-extrabold text-emerald-600 leading-none mt-1">0</div>
+                </div>
+            </div>
+
+            <div class="bg-white/90 backdrop-blur-sm p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+                    <i data-lucide="x-circle" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Đã loại bỏ</div>
+                    <div id="statRejected" class="text-xl font-extrabold text-rose-600 leading-none mt-1">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PROGRESS BAR -->
+        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-2">
+            <div class="flex justify-between items-center text-xs font-semibold text-slate-600">
+                <span class="flex items-center gap-1.5">
+                    <i data-lucide="pie-chart" class="w-3.5 h-3.5 text-blue-600"></i> Tiến độ duyệt bài toán:
+                    <strong id="currentTaskTitle" class="text-slate-900 font-bold">—</strong>
+                </span>
+                <span id="progressText" class="font-bold text-blue-600">0% hoàn tất</span>
+            </div>
+            <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden flex">
+                <div id="progressBarApproved" class="bg-emerald-500 h-2.5 transition-all duration-300" style="width: 0%" title="Đã giữ"></div>
+                <div id="progressBarRejected" class="bg-rose-400 h-2.5 transition-all duration-300" style="width: 0%" title="Đã bỏ"></div>
+            </div>
+        </div>
+
+        <!-- FILTER & ACTION TOOLBAR -->
+        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            
+            <!-- Status Tabs -->
+            <div class="flex flex-wrap items-center gap-1.5" id="statusTabs">
+                <button type="button" data-filter="pending" onclick="setFilter('pending')" class="filter-tab px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-semibold transition-all bg-slate-900 text-white shadow-xs">
+                    Chưa duyệt <span class="tab-count ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-white/20">0</span>
+                </button>
+                <button type="button" data-filter="approved" onclick="setFilter('approved')" class="filter-tab px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-semibold transition-all bg-slate-100 text-slate-600 hover:bg-slate-200">
+                    Đã giữ <span class="tab-count ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-slate-200 text-slate-700">0</span>
+                </button>
+                <button type="button" data-filter="rejected" onclick="setFilter('rejected')" class="filter-tab px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-semibold transition-all bg-slate-100 text-slate-600 hover:bg-slate-200">
+                    Đã bỏ <span class="tab-count ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-slate-200 text-slate-700">0</span>
+                </button>
+                <button type="button" data-filter="all" onclick="setFilter('all')" class="filter-tab px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-semibold transition-all bg-slate-100 text-slate-600 hover:bg-slate-200">
+                    Tất cả <span class="tab-count ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-slate-200 text-slate-700">0</span>
+                </button>
+            </div>
+
+            <!-- Search & Bulk Actions -->
+            <div class="flex flex-wrap items-center gap-2">
+                <div class="relative flex-1 sm:flex-initial sm:w-56">
+                    <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+                    <input type="text" id="searchInput" oninput="handleSearch(this.value)" placeholder="Tìm mã, mục đích, bước..." class="w-full pl-9 pr-3 py-1.5 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-blue-500 outline-none transition">
+                </div>
+
+                <div class="h-6 w-px bg-slate-200 hidden sm:block"></div>
+
+                <button type="button" onclick="bulkSetStatus('approved')" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 rounded-xl text-xs font-semibold transition-all shadow-xs" title="Đánh dấu tất cả testcase đang hiển thị là Đã giữ">
+                    <i data-lucide="check" class="w-3.5 h-3.5"></i> Giữ tất cả
+                </button>
+
+                <button type="button" onclick="bulkSetStatus('rejected')" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded-xl text-xs font-semibold transition-all shadow-xs" title="Đánh dấu tất cả testcase đang hiển thị là Đã bỏ">
+                    <i data-lucide="x" class="w-3.5 h-3.5"></i> Bỏ tất cả
+                </button>
+
+                <button type="button" id="btnToggleAll" onclick="toggleExpandAll()" class="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-all" title="Mở rộng / Thu gọn tất cả">
+                    <i data-lucide="chevrons-up-down" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- TESTCASE CARDS LIST -->
+        <div id="testcaseList" class="space-y-6">
+            <!-- Will be populated dynamically -->
+        </div>
+
+        <!-- EMPTY STATE MESSAGE -->
+        <div id="stateMessage" class="hidden bg-white p-12 rounded-3xl border border-slate-200/80 text-center space-y-4 max-w-lg mx-auto shadow-xs">
+            <div id="stateIcon" class="w-16 h-16 rounded-2xl bg-slate-100 text-slate-400 mx-auto flex items-center justify-center">
+                <i data-lucide="inbox" class="w-8 h-8"></i>
+            </div>
+            <h3 id="stateTitle" class="text-base font-bold text-slate-800">Không có testcase nào</h3>
+            <p id="stateDesc" class="text-sm text-slate-500 leading-relaxed">Chưa có dữ liệu testcase nào được lưu trong Supabase cho bài toán này.</p>
+            <div id="stateActions" class="pt-2 flex flex-wrap justify-center gap-2">
+                <button type="button" onclick="loadMockTestcases()" class="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5">
+                    <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> Nạp testcase mẫu để thử nghiệm
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- FLOATING BOTTOM SAVE BAR -->
+    <footer class="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-lg py-3 px-4 transition-transform duration-300">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+            
+            <div class="flex items-center gap-3 text-xs sm:text-sm">
+                <div class="flex items-center gap-2">
+                    <span id="saveStatusDot" class="w-2.5 h-2.5 rounded-full bg-slate-300"></span>
+                    <span id="unsavedCountText" class="font-bold text-slate-700">Chưa có thay đổi nào</span>
+                </div>
+                <button type="button" id="btnDiscard" onclick="discardChanges()" class="hidden text-xs text-slate-500 hover:text-rose-600 font-semibold underline underline-offset-2 transition-colors">
+                    Hoàn tác thay đổi
+                </button>
+            </div>
+
+            <div class="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+                <button type="button" onclick="exportSelectedJson()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 shadow-xs" title="Tải về file JSON các testcase đã chọn">
+                    <i data-lucide="download" class="w-4 h-4"></i> Xuất JSON
+                </button>
+                <button type="button" id="btnSave" onclick="saveReviewResults()" disabled class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs sm:text-sm font-bold transition-all shadow-md shadow-blue-600/20 flex items-center justify-center gap-2">
+                    <i data-lucide="save" class="w-4 h-4"></i>
+                    <span id="btnSaveLabel">Lưu kết quả duyệt</span>
+                </button>
+            </div>
+        </div>
+    </footer>
+
+    <!-- TOAST NOTIFICATION -->
+    <div id="toast" class="fixed top-5 right-5 z-50 transform -translate-y-12 opacity-0 pointer-events-none transition-all duration-300 flex items-center gap-2 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold text-white">
+        <i id="toastIcon" data-lucide="check-circle" class="w-4 h-4"></i>
+        <span id="toastMsg">Thao tác thành công</span>
+    </div>
+
+    <!-- MAIN REVIEW SCRIPT -->
+    <script>
+        // ================= CẤU HÌNH SUPABASE & SESSION =================
+        const SUPABASE_URL = 'https://zrwlzthteixjxdhsevkh.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_yA_P7i5OXAffRJwHx3hGvw_Wyo02_u3';
+
+        // Đọc thông tin user đăng nhập
+        const currentUserJson = localStorage.getItem('currentUser');
+        let currentUser = { username: 'Guest', role: 'viewer', fullName: 'Khách' };
+        if (!currentUserJson) {
+            const isDemo = new URLSearchParams(location.search).get('demo') === '1';
+            if (!isDemo) {
+                // Lưu URL hiện tại để chuyển tiếp lại sau khi login thành công
+                window.location.replace('login.html?redirect=' + encodeURIComponent(window.location.pathname + window.location.search));
+            }
+        } else {
+            try {
+                currentUser = JSON.parse(currentUserJson);
+            } catch (_) {}
+        }
+
+        const userBadge = document.getElementById('userBadge');
+        const userName = document.getElementById('userName');
+        if (userBadge && userName) {
+            userBadge.classList.remove('hidden');
+            userName.textContent = currentUser.fullName || currentUser.username || 'User';
+        }
+
+        // Supabase REST client fetch helper
+        const api = async (path, opt = {}) => {
+            const url = `${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/${path}`;
+            const res = await fetch(url, {
+                ...opt,
+                headers: {
+                    apikey: SUPABASE_ANON_KEY,
+                    Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+                    'Content-Type': 'application/json',
+                    ...(opt.headers || {})
+                }
+            });
+            if (!res.ok) {
+                const errText = await res.text();
+                throw new Error(errText || `Lỗi HTTP ${res.status}`);
+            }
+            return res.status === 204 ? null : res.json();
+        };
+
+        // ================= STATE QUẢN LÝ =================
+        let rawRows = [];          // Dữ liệu gốc từ Supabase
+        let choice = {};           // Trạng thái duyệt người dùng chọn: { [id]: 'pending' | 'approved' | 'rejected' }
+        let currentFilter = 'pending'; // 'pending' | 'approved' | 'rejected' | 'all'
+        let searchQuery = '';
+        let allExpanded = false;
+        let isMockMode = false;
+
+        const STAT_LABELS = {
+            pending: 'Chưa duyệt',
+            approved: 'Đã giữ',
+            rejected: 'Đã bỏ',
+            all: 'Tất cả'
+        };
+
+        // ================= KHỞI TẠO =================
+        window.addEventListener('DOMContentLoaded', async () => {
+            initBackButton();
+            await loadProblemsList();
+        });
+
+        function initBackButton() {
+            const backParam = new URLSearchParams(location.search).get('back');
+            const btnBack = document.getElementById('btnBack');
+            if (btnBack) {
+                btnBack.href = backParam ? decodeURIComponent(backParam) : 'index.html';
+            }
+        }
+
+        // ================= TẢI DANH SÁCH BÀI TOÁN =================
+        async function loadProblemsList() {
+            showLoading(true, 'Đang tải danh sách bài toán...');
+            const select = document.getElementById('probSelect');
+            select.innerHTML = '<option value="">Đang tải bài toán...</option>';
+
+            const urlProb = new URLSearchParams(location.search).get('problem_id') ||
+                            new URLSearchParams(location.search).get('task');
+
+            try {
+                // Tải danh sách bài toán từ qa_memory
+                const records = await api('qa_memory?kind=eq.testcase&select=problem_id,problem_title&order=created_at.desc&limit=2000');
+                
+                const probMap = new Map();
+                if (Array.isArray(records)) {
+                    records.forEach(r => {
+                        if (r.problem_id) {
+                            probMap.set(r.problem_id, r.problem_title || r.problem_id);
+                        }
+                    });
+                }
+
+                // Nếu URL có truyền problem_id mà chưa có trong DB, vẫn thêm vào dropdown
+                if (urlProb && !probMap.has(urlProb)) {
+                    probMap.set(urlProb, urlProb);
+                }
+
+                select.innerHTML = '';
+                if (probMap.size === 0) {
+                    const opt = document.createElement('option');
+                    opt.value = urlProb || 'demo_problem';
+                    opt.textContent = urlProb || 'Bài toán mẫu (Demo)';
+                    select.appendChild(opt);
+                } else {
+                    probMap.forEach((title, id) => {
+                        const opt = document.createElement('option');
+                        opt.value = id;
+                        opt.textContent = title;
+                        select.appendChild(opt);
+                    });
+                }
+
+                if (urlProb && probMap.has(urlProb)) {
+                    select.value = urlProb;
+                }
+
+                select.onchange = () => loadTestcases();
+                await loadTestcases();
+            } catch (err) {
+                console.error('Lỗi khi tải danh sách bài toán:', err);
+                // Nếu lỗi kết nối, vẫn cho phép chọn problem từ URL hoặc test
+                select.innerHTML = '';
+                const fallbackOpt = document.createElement('option');
+                fallbackOpt.value = urlProb || 'current_task';
+                fallbackOpt.textContent = urlProb || 'Bài toán hiện tại';
+                select.appendChild(fallbackOpt);
+                select.onchange = () => loadTestcases();
+                await loadTestcases();
+            }
+        }
+
+        // ================= TẢI DANH SÁCH TESTCASE =================
+        async function loadTestcases() {
+            const probId = document.getElementById('probSelect').value;
+            const probTitle = document.getElementById('probSelect').selectedOptions[0]?.textContent || probId;
+            document.getElementById('currentTaskTitle').textContent = probTitle || '—';
+
+            if (!probId) {
+                showEmptyState(true, 'Vui lòng chọn bài toán', 'Chọn một bài toán ở thanh điều hướng phía trên để xem các testcase.');
+                return;
+            }
+
+            showLoading(true, 'Đang tải danh sách testcase từ Supabase...');
+
+            try {
+                // Query bài toán theo problem_id hoặc problem_title
+                const encoded = encodeURIComponent(probId);
+                const queryPath = `qa_memory?kind=eq.testcase&or=(problem_id.eq.${encoded},problem_title.eq.${encoded})&select=id,problem_id,problem_title,test_suite,content,review_status,approved&order=created_at.asc,id.asc&limit=2000`;
+                
+                const data = await api(queryPath);
+                isMockMode = false;
+
+                if (!Array.isArray(data) || data.length === 0) {
+                    rawRows = [];
+                    choice = {};
+                    showEmptyState(
+                        true,
+                        'Chưa có testcase nào trong Supabase',
+                        `Bài toán "${probTitle}" chưa có bản ghi testcase nào được nạp vào bảng qa_memory. Bạn có thể nạp bộ testcase mẫu để trải nghiệm thử giao diện.`
+                    );
+                    updateCounters();
+                    return;
+                }
+
+                showEmptyState(false);
+                rawRows = data.map(normalizeRow);
+                choice = {};
+                rawRows.forEach(r => {
+                    choice[r.id] = r.review_status || (r.approved === true ? 'approved' : (r.approved === false ? 'rejected' : 'pending'));
+                });
+
+                renderCards();
+                updateCounters();
+                if (window.lucide) window.lucide.createIcons();
+            } catch (err) {
+                console.error('Lỗi khi tải testcase:', err);
+                showEmptyState(
+                    true,
+                    'Không thể kết nối Supabase',
+                    `Đã xảy ra lỗi: ${err.message}. Bạn có thể bấm nút bên dưới để xem giao diện với dữ liệu mẫu.`
+                );
+            }
+        }
+
+        // Chuẩn hóa một bản ghi testcase
+        function normalizeRow(item) {
+            let content = item.content;
+            if (typeof content === 'string') {
+                try { content = JSON.parse(content); } catch (_) { content = { raw: content }; }
+            }
+            content = content || {};
+
+            return {
+                id: item.id || `tc_${Math.random().toString(36).substring(2, 9)}`,
+                test_suite: item.test_suite || content.test_suite || content.suite || content.nhom || 'Chung',
+                review_status: item.review_status || 'pending',
+                approved: item.approved,
+                content: {
+                    id: content.id || content.ma_testcase || content.ma || '',
+                    muc_dich: content.muc_dich || content.mục_đích || content.name || content.title || content.description || '',
+                    cac_buoc: content.cac_buoc || content.các_bước || content.cac_buoc_thuc_hien || content.steps || '',
+                    ket_qua_mong_muon: content.ket_qua_mong_muon || content.kết_quả_mong_muốn || content.expected || content.expected_result || '',
+                    ghi_chu: content.ghi_chu || content.ghi_chú || content.notes || content.precondition || ''
+                },
+                _open: false
+            };
+        }
+
+        // ================= DỮ LIỆU MẪU (MOCK DATA) =================
+        function loadMockTestcases() {
+            const probTitle = document.getElementById('probSelect').selectedOptions[0]?.textContent || 'Xác thực người dùng';
+            isMockMode = true;
+
+            const mockList = [
+                {
+                    id: 'mock_1',
+                    test_suite: 'Đăng nhập',
+                    review_status: 'pending',
+                    approved: null,
+                    content: {
+                        id: 'TC_AUTH_01',
+                        muc_dich: 'Đăng nhập thành công với tài khoản và mật khẩu hợp lệ',
+                        cac_buoc: '1. Truy cập trang /login\n2. Nhập username đúng\n3. Nhập mật khẩu đúng\n4. Bấm "Đăng nhập"',
+                        ket_qua_mong_muon: 'Chuyển hướng đến Dashboard, hiển thị tên người dùng và vai trò tương ứng.',
+                        ghi_chu: 'Tài khoản cần ở trạng thái active trước khi test.'
+                    }
+                },
+                {
+                    id: 'mock_2',
+                    test_suite: 'Đăng nhập',
+                    review_status: 'pending',
+                    approved: null,
+                    content: {
+                        id: 'TC_AUTH_02',
+                        muc_dich: 'Báo lỗi khi nhập sai mật khẩu quá 5 lần liên tiếp',
+                        cac_buoc: '1. Truy cập trang /login\n2. Nhập username đúng\n3. Nhập mật khẩu sai 5 lần liên tiếp\n4. Quan sát thông báo lỗi và trạng thái tài khoản',
+                        ket_qua_mong_muon: 'Hệ thống hiển thị cảnh báo khóa tài khoản tạm thời trong 15 phút, ngăn chặn brute-force.',
+                        ghi_chu: 'Kiểm tra log audit ở backend.'
+                    }
+                },
+                {
+                    id: 'mock_3',
+                    test_suite: 'Phân quyền & Bảo mật',
+                    review_status: 'pending',
+                    approved: null,
+                    content: {
+                        id: 'TC_SEC_01',
+                        muc_dich: 'Viewer không thể truy cập các tính năng quản trị xóa bài toán',
+                        cac_buoc: '1. Đăng nhập với tài khoản role viewer\n2. Cố gắng gửi request DELETE tới /api/tasks\n3. Kiểm tra mã phản hồi HTTP',
+                        ket_qua_mong_muon: 'Backend trả về HTTP 403 Forbidden kèm thông báo lỗi "Bạn không có quyền thực hiện thao tác này".',
+                        ghi_chu: 'Bảo đảm kiểm tra cả tầng frontend lẫn API backend.'
+                    }
+                },
+                {
+                    id: 'mock_4',
+                    test_suite: 'Tải tài liệu & Import',
+                    review_status: 'pending',
+                    approved: null,
+                    content: {
+                        id: 'TC_IMPORT_01',
+                        muc_dich: 'Kiểm tra validation khi người dùng upload file vượt quá dung lượng tối đa 20MB',
+                        cac_buoc: '1. Mở form Thêm bài toán\n2. Chọn chế độ Import File\n3. Chọn file .docx có dung lượng 25MB\n4. Bấm Lưu',
+                        ket_qua_mong_muon: 'Hiển thị popup cảnh báo "File sai định dạng hoặc lớn hơn 20 MB" và ngăn form submit.',
+                        ghi_chu: 'Hỗ trợ các định dạng .doc, .docx, .xls, .xlsx, .pdf, .txt.'
+                    }
+                },
+                {
+                    id: 'mock_5',
+                    test_suite: 'Tải tài liệu & Import',
+                    review_status: 'pending',
+                    approved: null,
+                    content: {
+                        id: 'TC_IMPORT_02',
+                        muc_dich: 'Kiểm tra thêm nhiều liên kết URL tài liệu gốc hợp lệ',
+                        cac_buoc: '1. Mở form Thêm bài toán với chế độ Thêm URL\n2. Bấm "Thêm link" để sinh ra 3 ô input\n3. Nhập 3 URL Google Docs hợp lệ\n4. Bấm Lưu',
+                        ket_qua_mong_muon: 'Lưu thành công, danh sách hiển thị đầy đủ cả 3 liên kết ở cột URL Gốc.',
+                        ghi_chu: ''
+                    }
+                }
+            ];
+
+            rawRows = mockList.map(normalizeRow);
+            choice = {};
+            rawRows.forEach(r => choice[r.id] = 'pending');
+
+            showEmptyState(false);
+            renderCards();
+            updateCounters();
+            showToast('Đã nạp 5 testcase mẫu để thử nghiệm giao diện!', 'info');
+            if (window.lucide) window.lucide.createIcons();
+        }
+
+        // ================= LỌC & TÌM KIẾM =================
+        function setFilter(filter) {
+            currentFilter = filter;
+            document.querySelectorAll('.filter-tab').forEach(tab => {
+                const isActive = tab.getAttribute('data-filter') === filter;
+                tab.className = isActive
+                    ? 'filter-tab px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-semibold transition-all bg-slate-900 text-white shadow-xs'
+                    : 'filter-tab px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-semibold transition-all bg-slate-100 text-slate-600 hover:bg-slate-200';
+            });
+            renderCards();
+        }
+
+        function handleSearch(val) {
+            searchQuery = (val || '').toLowerCase().trim();
+            renderCards();
+        }
+
+        const getVisibleRows = () => {
+            return rawRows.filter(r => {
+                const st = choice[r.id] || 'pending';
+                if (currentFilter !== 'all' && st !== currentFilter) return false;
+                if (!searchQuery) return true;
+
+                const c = r.content || {};
+                const haystack = [
+                    r.test_suite,
+                    c.id,
+                    c.muc_dich,
+                    c.cac_buoc,
+                    c.ket_qua_mong_muon,
+                    c.ghi_chu
+                ].join(' ').toLowerCase();
+
+                return haystack.includes(searchQuery);
+            });
+        };
+
+        // ================= RENDER GIAO DIỆN CARDS =================
+        function renderCards() {
+            const container = document.getElementById('testcaseList');
+            container.innerHTML = '';
+
+            const visible = getVisibleRows();
+
+            if (visible.length === 0) {
+                if (rawRows.length > 0) {
+                    container.innerHTML = `
+                        <div class="bg-white p-8 rounded-2xl border border-slate-200/80 text-center space-y-2">
+                            <i data-lucide="filter-x" class="w-8 h-8 text-slate-400 mx-auto"></i>
+                            <p class="text-sm font-bold text-slate-700">Không có testcase nào khớp với bộ lọc hiện tại</p>
+                            <p class="text-xs text-slate-500">Thử đổi tab trạng thái hoặc xóa từ khóa tìm kiếm.</p>
+                        </div>
+                    `;
+                    if (window.lucide) window.lucide.createIcons();
+                }
+                return;
+            }
+
+            // Nhóm theo test_suite
+            const grouped = {};
+            visible.forEach(r => {
+                const suite = r.test_suite || 'Chung';
+                (grouped[suite] = grouped[suite] || []).push(r);
+            });
+
+            Object.entries(grouped).forEach(([suiteName, list]) => {
+                const groupEl = document.createElement('div');
+                groupEl.className = 'space-y-3';
+
+                // Suite header
+                const approvedInSuite = list.filter(r => choice[r.id] === 'approved').length;
+                const rejectedInSuite = list.filter(r => choice[r.id] === 'rejected').length;
+
+                groupEl.innerHTML = `
+                    <div class="flex items-center justify-between pb-1 pt-2 border-b border-slate-200">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="folder-git-2" class="w-4 h-4 text-blue-600"></i>
+                            <h2 class="text-sm font-extrabold text-slate-800 tracking-tight">${escapeHtml(suiteName)}</h2>
+                            <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600">${list.length} testcase</span>
+                        </div>
+                        <div class="flex items-center gap-2 text-xs font-semibold">
+                            ${approvedInSuite > 0 ? `<span class="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">Giữ: ${approvedInSuite}</span>` : ''}
+                            ${rejectedInSuite > 0 ? `<span class="text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200/60">Bỏ: ${rejectedInSuite}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="cards-container space-y-2.5"></div>
+                `;
+
+                const cardsContainer = groupEl.querySelector('.cards-container');
+                list.forEach(r => cardsContainer.appendChild(createTestcaseCard(r)));
+                container.appendChild(groupEl);
+            });
+
+            if (window.lucide) window.lucide.createIcons();
+        }
+
+        // Tạo phần tử card cho mỗi testcase
+        function createTestcaseCard(r) {
+            const c = r.content || {};
+            const st = choice[r.id] || 'pending';
+            const card = document.createElement('div');
+            card.id = `card_${r.id}`;
+            card.className = `tc-card ${st} ${r._open ? 'open' : ''} bg-white rounded-2xl border border-slate-200/90 border-l-4 shadow-xs hover:shadow-md transition-all overflow-hidden`;
+
+            // Badge trạng thái hiển thị
+            const getStatusBadge = () => {
+                if (st === 'approved') {
+                    return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        <i data-lucide="check" class="w-3 h-3"></i> Đã giữ
+                    </span>`;
+                }
+                if (st === 'rejected') {
+                    return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                        <i data-lucide="x" class="w-3 h-3"></i> Đã bỏ
+                    </span>`;
+                }
+                return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600">
+                    <i data-lucide="clock" class="w-3 h-3"></i> Chưa duyệt
+                </span>`;
+            };
+
+            // Header card
+            const header = document.createElement('div');
+            header.className = 'p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer select-none';
+            header.onclick = (e) => {
+                // Không trigger mở/đóng nếu bấm vào nút Giữ/Bỏ
+                if (e.target.closest('button')) return;
+                r._open = !r._open;
+                card.classList.toggle('open');
+                const chevron = header.querySelector('.chevron-icon');
+                if (chevron) {
+                    chevron.style.transform = r._open ? 'rotate(180deg)' : 'rotate(0deg)';
+                }
+            };
+
+            const tcCode = c.id ? `<span class="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200/80 shrink-0">${escapeHtml(c.id)}</span>` : '';
+            const purpose = c.muc_dich ? escapeHtml(c.muc_dich) : '<span class="italic text-slate-400 font-normal">Chưa có mục đích kiểm thử</span>';
+
+            header.innerHTML = `
+                <div class="flex items-start sm:items-center gap-2.5 min-w-0 flex-1">
+                    <button type="button" class="mt-0.5 sm:mt-0 p-1 text-slate-400 hover:text-slate-600 rounded-lg transition-transform chevron-icon shrink-0" style="transform: ${r._open ? 'rotate(180deg)' : 'rotate(0deg)'}">
+                        <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                    </button>
+                    ${tcCode}
+                    <div class="text-xs sm:text-sm font-bold text-slate-800 leading-snug truncate flex-1" title="${escapeHtml(c.muc_dich || '')}">
+                        ${purpose}
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between sm:justify-end gap-2.5 shrink-0 pl-7 sm:pl-0">
+                    <div class="status-indicator">
+                        ${getStatusBadge()}
+                    </div>
+
+                    <!-- Segmented Buttons: Giữ / Bỏ -->
+                    <div class="inline-flex rounded-xl bg-slate-100 p-0.5 border border-slate-200 shadow-xs">
+                        <button type="button" onclick="setChoice('${r.id}', 'approved')" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${st === 'approved' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-emerald-700 hover:bg-white/60'}">
+                            <i data-lucide="check" class="w-3.5 h-3.5"></i> Giữ
+                        </button>
+                        <button type="button" onclick="setChoice('${r.id}', 'rejected')" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${st === 'rejected' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-600 hover:text-rose-700 hover:bg-white/60'}">
+                            <i data-lucide="x" class="w-3.5 h-3.5"></i> Bỏ
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            // Body card (Chi tiết)
+            const body = document.createElement('div');
+            body.className = `tc-body ${r._open ? 'block' : 'hidden'} px-4 pb-4 pt-1 border-t border-slate-100/90 text-xs sm:text-sm space-y-3.5 bg-white/70`;
+
+            // Section: Các bước
+            const secSteps = document.createElement('div');
+            secSteps.innerHTML = `
+                <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wide flex items-center gap-1 mb-1.5">
+                    <i data-lucide="list-ordered" class="w-3.5 h-3.5 text-blue-600"></i> Các bước thực hiện:
+                </div>
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-200/80 font-mono text-xs text-slate-800 whitespace-pre-wrap leading-relaxed custom-scrollbar max-h-48 overflow-y-auto">
+                    ${c.cac_buoc ? escapeHtml(c.cac_buoc) : '<span class="text-slate-400 italic">Không có mô tả các bước</span>'}
+                </div>
+            `;
+
+            // Section: Kết quả mong muốn
+            const secExpected = document.createElement('div');
+            secExpected.innerHTML = `
+                <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wide flex items-center gap-1 mb-1.5">
+                    <i data-lucide="target" class="w-3.5 h-3.5 text-emerald-600"></i> Kết quả mong muốn:
+                </div>
+                <div class="p-3 bg-emerald-50/50 rounded-xl border border-emerald-200/70 text-xs sm:text-sm text-emerald-950 font-medium whitespace-pre-wrap leading-relaxed">
+                    ${c.ket_qua_mong_muon ? escapeHtml(c.ket_qua_mong_muon) : '<span class="text-slate-400 italic">Không có kết quả mong muốn</span>'}
+                </div>
+            `;
+
+            body.appendChild(secSteps);
+            body.appendChild(secExpected);
+
+            // Section: Ghi chú (nếu có)
+            if (c.ghi_chu && c.ghi_chu.trim()) {
+                const secNote = document.createElement('div');
+                secNote.innerHTML = `
+                    <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wide flex items-center gap-1 mb-1.5">
+                        <i data-lucide="info" class="w-3.5 h-3.5 text-amber-500"></i> Ghi chú:
+                    </div>
+                    <div class="p-2.5 bg-amber-50/40 rounded-xl border border-amber-200/60 text-xs text-amber-900 whitespace-pre-wrap">
+                        ${escapeHtml(c.ghi_chu)}
+                    </div>
+                `;
+                body.appendChild(secNote);
+            }
+
+            card.appendChild(header);
+            card.appendChild(body);
+            return card;
+        }
+
+        // ================= THAY ĐỔI TRẠNG THÁI =================
+        function setChoice(id, targetStatus) {
+            const current = choice[id] || 'pending';
+            // Click lần nữa vào trạng thái đang chọn sẽ quay lại 'pending' (hủy chọn)
+            choice[id] = current === targetStatus ? 'pending' : targetStatus;
+            
+            renderCards();
+            updateCounters();
+        }
+
+        function bulkSetStatus(targetStatus) {
+            const visible = getVisibleRows();
+            if (visible.length === 0) {
+                showToast('Không có testcase nào đang hiển thị để thao tác', 'info');
+                return;
+            }
+            visible.forEach(r => {
+                choice[r.id] = targetStatus;
+            });
+            renderCards();
+            updateCounters();
+            showToast(`Đã chuyển ${visible.length} testcase sang trạng thái "${STAT_LABELS[targetStatus]}"`, 'success');
+        }
+
+        function toggleExpandAll() {
+            allExpanded = !allExpanded;
+            rawRows.forEach(r => r._open = allExpanded);
+            renderCards();
+            const btn = document.getElementById('btnToggleAll');
+            if (btn) {
+                btn.title = allExpanded ? 'Thu gọn tất cả' : 'Mở rộng tất cả';
+            }
+        }
+
+        function discardChanges() {
+            if (!confirm('Bạn có chắc chắn muốn hủy bỏ tất cả các thay đổi chưa lưu?')) return;
+            rawRows.forEach(r => {
+                choice[r.id] = r.review_status || 'pending';
+            });
+            renderCards();
+            updateCounters();
+            showToast('Đã hoàn tác các thay đổi', 'info');
+        }
+
+        // ================= CẬP NHẬT COUNTER & STATS =================
+        function updateCounters() {
+            const total = rawRows.length;
+            const countByStatus = {
+                pending: 0,
+                approved: 0,
+                rejected: 0
+            };
+
+            rawRows.forEach(r => {
+                const st = choice[r.id] || 'pending';
+                if (countByStatus[st] !== undefined) countByStatus[st]++;
+            });
+
+            // Update số liệu thẻ thống kê
+            document.getElementById('statTotal').textContent = total;
+            document.getElementById('statPending').textContent = countByStatus.pending;
+            document.getElementById('statApproved').textContent = countByStatus.approved;
+            document.getElementById('statRejected').textContent = countByStatus.rejected;
+
+            // Update tab badges
+            document.querySelectorAll('.filter-tab').forEach(tab => {
+                const f = tab.getAttribute('data-filter');
+                const badge = tab.querySelector('.tab-count');
+                if (badge) {
+                    badge.textContent = f === 'all' ? total : (countByStatus[f] || 0);
+                }
+            });
+
+            // Update Progress bar
+            const reviewed = countByStatus.approved + countByStatus.rejected;
+            const pct = total > 0 ? Math.round((reviewed / total) * 100) : 0;
+            const approvedPct = total > 0 ? (countByStatus.approved / total) * 100 : 0;
+            const rejectedPct = total > 0 ? (countByStatus.rejected / total) * 100 : 0;
+
+            document.getElementById('progressText').textContent = `${pct}% hoàn tất (${reviewed}/${total})`;
+            document.getElementById('progressBarApproved').style.width = `${approvedPct}%`;
+            document.getElementById('progressBarRejected').style.width = `${rejectedPct}%`;
+
+            // Kiểm tra số thay đổi chưa lưu
+            const unsaved = rawRows.filter(r => (choice[r.id] || 'pending') !== (r.review_status || 'pending')).length;
+            const btnSave = document.getElementById('btnSave');
+            const unsavedText = document.getElementById('unsavedCountText');
+            const saveDot = document.getElementById('saveStatusDot');
+            const btnDiscard = document.getElementById('btnDiscard');
+
+            if (unsaved > 0) {
+                btnSave.disabled = false;
+                unsavedText.textContent = `${unsaved} thay đổi chưa lưu`;
+                unsavedText.className = 'font-bold text-amber-600';
+                saveDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-500 badge-pulse';
+                btnDiscard.classList.remove('hidden');
+            } else {
+                btnSave.disabled = true;
+                unsavedText.textContent = 'Dữ liệu đã đồng bộ';
+                unsavedText.className = 'font-bold text-slate-500';
+                saveDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
+                btnDiscard.classList.add('hidden');
+            }
+        }
+
+        // ================= LƯU KẾT QUẢ DUYỆT =================
+        async function saveReviewResults() {
+            if (isMockMode) {
+                // Nếu đang ở chế độ mock
+                rawRows.forEach(r => r.review_status = choice[r.id]);
+                updateCounters();
+                showToast('Chế độ Demo: Đã lưu kết quả duyệt vào bộ nhớ tạm thời!', 'success');
+                return;
+            }
+
+            const btnSave = document.getElementById('btnSave');
+            const label = document.getElementById('btnSaveLabel');
+            btnSave.disabled = true;
+            label.textContent = 'Đang lưu vào Supabase...';
+
+            try {
+                // Cập nhật từng nhóm trạng thái
+                for (const s of ['approved', 'rejected', 'pending']) {
+                    const idsToUpdate = rawRows
+                        .filter(r => (choice[r.id] || 'pending') === s && (r.review_status || 'pending') !== s)
+                        .map(r => r.id);
+
+                    if (idsToUpdate.length > 0) {
+                        await api(`qa_memory?id=in.(${idsToUpdate.join(',')})`, {
+                            method: 'PATCH',
+                            headers: { Prefer: 'return=minimal' },
+                            body: JSON.stringify({
+                                review_status: s,
+                                approved: s === 'approved',
+                                reviewed_at: new Date().toISOString()
+                            })
+                        });
+                    }
+                }
+
+                // Cập nhật lại trạng thái gốc sau khi lưu thành công
+                rawRows.forEach(r => {
+                    r.review_status = choice[r.id];
+                    r.approved = choice[r.id] === 'approved';
+                });
+
+                showToast('Đã lưu kết quả duyệt testcase thành công!', 'success');
+            } catch (err) {
+                console.error('Lỗi khi lưu kết quả:', err);
+                showToast(`Lưu thất bại: ${err.message}`, 'error');
+            } finally {
+                label.textContent = 'Lưu kết quả duyệt';
+                updateCounters();
+            }
+        }
+
+        // ================= XUẤT FILE JSON =================
+        function exportSelectedJson() {
+            const approvedList = rawRows.filter(r => choice[r.id] === 'approved');
+            if (approvedList.length === 0) {
+                if (!confirm('Hiện chưa có testcase nào được đánh dấu "Đã giữ". Bạn có muốn xuất toàn bộ testcase không?')) {
+                    return;
+                }
+            }
+
+            const exportData = (approvedList.length > 0 ? approvedList : rawRows).map(r => ({
+                id: r.content.id,
+                test_suite: r.test_suite,
+                muc_dich: r.content.muc_dich,
+                cac_buoc: r.content.cac_buoc,
+                ket_qua_mong_muon: r.content.ket_qua_mong_muon,
+                ghi_chu: r.content.ghi_chu,
+                review_status: choice[r.id] || 'pending'
+            }));
+
+            const probTitle = document.getElementById('probSelect').selectedOptions[0]?.textContent || 'testcases';
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Testcases_${probTitle.replace(/[^a-zA-Z0-9_\u00C0-\u024F\u1E00-\u1EFF]/g, '_')}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast(`Đã xuất ${exportData.length} testcase ra file JSON!`, 'success');
+        }
+
+        // ================= TIỆN ÍCH HIỂN THỊ =================
+        function showLoading(show, message = 'Đang tải...') {
+            const container = document.getElementById('testcaseList');
+            if (show) {
+                container.innerHTML = `
+                    <div class="bg-white p-12 rounded-3xl border border-slate-200/80 text-center space-y-3 shadow-xs">
+                        <div class="w-10 h-10 border-4 border-slate-100 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
+                        <p class="text-sm font-bold text-slate-700">${escapeHtml(message)}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function showEmptyState(show, title = '', desc = '') {
+            const state = document.getElementById('stateMessage');
+            const list = document.getElementById('testcaseList');
+            if (show) {
+                list.innerHTML = '';
+                state.classList.remove('hidden');
+                document.getElementById('stateTitle').textContent = title;
+                document.getElementById('stateDesc').textContent = desc;
+                if (window.lucide) window.lucide.createIcons();
+            } else {
+                state.classList.add('hidden');
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const msgEl = document.getElementById('toastMsg');
+            const iconEl = document.getElementById('toastIcon');
+
+            msgEl.textContent = message;
+            toast.className = `fixed top-5 right-5 z-50 transform translate-y-0 opacity-100 transition-all duration-300 flex items-center gap-2 px-5 py-3 rounded-2xl shadow-xl text-sm font-semibold text-white ${
+                type === 'error' ? 'bg-rose-600 shadow-rose-600/30' :
+                type === 'info' ? 'bg-blue-600 shadow-blue-600/30' : 'bg-emerald-600 shadow-emerald-600/30'
+            }`;
+
+            iconEl.setAttribute('data-lucide', type === 'error' ? 'alert-triangle' : (type === 'info' ? 'info' : 'check-circle'));
+            if (window.lucide) window.lucide.createIcons();
+
+            setTimeout(() => {
+                toast.classList.add('-translate-y-12', 'opacity-0');
+            }, 3500);
+        }
+
+        function escapeHtml(text = '') {
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+    </script>
+</body>
+
+</html>
