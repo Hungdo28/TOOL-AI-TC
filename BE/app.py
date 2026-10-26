@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from http.server import ThreadingHTTPServer
 
+from controllers.auth_controller import AuthController
 from controllers.task_controller import TaskController
 from core.config import Settings
 from web.handler import create_handler
@@ -23,7 +24,8 @@ def build_server(settings: Settings) -> ThreadingHTTPServer:
         max_total_file_size=settings.max_total_file_size,
     )
     task_controller = TaskController(task_service, settings)
-    router = Router(task_controller)
+    auth_controller = AuthController(settings)
+    router = Router(task_controller, auth_controller)
     handler = create_handler(router, settings)
     return ThreadingHTTPServer((settings.host, settings.port), handler)
 

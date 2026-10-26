@@ -153,6 +153,64 @@ class RouterTests(unittest.TestCase):
             self.assertEqual(error.exception.status, 403)
             self.assertIn("không có quyền Admin", error.exception.message)
 
+    def test_jwt_bearer_token_authentication(self):
+        from core.security import create_jwt_token
+        secret = "autotc_jwt_secret_key_2026_hungdv"
+        token = create_jwt_token({"sub": "jwt_user", "role": "viewer"}, secret)
+
+        request = FakeRequest(
+            "/api/tasks",
+            extra_headers={"Authorization": f"Bearer {token}"},
+            username="",
+            role=""
+        )
+        # Khi dùng JWT token, không cần gửi X-User-Name hay X-User-Role
+        response = self.router.dispatch("GET", request)
+        self.assertEqual(response.status, 200)
+
+    def test_jwt_admin_can_update_status(self):
+        from core.security import create_jwt_token
+        secret = "autotc_jwt_secret_key_2026_hungdv"
+        admin_token = create_jwt_token({"sub": "admin_user", "role": "admin"}, secret)
+
+        request = FakeRequest(
+            "/api/tasks/status",
+            {"baiToan": "Đăng nhập", "trangThai": "Đã xong"},
+            extra_headers={"Authorization": f"Bearer {admin_token}"},
+            username="",
+            role=""
+        )
+        response = self.router.dispatch("PATCH", request)
+        self.assertEqual(response.status, 200)
+        self.assertEqual(response.body["data"]["Trạng thái"], "Đã xong")
+
+    def test_jwt_viewer_cannot_update_status(self):
+        from core.security import create_jwt_token
+        secret = "autotc_jwt_secret_key_2026_hungdv"
+        viewer_token = create_jwt_token({"sub": "viewer_user", "role": "viewer"}, secret)
+
+        request = FakeRequest(
+            "/api/tasks/status",
+            {"baiToan": "Đăng nhập", "trangThai": "Đã xong"},
+            extra_headers={"Authorization": f"Bearer {viewer_token}"},
+            username="",
+            role=""
+        )
+        with self.assertRaises(ApiError) as error:
+            self.router.dispatch("PATCH", request)
+        self.assertEqual(error.exception.status, 403)
+
+    def test_jwt_invalid_token_rejected(self):
+        request = FakeRequest(
+            "/api/tasks",
+            extra_headers={"Authorization": "Bearer invalid.token.signature"},
+            username="",
+            role=""
+        )
+        with self.assertRaises(ApiError) as error:
+            self.router.dispatch("GET", request)
+        self.assertEqual(error.exception.status, 401)
+
     def test_unknown_route_returns_not_found(self):
         with self.assertRaises(ApiError) as error:
             self.router.dispatch("GET", FakeRequest("/api/not-found"))
@@ -161,3 +219,4 @@ class RouterTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

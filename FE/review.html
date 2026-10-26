@@ -401,7 +401,7 @@
             try {
                 // Query bài toán theo problem_id hoặc problem_title
                 const encoded = encodeURIComponent(probId);
-                const queryPath = `qa_memory?kind=eq.testcase&or=(problem_id.eq.${encoded},problem_title.eq.${encoded})&select=id,problem_id,problem_title,test_suite,content,review_status,approved&order=created_at.asc,id.asc&limit=2000`;
+                const queryPath = `qa_memory?kind=eq.testcase&or=(problem_id.eq.${encoded},problem_title.eq.${encoded},problem_title.ilike.${encoded})&select=id,problem_id,problem_title,test_suite,content,review_status,approved&order=created_at.asc,id.asc&limit=2000`;
                 
                 const data = await api(queryPath);
                 isMockMode = false;

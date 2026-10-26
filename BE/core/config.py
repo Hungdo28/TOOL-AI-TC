@@ -49,6 +49,7 @@ class Settings:
     supabase_service_role_key: str | None = None
     n8n_webhook_url: str = "https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/luong-chuc-nang"
     ai_callback_token: str | None = None
+    jwt_secret: str = "autotc_jwt_secret_key_2026_hungdv"
 
 
     @classmethod
@@ -107,4 +108,5 @@ class Settings:
                 "https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/luong-chuc-nang",
             ).strip(),
             ai_callback_token=os.getenv("AI_CALLBACK_TOKEN", "").strip() or None,
+            jwt_secret=os.getenv("JWT_SECRET", "autotc_jwt_secret_key_2026_hungdv").strip(),
         )

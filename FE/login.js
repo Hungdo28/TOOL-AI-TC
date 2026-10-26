@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const now = Date.now();
                 if (parsedUser.expiresAt && typeof parsedUser.expiresAt === 'number' && now > parsedUser.expiresAt) {
                     localStorage.removeItem('currentUser');
+                    localStorage.removeItem('authToken');
                     showError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
                 } else {
                     // Tương thích ngược cho phiên cũ chưa có expiresAt
@@ -49,10 +50,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } else {
                 localStorage.removeItem('currentUser');
+                localStorage.removeItem('authToken');
             }
         } catch (error) {
             console.warn('Thông tin đăng nhập cũ không hợp lệ:', error);
             localStorage.removeItem('currentUser');
+            localStorage.removeItem('authToken');
         }
     }
 
@@ -110,11 +113,41 @@ document.addEventListener('DOMContentLoaded', () => {
                 const fullName = usernameInput;
                 const now = Date.now();
 
+                // Yêu cầu Backend cấp JWT Bearer Token chuẩn bảo mật (không lộ username/role trong header)
+                let token = null;
+                try {
+                    const apiBase = (
+                        window.AUTO_TC_API_BASE ||
+                        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+                            ? 'http://localhost:8088/api'
+                            : 'https://tool-ai-tc.onrender.com/api')
+                    ).replace(/\/$/, '');
+
+                    const tokenResp = await fetch(`${apiBase}/auth/token`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username: usernameInput })
+                    });
+                    if (tokenResp.ok) {
+                        const tokenData = await tokenResp.json();
+                        token = tokenData.token || null;
+                    }
+                } catch (tokErr) {
+                    console.warn('Lỗi lấy token bảo mật từ backend:', tokErr);
+                }
+
+                if (token) {
+                    localStorage.setItem('authToken', token);
+                } else {
+                    localStorage.removeItem('authToken');
+                }
+
                 localStorage.setItem('currentUser', JSON.stringify({
                     username: usernameInput,
                     email: dbUser.username,
                     role: role,
                     fullName: fullName,
+                    token: token,
                     loggedInAt: now,
                     expiresAt: now + SESSION_DURATION_MS
                 }));

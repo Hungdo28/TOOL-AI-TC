@@ -26,6 +26,7 @@ if (currentUserJson) {
         // Kiểm tra xem phiên đã hết hạn hay chưa
         if (parsedUser.expiresAt && typeof parsedUser.expiresAt === 'number' && now > parsedUser.expiresAt) {
             localStorage.removeItem('currentUser');
+            localStorage.removeItem('authToken');
             window.location.replace('login.html?expired=1');
         }
 
@@ -40,6 +41,7 @@ if (currentUserJson) {
             username: parsedUser.username.trim(),
             role: parsedUser.role,
             fullName: typeof parsedUser.fullName === 'string' ? parsedUser.fullName : parsedUser.username.trim(),
+            token: parsedUser.token || localStorage.getItem('authToken') || null,
             loggedInAt: parsedUser.loggedInAt || now,
             expiresAt: parsedUser.expiresAt
         };
@@ -47,6 +49,7 @@ if (currentUserJson) {
     } catch (error) {
         console.error('Không thể đọc thông tin đăng nhập:', error);
         localStorage.removeItem('currentUser');
+        localStorage.removeItem('authToken');
         window.location.replace('login.html');
     }
 }
@@ -92,6 +95,7 @@ if (window.supabase) {
 window.logout = function () {
     if (confirm('Bạn có chắc chắn muốn thoát?')) {
         localStorage.removeItem('currentUser');
+        localStorage.removeItem('authToken');
         window.location.replace('login.html');
     }
 };
@@ -101,6 +105,17 @@ function requireAdmin() {
     alert('❌ Bạn không có quyền thực hiện thao tác này.');
     return false;
 }
+
+// Hàm mã hóa an toàn chuỗi HTML dùng chung toàn ứng dụng
+function escapeHtml(value = '') {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+window.escapeHtml = escapeHtml;
 
 // ================= CẤU HÌNH API =================
 const BACKEND_API_BASE = (
@@ -130,12 +145,52 @@ const MAX_TOTAL_FILE_SIZE = 50 * 1024 * 1024;
 const ALLOWED_FILE_EXTENSIONS = new Set(['doc', 'docx', 'xls', 'xlsx', 'pdf', 'txt']);
 
 function getBackendHeaders(json = false) {
-    const headers = {
-        'X-User-Name': currentUser.username || '',
-        'X-User-Role': currentUser.role || 'viewer'
-    };
+    const headers = {};
+    const token = (currentUser && currentUser.token) || localStorage.getItem('authToken');
+    if (token) {
+        // Gửi Bearer token chuẩn bảo mật (không lộ username hay role thô trong Request Headers)
+        headers['Authorization'] = `Bearer ${token}`;
+    } else {
+        // Dự phòng tương thích nếu chưa kịp cấp JWT token
+        if (currentUser && currentUser.username) headers['X-User-Name'] = currentUser.username;
+        if (currentUser && currentUser.role) headers['X-User-Role'] = currentUser.role;
+    }
     if (json) headers['Content-Type'] = 'application/json';
     return headers;
+}
+
+// Tự động xin cấp JWT token an toàn từ backend nếu phiên chưa có token
+async function ensureAuthToken() {
+    const existingToken = (currentUser && currentUser.token) || localStorage.getItem('authToken');
+    if (existingToken) return existingToken;
+    if (!currentUser || !currentUser.username) return null;
+
+    try {
+        const resp = await fetch(`${BACKEND_API_BASE}/auth/token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: currentUser.username })
+        });
+        if (resp.ok) {
+            const data = await resp.json();
+            if (data && data.token) {
+                currentUser.token = data.token;
+                localStorage.setItem('authToken', data.token);
+                const raw = localStorage.getItem('currentUser');
+                if (raw) {
+                    try {
+                        const parsed = JSON.parse(raw);
+                        parsed.token = data.token;
+                        localStorage.setItem('currentUser', JSON.stringify(parsed));
+                    } catch (_) {}
+                }
+                return data.token;
+            }
+        }
+    } catch (e) {
+        console.warn('Không thể tự động cấp JWT token:', e);
+    }
+    return null;
 }
 
 
@@ -1344,16 +1399,19 @@ function openNextTestcaseReview() {
 function openTestcaseReviewModalForTask(taskName) {
     if (!taskName) return;
 
-    const row = dataRows.find(item => getColVal(item, 'Bài toán') === taskName);
-    const context = runContextByTask[taskName] || {};
+    const cleanTaskName = String(taskName).trim();
+    const row = dataRows.find(item => getColVal(item, 'Bài toán') === taskName || getColVal(item, 'Bài toán') === cleanTaskName);
+    const context = runContextByTask[taskName] || runContextByTask[cleanTaskName] || {};
+    const probId = (row && (row.id || row.problem_id)) || '';
 
     activeTestcaseReview = {
-        taskName,
+        taskName: cleanTaskName,
+        probId: probId,
         testcaseUrls: splitHttpLinks(getColVal(row, 'Link Testcase')),
         testcasePrompt: context.testcasePrompt || context.prompt2 || ''
     };
 
-    document.getElementById('testcaseReviewTaskName').textContent = taskName;
+    document.getElementById('testcaseReviewTaskName').textContent = cleanTaskName;
     document.getElementById('testcaseReviewFeedback').value = '';
     selectedTestcaseReviewSuggestions.clear();
     renderTestcaseReviewSuggestions();
@@ -1377,12 +1435,12 @@ function openTestcaseReviewModalForTask(taskName) {
     if (revEl) revEl.classList.add('hidden');
 
     document.getElementById('testcaseReviewModal').classList.remove('hidden');
-    loadModalTestcases(taskName);
+    loadModalTestcases(cleanTaskName, probId);
 
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
-async function loadModalTestcases(taskName) {
+async function loadModalTestcases(taskName, probId = '') {
     const container = document.getElementById('modalTestcaseList');
     if (!container) return;
 
@@ -1399,8 +1457,14 @@ async function loadModalTestcases(taskName) {
     if (searchInput) searchInput.value = '';
 
     try {
-        const encoded = encodeURIComponent(taskName);
-        const queryPath = `qa_memory?kind=eq.testcase&or=(problem_id.eq.${encoded},problem_title.eq.${encoded})&select=id,problem_id,problem_title,test_suite,content,review_status,approved&order=created_at.asc,id.asc&limit=2000`;
+        const cleanName = String(taskName || '').trim();
+        const encoded = encodeURIComponent(cleanName);
+        const orClauses = [`problem_title.eq.${encoded}`, `problem_title.ilike.${encoded}`];
+        if (probId) {
+            orClauses.unshift(`problem_id.eq.${encodeURIComponent(probId)}`);
+        }
+
+        const queryPath = `qa_memory?kind=eq.testcase&or=(${orClauses.join(',')})&select=id,problem_id,problem_title,test_suite,content,review_status,approved&order=created_at.asc,id.asc&limit=2000`;
         const url = `${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/${queryPath}`;
 
         const res = await fetch(url, {
@@ -1447,9 +1511,10 @@ async function loadModalTestcases(taskName) {
         updateModalCounters();
     } catch (err) {
         console.error('Lỗi khi tải testcase cho modal:', err);
+        const errMsg = err && err.message ? err.message : String(err);
         container.innerHTML = `
             <div class="p-6 text-center space-y-2 bg-white rounded-2xl border border-slate-200">
-                <p class="text-xs text-red-500 font-semibold">Không thể kết nối Supabase: ${escapeHtml(err.message)}</p>
+                <p class="text-xs text-red-500 font-semibold">Lỗi khi tải testcase: ${escapeHtml(errMsg)}</p>
                 <button type="button" onclick="loadModalMockTestcases()"
                     class="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-semibold transition-all inline-flex items-center gap-1">
                     <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> Nạp testcase mẫu để duyệt thử
@@ -1835,9 +1900,11 @@ function approveTestcaseReview() {
     openNextTestcaseReview();
 }
 
-function openTestcaseReviewPage(taskName) {
+function openTestcaseReviewPage(taskName, probId = '') {
     if (!taskName) return;
-    const url = `review.html?problem_id=${encodeURIComponent(taskName)}&back=index.html`;
+    const cleanName = String(taskName || '').trim();
+    const pid = probId || cleanName;
+    const url = `review.html?problem_id=${encodeURIComponent(pid)}&problem_title=${encodeURIComponent(cleanName)}&back=index.html`;
     window.open(url, '_blank');
 }
 
@@ -1846,7 +1913,7 @@ function openTestcaseReviewFromActiveModal() {
         window.open('review.html', '_blank');
         return;
     }
-    openTestcaseReviewPage(activeTestcaseReview.taskName);
+    openTestcaseReviewPage(activeTestcaseReview.taskName, activeTestcaseReview.probId);
 }
 
 async function rerunTestcaseFromReview() {
@@ -2258,6 +2325,9 @@ async function syncUserRoleFromDatabase() {
 
 window.addEventListener('load', async () => {
     if (!hasValidSession) return;
+
+    // Đảm bảo có JWT Bearer Token để các request tới backend không bị lộ thông tin user
+    await ensureAuthToken();
 
     // Xác minh lại quyền thực tế với Database trước khi vẽ giao diện
     await syncUserRoleFromDatabase();

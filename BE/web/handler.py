@@ -32,7 +32,7 @@ class ApiHandler(BaseHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Origin", allowed_origin)
             self.send_header("Vary", "Origin")
         self.send_header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type,X-User-Name,X-User-Role")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type,Authorization,X-User-Name,X-User-Role,X-Callback-Token")
 
     def _send_json(self, response: ApiResponse) -> None:
         payload = json.dumps(response.body, ensure_ascii=False).encode("utf-8")

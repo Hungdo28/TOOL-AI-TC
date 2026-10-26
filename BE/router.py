@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from controllers.auth_controller import AuthController
 from controllers.health_controller import get_health
 from controllers.task_controller import TaskController
 from web.models import ApiResponse
@@ -12,7 +13,7 @@ RouteHandler = Callable[[object], ApiResponse]
 
 
 class Router:
-    def __init__(self, task_controller: TaskController):
+    def __init__(self, task_controller: TaskController, auth_controller: AuthController | None = None):
         self.routes: dict[tuple[str, str], RouteHandler] = {
             ("GET", "/api/health"): get_health,
             ("GET", "/api/tasks"): task_controller.list_tasks,
@@ -25,6 +26,9 @@ class Router:
             ("PATCH", "/api/tasks/assignee"): task_controller.transfer_task,
             ("POST", "/api/tasks/ai-callback"): task_controller.ai_callback,
         }
+        if auth_controller:
+            self.routes[("POST", "/api/auth/token")] = auth_controller.get_token
+            self.routes[("POST", "/api/auth/login")] = auth_controller.get_token
 
 
     def dispatch(self, method: str, request) -> ApiResponse:
