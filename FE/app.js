@@ -117,6 +117,48 @@ function escapeHtml(value = '') {
 }
 window.escapeHtml = escapeHtml;
 
+// Thuật toán sắp xếp tự nhiên theo thứ tự số cho testcase ([TC]_1 -> [TC]_178 hoặc TC_01 -> TC_99)
+const testcaseCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+
+function extractTestcaseSortKey(item) {
+    if (!item) return { code: '', num: null, raw: '' };
+    const content = item.content || {};
+    const code = String(content.id || content.ma_testcase || content.ma || item.id || '').trim();
+    const numMatch = code.match(/\d+/);
+    const num = numMatch ? parseInt(numMatch[0], 10) : null;
+    return {
+        code,
+        num,
+        raw: String(content.muc_dich || item.test_suite || '')
+    };
+}
+
+function compareTestcaseOrder(a, b, ascending = true) {
+    const keyA = extractTestcaseSortKey(a);
+    const keyB = extractTestcaseSortKey(b);
+    let diff = 0;
+
+    if (keyA.code && keyB.code) {
+        const prefixA = keyA.code.replace(/\d+.*$/, '').trim();
+        const prefixB = keyB.code.replace(/\d+.*$/, '').trim();
+
+        if (prefixA === prefixB && keyA.num !== null && keyB.num !== null && keyA.num !== keyB.num) {
+            diff = keyA.num - keyB.num;
+        } else {
+            diff = testcaseCollator.compare(keyA.code, keyB.code);
+        }
+    } else if (keyA.code) {
+        diff = -1;
+    } else if (keyB.code) {
+        diff = 1;
+    } else {
+        diff = testcaseCollator.compare(keyA.raw, keyB.raw);
+    }
+
+    return ascending ? diff : -diff;
+}
+window.compareTestcaseOrder = compareTestcaseOrder;
+
 // ================= CẤU HÌNH API =================
 const BACKEND_API_BASE = (
     window.AUTO_TC_API_BASE ||
@@ -753,7 +795,12 @@ async function loadData(silent = false) {
             throw new Error('Dữ liệu danh sách từ backend không hợp lệ');
         }
 
-        dataRows = responseData;
+        dataRows = responseData.slice().sort((a, b) => {
+            const idA = parseInt(a.ID || a.id || 0, 10);
+            const idB = parseInt(b.ID || b.id || 0, 10);
+            if (!isNaN(idA) && !isNaN(idB) && idA !== idB) return idA - idB;
+            return String(a.ID || '').localeCompare(String(b.ID || ''), undefined, { numeric: true });
+        });
         syncRunningTasksFromServer(dataRows);
         renderTable();
         return true;
@@ -1388,6 +1435,22 @@ let modalChoice = {};
 let currentModalFilter = 'all';
 let modalSearchQuery = '';
 let isModalMockMode = false;
+let modalSortAsc = true;
+
+function toggleModalSortOrder() {
+    modalSortAsc = !modalSortAsc;
+    const label = document.getElementById('modalSortOrderLabel');
+    if (label) {
+        label.textContent = modalSortAsc ? 'Thứ tự: Tăng dần' : 'Thứ tự: Giảm dần';
+    }
+    const icon = document.getElementById('modalSortOrderIcon');
+    if (icon) {
+        icon.setAttribute('data-lucide', modalSortAsc ? 'arrow-down-narrow-wide' : 'arrow-up-narrow-wide');
+    }
+    renderModalTestcaseCards();
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+window.toggleModalSortOrder = toggleModalSortOrder;
 
 function openNextTestcaseReview() {
     if (activeTestcaseReview || testcaseReviewQueue.length === 0) return;
@@ -1411,7 +1474,23 @@ function openTestcaseReviewModalForTask(taskName) {
         testcasePrompt: context.testcasePrompt || context.prompt2 || ''
     };
 
-    document.getElementById('testcaseReviewTaskName').textContent = cleanTaskName;
+    // Cập nhật tiêu đề phụ phù hợp với ngữ cảnh
+    const subtitleEl = document.getElementById('testcaseReviewModalSubtitle');
+    if (subtitleEl) {
+        if (context.requiresTestcaseReview) {
+            subtitleEl.innerHTML = `AI vừa hoàn tất sinh testcase cho bài toán: <strong id="testcaseReviewTaskName" class="text-slate-900 font-bold">${escapeHtml(cleanTaskName)}</strong>.`;
+        } else {
+            subtitleEl.innerHTML = `Xem trước & Duyệt testcase cho bài toán: <strong id="testcaseReviewTaskName" class="text-slate-900 font-bold">${escapeHtml(cleanTaskName)}</strong>.`;
+        }
+    } else {
+        const nameEl = document.getElementById('testcaseReviewTaskName');
+        if (nameEl) nameEl.textContent = cleanTaskName;
+    }
+
+    // Đảm bảo thanh bộ lọc hiện lại nếu trước đó đã bị ẩn
+    const filterBar = document.getElementById('modalFilterTabs')?.closest('.bg-white');
+    if (filterBar) filterBar.classList.remove('hidden');
+
     document.getElementById('testcaseReviewFeedback').value = '';
     selectedTestcaseReviewSuggestions.clear();
     renderTestcaseReviewSuggestions();
@@ -1440,6 +1519,88 @@ function openTestcaseReviewModalForTask(taskName) {
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
+function getSheetPreviewUrl(url) {
+    if (!url) return '';
+    if (url.includes('docs.google.com/spreadsheets')) {
+        return url.replace(/\/edit([#?].*)?$/, '/preview?rm=minimal');
+    }
+    return url;
+}
+
+function renderModalGoogleSheetPreview(sheetUrls) {
+    const container = document.getElementById('modalTestcaseList');
+    if (!container) return;
+
+    // Ẩn thanh filter tabs & bulk action vì đang xem trực tiếp Google Sheet
+    const filterBar = document.getElementById('modalFilterTabs')?.closest('.bg-white');
+    if (filterBar) filterBar.classList.add('hidden');
+
+    const primaryUrl = sheetUrls[0];
+    const previewUrl = getSheetPreviewUrl(primaryUrl);
+
+    container.innerHTML = `
+        <div class="space-y-3">
+            <!-- Banner thông tin -->
+            <div class="p-4 bg-emerald-50/90 border border-emerald-200 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
+                <div class="flex items-start gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                        <i data-lucide="table" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                            Xem trước Testcase trên Google Sheets
+                            <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">Google Sheet</span>
+                        </h4>
+                        <p class="text-xs text-slate-600 mt-0.5">
+                            Toàn bộ testcase của bài toán này được lưu và quản lý trực tiếp trên file Google Sheets bên dưới.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 shrink-0">
+                    <a href="${escapeHtml(primaryUrl)}" target="_blank" rel="noopener noreferrer"
+                        class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs">
+                        <i data-lucide="external-link" class="w-3.5 h-3.5"></i> Mở Google Sheet tab mới
+                    </a>
+                </div>
+            </div>
+
+            <!-- Khung nhúng xem trước Google Sheet -->
+            <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+                <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-xs text-slate-600 font-semibold">
+                    <span class="flex items-center gap-1.5">
+                        <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-600"></i>
+                        Bảng tính Testcase (Google Sheets Preview)
+                    </span>
+                    <span class="text-[11px] text-slate-400 hidden sm:inline">
+                        Nhấn nút "Mở Google Sheet tab mới" nếu muốn chỉnh sửa trực tiếp trên Google Docs
+                    </span>
+                </div>
+                <div class="w-full h-[520px] bg-slate-50 relative">
+                    <iframe src="${escapeHtml(previewUrl)}" class="w-full h-full border-0" allowfullscreen></iframe>
+                </div>
+            </div>
+        </div>
+    `;
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function updateModalCountersForSheet(sheetCount) {
+    const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    setEl('modalStatTotal', `${sheetCount} Sheet`);
+    setEl('modalStatApproved', '—');
+    setEl('modalStatRejected', '—');
+
+    const dot = document.getElementById('modalSaveNoticeDot');
+    const noticeText = document.getElementById('modalSaveNoticeText');
+    if (dot && noticeText) {
+        dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
+        noticeText.textContent = `Testcase đã có trên Google Sheets. Bạn có thể kiểm tra nội dung và bấm nút Xác nhận & Đồng ý bên dưới.`;
+        noticeText.className = 'text-slate-700 font-medium';
+    }
+}
+
 async function loadModalTestcases(taskName, probId = '') {
     const container = document.getElementById('modalTestcaseList');
     if (!container) return;
@@ -1447,7 +1608,7 @@ async function loadModalTestcases(taskName, probId = '') {
     container.innerHTML = `
         <div class="py-10 text-center space-y-2 bg-white rounded-xl border border-slate-200">
             <div class="w-8 h-8 border-3 border-slate-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
-            <p class="text-xs font-semibold text-slate-500">Đang tải testcase từ Supabase...</p>
+            <p class="text-xs font-semibold text-slate-500">Đang tải testcase...</p>
         </div>
     `;
 
@@ -1483,13 +1644,23 @@ async function loadModalTestcases(taskName, probId = '') {
         if (!Array.isArray(data) || data.length === 0) {
             modalTestcaseRows = [];
             modalChoice = {};
+
+            // Nếu bài toán có link Google Sheet testcase, hiển thị preview Google Sheet
+            const sheetUrls = (activeTestcaseReview && activeTestcaseReview.testcaseUrls) || [];
+            if (sheetUrls.length > 0) {
+                renderModalGoogleSheetPreview(sheetUrls);
+                updateModalCountersForSheet(sheetUrls.length);
+                return;
+            }
+
+            // Nếu hoàn toàn chưa có testcase ở cả Supabase lẫn Google Sheet
             container.innerHTML = `
                 <div class="p-8 text-center space-y-3 bg-white rounded-2xl border border-slate-200">
                     <div class="w-12 h-12 bg-slate-100 text-slate-400 rounded-2xl mx-auto flex items-center justify-center">
                         <i data-lucide="inbox" class="w-6 h-6"></i>
                     </div>
-                    <p class="text-sm font-bold text-slate-800">Chưa có testcase trong Supabase cho bài toán này</p>
-                    <p class="text-xs text-slate-500 max-w-md mx-auto">AI có thể đang ghi dữ liệu hoặc kết quả được lưu tại Google Sheets. Bạn có thể bấm nạp dữ liệu mẫu bên dưới để trải nghiệm duyệt testcase.</p>
+                    <p class="text-sm font-bold text-slate-800">Chưa có testcase cho bài toán này</p>
+                    <p class="text-xs text-slate-500 max-w-md mx-auto">Bài toán này chưa có link Google Sheets và chưa được nạp testcase vào hệ thống. Bạn có thể bấm nạp dữ liệu mẫu bên dưới để trải nghiệm duyệt testcase.</p>
                     <button type="button" onclick="loadModalMockTestcases()"
                         class="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-semibold transition-all inline-flex items-center gap-1.5 shadow-xs">
                         <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> Nạp testcase mẫu để thử duyệt
@@ -1501,7 +1672,7 @@ async function loadModalTestcases(taskName, probId = '') {
             return;
         }
 
-        modalTestcaseRows = data.map(normalizeModalTestcaseRow);
+        modalTestcaseRows = data.map(normalizeModalTestcaseRow).sort((a, b) => compareTestcaseOrder(a, b, modalSortAsc));
         modalChoice = {};
         modalTestcaseRows.forEach(r => {
             modalChoice[r.id] = r.review_status || (r.approved === true ? 'approved' : (r.approved === false ? 'rejected' : 'pending'));
@@ -1578,7 +1749,7 @@ function loadModalMockTestcases() {
         }
     ];
 
-    modalTestcaseRows = mockList.map(normalizeModalTestcaseRow);
+    modalTestcaseRows = mockList.map(normalizeModalTestcaseRow).sort((a, b) => compareTestcaseOrder(a, b, modalSortAsc));
     modalChoice = {};
     modalTestcaseRows.forEach(r => modalChoice[r.id] = 'pending');
     renderModalTestcaseCards();
@@ -1639,7 +1810,19 @@ function renderModalTestcaseCards() {
         (grouped[s] = grouped[s] || []).push(r);
     });
 
-    Object.entries(grouped).forEach(([suite, list]) => {
+    // Sắp xếp các testcase trong mỗi nhóm theo thứ tự tự nhiên (tăng dần / giảm dần)
+    Object.values(grouped).forEach(list => {
+        list.sort((a, b) => compareTestcaseOrder(a, b, modalSortAsc));
+    });
+
+    // Sắp xếp các nhóm (suites) theo thứ tự testcase đầu tiên
+    const sortedSuites = Object.entries(grouped).sort(([suiteA, listA], [suiteB, listB]) => {
+        const itemA = modalSortAsc ? listA[0] : listA[listA.length - 1];
+        const itemB = modalSortAsc ? listB[0] : listB[listB.length - 1];
+        return compareTestcaseOrder(itemA, itemB, modalSortAsc);
+    });
+
+    sortedSuites.forEach(([suite, list]) => {
         const suiteEl = document.createElement('div');
         suiteEl.className = 'space-y-2';
 
@@ -1886,6 +2069,8 @@ function cancelTestcaseRevision() {
 
 function closeTestcaseReviewModal() {
     document.getElementById('testcaseReviewModal').classList.add('hidden');
+    const filterBar = document.getElementById('modalFilterTabs')?.closest('.bg-white');
+    if (filterBar) filterBar.classList.remove('hidden');
     activeTestcaseReview = null;
     openNextTestcaseReview();
 }
@@ -1897,6 +2082,8 @@ function approveTestcaseReview() {
     persistProcessingState();
     activeTestcaseReview = null;
     document.getElementById('testcaseReviewModal').classList.add('hidden');
+    const filterBar = document.getElementById('modalFilterTabs')?.closest('.bg-white');
+    if (filterBar) filterBar.classList.remove('hidden');
     openNextTestcaseReview();
 }
 

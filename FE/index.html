@@ -281,7 +281,7 @@
                         </span>
                         Duyệt & Xem trước testcase
                     </h3>
-                    <p class="text-xs sm:text-sm text-slate-500 mt-1">
+                    <p id="testcaseReviewModalSubtitle" class="text-xs sm:text-sm text-slate-500 mt-1">
                         AI đã sinh testcase cho bài toán: <strong id="testcaseReviewTaskName" class="text-slate-900 font-bold"></strong>.
                     </p>
                 </div>
@@ -354,6 +354,12 @@
                             class="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shrink-0"
                             title="Bỏ tất cả testcase đang hiện">
                             <i data-lucide="x" class="w-3.5 h-3.5"></i> Bỏ tất cả
+                        </button>
+                        <button type="button" id="btnModalSortOrder" onclick="toggleModalSortOrder()"
+                            class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shrink-0"
+                            title="Đổi thứ tự sắp xếp (Tăng dần / Giảm dần)">
+                            <i id="modalSortOrderIcon" data-lucide="arrow-down-narrow-wide" class="w-3.5 h-3.5 text-blue-600"></i>
+                            <span id="modalSortOrderLabel">Thứ tự: Tăng dần</span>
                         </button>
                     </div>
                 </div>
