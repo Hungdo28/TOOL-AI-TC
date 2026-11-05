@@ -2397,8 +2397,7 @@ async function doRunSingle(tenBaiToan, testcasePrompt, mode) {
         baiToan: tenBaiToan,
         loaiChay: mode,
         requestId,
-        promptAI1: testcasePrompt || '',
-        promptAI2: testcasePrompt || ''
+        promptAI: testcasePrompt || ''
     };
 
     try {
@@ -2466,8 +2465,7 @@ async function doRunMultiple(selectedTasks, testcasePrompt) {
     const payload = {
         danhSachBaiToan: selectedTasks,
         requestId,
-        promptAI1: testcasePrompt || '',
-        promptAI2: testcasePrompt || ''
+        promptAI: testcasePrompt || ''
     };
 
     try {
