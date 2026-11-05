@@ -2375,7 +2375,7 @@ async function doRunSingle(tenBaiToan, testcasePrompt, mode) {
     startElapsedTimeUpdates();
     runContextByTask[tenBaiToan] = {
         testcasePrompt,
-        requiresTestcaseReview: mode !== 'phan_tich'
+        requiresTestcaseReview: false
     };
     persistProcessingState();
     renderTable();
@@ -2443,7 +2443,7 @@ async function doRunMultiple(selectedTasks, testcasePrompt) {
         taskExecutionInfo[taskName] = { requestId, startedAt: new Date(startedAt).toISOString() };
         runContextByTask[taskName] = {
             testcasePrompt,
-            requiresTestcaseReview: true
+            requiresTestcaseReview: false
         };
     });
     persistProcessingState();

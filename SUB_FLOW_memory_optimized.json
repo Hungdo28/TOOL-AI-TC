@@ -1384,59 +1384,6 @@
     },
     {
       "parameters": {
-        "jsCode": "function hash(str) { // cyrb53\n  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;\n  for (let i = 0, ch; i < str.length; i++) {\n    ch = str.charCodeAt(i);\n    h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677);\n  }\n  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);\n  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);\n  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16);\n}\n// Lưu testcase vừa sinh vào qa_memory để QA duyệt (không gửi review_status/approved: mặc định pending; sinh lại không ghi đè trạng thái đã duyệt)\nlet pid = '', title = '';\ntry { const j = $('Update_link_sheet_TC').first().json; pid = String(j.problem_id || ''); title = j['Bài toán'] || ''; } catch (e) {}\nconst rows = $input.all().map(i => i.json).filter(t => t.row_type === 'testcase' && t.muc_dich).map(t => ({\n  kind: 'testcase',\n  problem_id: pid,\n  problem_title: title,\n  test_suite: t.test_suite || 'General',\n  content: { id: t.id, muc_dich: t.muc_dich, cac_buoc: t.cac_buoc, ket_qua_mong_muon: t.ket_qua_mong_muon, ghi_chu: t.ghi_chu || '' },\n  embed_text: t.muc_dich + '\\n' + t.cac_buoc,\n  content_hash: hash([t.test_suite, t.muc_dich, t.cac_buoc, t.ket_qua_mong_muon].join('|'))\n}));\nreturn [{ json: { rows: pid ? rows : [] } }];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        63728,
-        13776
-      ],
-      "id": "60b5145d-4fbd-4f2b-8ddc-18c877b2fc7e",
-      "name": "Mem_TC_Build",
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://zrwlzthteixjxdhsevkh.supabase.co/rest/v1/qa_memory?on_conflict=kind,problem_id,content_hash",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "supabaseApi",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Prefer",
-              "value": "resolution=merge-duplicates,return=minimal"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.rows) }}",
-        "options": {
-          "timeout": 20000
-        }
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        63984,
-        13776
-      ],
-      "id": "bd894cc5-f4a5-4534-ac5f-2c65f7fe28d8",
-      "name": "Mem_TC_Insert",
-      "alwaysOutputData": true,
-      "credentials": {
-        "supabaseApi": {
-          "id": "0YVkpCj44wwUtXEX",
-          "name": "Supabase account"
-        }
-      },
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
         "url": "={{ 'https://zrwlzthteixjxdhsevkh.supabase.co/rest/v1/qa_memory?kind=eq.testcase&approved=eq.true&problem_id=neq.' + encodeURIComponent((() => { try { return $('Update_link_sheet_TC').first().json.problem_id || 'none'; } catch (e) { return 'none'; } })()) + '&select=problem_title,test_suite,content&order=reviewed_at.desc.nullslast&limit=300' }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "supabaseApi",
@@ -1892,11 +1839,6 @@
             "node": "Sheet_luu_thong_tin_TC",
             "type": "main",
             "index": 0
-          },
-          {
-            "node": "Mem_TC_Build",
-            "type": "main",
-            "index": 0
           }
         ]
       ]
@@ -2071,17 +2013,6 @@
         [
           {
             "node": "Merge",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Mem_TC_Build": {
-      "main": [
-        [
-          {
-            "node": "Mem_TC_Insert",
             "type": "main",
             "index": 0
           }
