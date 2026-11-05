@@ -239,9 +239,9 @@
                 <button type="button" onclick="exportSelectedJson()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 shadow-xs" title="Tải về file JSON các testcase đã chọn">
                     <i data-lucide="download" class="w-4 h-4"></i> Xuất JSON
                 </button>
-                <button type="button" id="btnSave" onclick="saveReviewResults()" disabled class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs sm:text-sm font-bold transition-all shadow-md shadow-blue-600/20 flex items-center justify-center gap-2">
-                    <i data-lucide="save" class="w-4 h-4"></i>
-                    <span id="btnSaveLabel">Lưu kết quả duyệt</span>
+                <button type="button" id="btnSave" onclick="saveReviewResults()" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs sm:text-sm font-bold transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2">
+                    <i data-lucide="check" class="w-4 h-4"></i>
+                    <span id="btnSaveLabel">Duyệt & Xuất vào Sheet</span>
                 </button>
             </div>
         </div>
@@ -930,7 +930,7 @@
                 saveDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-500 badge-pulse';
                 btnDiscard.classList.remove('hidden');
             } else {
-                btnSave.disabled = true;
+                btnSave.disabled = rawRows.length === 0;
                 unsavedText.textContent = 'Dữ liệu đã đồng bộ';
                 unsavedText.className = 'font-bold text-slate-500';
                 saveDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
@@ -954,7 +954,15 @@
             label.textContent = 'Đang lưu vào Supabase...';
 
             try {
-                // Cập nhật từng nhóm trạng thái
+                const approvedCount = rawRows.filter(r => choice[r.id] === 'approved').length;
+                const pendingCount = rawRows.filter(r => (choice[r.id] || 'pending') === 'pending').length;
+                if (approvedCount === 0 && pendingCount > 0) {
+                    rawRows.forEach(r => {
+                        if ((choice[r.id] || 'pending') === 'pending') choice[r.id] = 'approved';
+                    });
+                }
+
+                // Cập nhật từng nhóm trạng thái vào qa_memory
                 for (const s of ['approved', 'rejected', 'pending']) {
                     const idsToUpdate = rawRows
                         .filter(r => (choice[r.id] || 'pending') === s && (r.review_status || 'pending') !== s)
@@ -973,18 +981,70 @@
                     }
                 }
 
-                // Cập nhật lại trạng thái gốc sau khi lưu thành công
                 rawRows.forEach(r => {
                     r.review_status = choice[r.id];
                     r.approved = choice[r.id] === 'approved';
                 });
 
-                showToast('Đã lưu kết quả duyệt testcase thành công!', 'success');
+                const approvedRows = rawRows
+                    .filter(r => choice[r.id] === 'approved')
+                    .sort((a, b) => compareTestcaseOrder(a, b, true));
+
+                if (approvedRows.length > 0) {
+                    label.textContent = 'Đang xuất vào Google Sheet...';
+                    const groups = new Map();
+                    approvedRows.forEach(r => {
+                        const suite = String(r.test_suite || 'General').trim() || 'General';
+                        if (!groups.has(suite)) groups.set(suite, []);
+                        groups.get(suite).push(r);
+                    });
+                    const sheetRows = [];
+                    let tcNo = 0;
+                    for (const [suite, list] of groups.entries()) {
+                        sheetRows.push({ row_type: 'suite', id: '', test_suite: suite, muc_dich: suite, cac_buoc: '', ket_qua_mong_muon: '', ghi_chu: '' });
+                        for (const r of list) {
+                            const c = r.content || {};
+                            sheetRows.push({
+                                row_type: 'testcase',
+                                id: `[TC]_${++tcNo}`,
+                                test_suite: suite,
+                                muc_dich: c.muc_dich || '',
+                                cac_buoc: c.cac_buoc || '',
+                                ket_qua_mong_muon: c.ket_qua_mong_muon || '',
+                                ghi_chu: c.ghi_chu || ''
+                            });
+                        }
+                    }
+
+                    const sel = document.getElementById('probSelect');
+                    const probId = sel?.value || '';
+                    const taskName = (sel?.selectedOptions?.[0]?.textContent || '').replace(/\s*\(\d+\s*TC\)\s*$/, '').trim() || rawRows[0]?.problem_title || '';
+                    if (taskName) {
+                        await fetch('https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/luong-chuc-nang', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                baiToan: taskName,
+                                problem_id: probId,
+                                loaiChay: 'export_sheet',
+                                requestId: `export-${Date.now()}`,
+                                testcases: sheetRows
+                            })
+                        });
+                        await api(`problems?title=eq.${encodeURIComponent(taskName)}`, {
+                            method: 'PATCH',
+                            headers: { Prefer: 'return=minimal' },
+                            body: JSON.stringify({ status: 'Đã xong' })
+                        });
+                    }
+                }
+
+                showToast(`Đã duyệt & xuất ${approvedRows.length} testcase vào Google Sheet!`, 'success');
             } catch (err) {
                 console.error('Lỗi khi lưu kết quả:', err);
                 showToast(`Lưu thất bại: ${err.message}`, 'error');
             } finally {
-                label.textContent = 'Lưu kết quả duyệt';
+                label.textContent = 'Duyệt & Xuất vào Sheet';
                 updateCounters();
             }
         }

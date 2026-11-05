@@ -5,7 +5,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 ALLOWED_EXTENSIONS = {"doc", "docx", "xls", "xlsx", "pdf", "txt"}
-ALLOWED_STATUSES = {"Chưa làm", "Waiting", "Đã xong"}
+ALLOWED_STATUSES = {"Chưa làm", "Waiting", "Chờ duyệt", "Đã xong"}
 
 
 def _normalized(value: Any) -> str:

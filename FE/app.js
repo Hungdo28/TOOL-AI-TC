@@ -627,7 +627,7 @@ function startPollingIfNeeded(runOnce = false) {
 
                 const currentStatus = getColVal(row, 'Trạng thái') || '';
                 const normalizedStatus = currentStatus.toLowerCase();
-                const isDone = currentStatus === 'Đã xong';
+                const isDone = currentStatus === 'Đã xong' || currentStatus === 'Chờ duyệt';
                 const isError = normalizedStatus.includes('lỗi')
                     || normalizedStatus.includes('thất bại')
                     || normalizedStatus.includes('error');
@@ -887,6 +887,9 @@ function renderTable() {
             const urls = splitHttpLinks(linkStr);
 
             if (urls.length === 0) {
+                if (type === 'testcase' && trangThai === 'Chờ duyệt') {
+                    return '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">⏳ Chờ duyệt để tạo Sheet</span>';
+                }
                 return '<span class="text-slate-400 italic">Trống</span>';
             }
 
@@ -946,12 +949,13 @@ function renderTable() {
                     </span>
                    </span>`
                 : (currentUser.role === 'admin'
-                    ? `<select onchange="updateStatus(${originalIndex}, this.value)" class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 cursor-pointer font-semibold outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm appearance-none pr-7 relative bg-no-repeat bg-right hover:border-blue-300 ${trangThai === 'Đã xong' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : (trangThai.toLowerCase().includes('lỗi') || trangThai.toLowerCase().includes('thất bại') || trangThai.toLowerCase().includes('error') ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-600')}" style="background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2394a3b8%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E'); background-size: 8px; background-position: calc(100% - 8px) center;">
+                    ? `<select onchange="updateStatus(${originalIndex}, this.value)" class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 cursor-pointer font-semibold outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm appearance-none pr-7 relative bg-no-repeat bg-right hover:border-blue-300 ${trangThai === 'Đã xong' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : (trangThai === 'Chờ duyệt' ? 'bg-amber-50 text-amber-700 border-amber-200' : (trangThai.toLowerCase().includes('lỗi') || trangThai.toLowerCase().includes('thất bại') || trangThai.toLowerCase().includes('error') ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-600'))}" style="background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2394a3b8%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E'); background-size: 8px; background-position: calc(100% - 8px) center;">
                             <option value="Chưa làm" ${trangThai === 'Chưa làm' ? 'selected' : ''}>Chưa làm</option>
+                            <option value="Chờ duyệt" ${trangThai === 'Chờ duyệt' ? 'selected' : ''}>Chờ duyệt</option>
                             <option value="Đã xong" ${trangThai === 'Đã xong' ? 'selected' : ''}>Đã xong</option>
-                            ${(trangThai !== 'Chưa làm' && trangThai !== 'Đã xong') ? `<option value="${escapeHtml(trangThai)}" selected>${escapeHtml(trangThai)}</option>` : ''}
+                            ${(trangThai !== 'Chưa làm' && trangThai !== 'Chờ duyệt' && trangThai !== 'Đã xong') ? `<option value="${escapeHtml(trangThai)}" selected>${escapeHtml(trangThai)}</option>` : ''}
                         </select>`
-                    : `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm border ${trangThai === 'Đã xong' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : (trangThai.toLowerCase().includes('lỗi') || trangThai.toLowerCase().includes('thất bại') || trangThai.toLowerCase().includes('error') ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-600 border-slate-200')}">${escapeHtml(trangThai)}</span>`)
+                    : `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm border ${trangThai === 'Đã xong' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : (trangThai === 'Chờ duyệt' ? 'bg-amber-50 text-amber-700 border-amber-200' : (trangThai.toLowerCase().includes('lỗi') || trangThai.toLowerCase().includes('thất bại') || trangThai.toLowerCase().includes('error') ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-600 border-slate-200'))}">${escapeHtml(trangThai)}</span>`)
             }
                 </td>
 
@@ -1994,13 +1998,74 @@ function updateModalCounters() {
     }
 }
 
+function buildApprovedSheetRows(rows) {
+    const groups = new Map();
+    rows.forEach(r => {
+        const suite = String(r.test_suite || 'General').trim() || 'General';
+        if (!groups.has(suite)) groups.set(suite, []);
+        groups.get(suite).push(r);
+    });
+    const out = [];
+    let tcNo = 0;
+    for (const [suite, list] of groups.entries()) {
+        out.push({
+            row_type: 'suite',
+            id: '',
+            test_suite: suite,
+            muc_dich: suite,
+            cac_buoc: '',
+            ket_qua_mong_muon: '',
+            ghi_chu: ''
+        });
+        for (const r of list) {
+            const c = r.content || {};
+            out.push({
+                row_type: 'testcase',
+                id: `[TC]_${++tcNo}`,
+                test_suite: suite,
+                muc_dich: c.muc_dich || '',
+                cac_buoc: c.cac_buoc || '',
+                ket_qua_mong_muon: c.ket_qua_mong_muon || '',
+                ghi_chu: c.ghi_chu || ''
+            });
+        }
+    }
+    return out;
+}
+
 async function saveAndApproveTestcaseReview() {
     if (!activeTestcaseReview) return;
+
+    const taskName = activeTestcaseReview.taskName;
+    const probId = activeTestcaseReview.probId || '';
+    const approvedCount = modalTestcaseRows.filter(r => modalChoice[r.id] === 'approved').length;
+    const pendingCount = modalTestcaseRows.filter(r => (modalChoice[r.id] || 'pending') === 'pending').length;
+
+    // Nếu chưa chọn "Giữ" câu nào mà còn các câu "Chờ duyệt", tự động duyệt toàn bộ câu chưa bị "Bỏ"
+    if (approvedCount === 0 && pendingCount > 0) {
+        modalTestcaseRows.forEach(r => {
+            if ((modalChoice[r.id] || 'pending') === 'pending') {
+                modalChoice[r.id] = 'approved';
+            }
+        });
+    } else if (approvedCount > 0 && pendingCount > 0) {
+        const ok = confirm(`Bạn đã chọn Giữ ${approvedCount} testcase và còn ${pendingCount} testcase chưa chọn trạng thái.\n\nNhấn OK để chỉ xuất ${approvedCount} testcase Đã giữ vào Google Sheet (bỏ qua ${pendingCount} câu chưa chọn), hoặc Cancel để kiểm tra lại.`);
+        if (!ok) return;
+    }
+
+    const approvedRows = modalTestcaseRows
+        .filter(r => modalChoice[r.id] === 'approved')
+        .sort((a, b) => compareTestcaseOrder(a, b, true));
+
+    if (modalTestcaseRows.length > 0 && approvedRows.length === 0) {
+        alert('⚠️ Không có testcase nào được chọn "Giữ" để xuất vào Google Sheet! Vui lòng giữ lại ít nhất 1 testcase hoặc bấm "Cần chỉnh sửa & Chạy lại".');
+        return;
+    }
 
     const btn = document.getElementById('btnSaveApprove');
     const label = document.getElementById('btnSaveApproveLabel');
     if (btn) btn.disabled = true;
-    if (label) label.textContent = 'Đang lưu vào Supabase...';
+    if (label) label.textContent = 'Đang lưu & tạo Google Sheet...';
 
     try {
         if (!isModalMockMode && modalTestcaseRows.length > 0) {
@@ -2034,14 +2099,53 @@ async function saveAndApproveTestcaseReview() {
             r.approved = modalChoice[r.id] === 'approved';
         });
 
-        showToast(`Đã duyệt & lưu kết quả testcase cho "${activeTestcaseReview.taskName}"!`, 'success');
+        // Xuất các testcase đã duyệt vào Google Sheet qua luồng n8n (loaiChay = 'export_sheet')
+        const sheetRows = buildApprovedSheetRows(approvedRows);
+        if (sheetRows.length > 0) {
+            const exportPayload = {
+                baiToan: taskName,
+                problem_id: probId,
+                loaiChay: 'export_sheet',
+                requestId: createRequestId(),
+                testcases: sheetRows
+            };
+            try {
+                await fetchWithTimeout(URL_POST_RUN, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(exportPayload)
+                }, 45000);
+            } catch (exportErr) {
+                console.warn('Gửi lệnh tạo Sheet sang n8n:', exportErr);
+            }
+
+            // Cập nhật trạng thái bài toán sang "Đã xong" trên Supabase nếu chưa được n8n cập nhật
+            try {
+                const filterQuery = probId
+                    ? `id=eq.${encodeURIComponent(probId)}`
+                    : `title=eq.${encodeURIComponent(taskName)}`;
+                await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/problems?${filterQuery}`, {
+                    method: 'PATCH',
+                    headers: {
+                        apikey: SUPABASE_ANON_KEY,
+                        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+                        'Content-Type': 'application/json',
+                        Prefer: 'return=minimal'
+                    },
+                    body: JSON.stringify({ status: 'Đã xong' })
+                });
+            } catch (_) {}
+        }
+
+        showToast(`Đã duyệt ${approvedRows.length} testcase & xuất vào Google Sheet cho "${taskName}"!`, 'success');
         approveTestcaseReview();
+        await loadData();
     } catch (err) {
         console.error('Lỗi khi lưu duyệt testcase:', err);
-        alert(`❌ Lỗi khi lưu vào Supabase: ${err.message}`);
+        alert(`❌ Lỗi khi duyệt và xuất Sheet: ${err.message}`);
     } finally {
         if (btn) btn.disabled = false;
-        if (label) label.textContent = 'Lưu kết quả & Đồng ý';
+        if (label) label.textContent = 'Duyệt & Xuất vào Sheet';
     }
 }
 
@@ -2115,12 +2219,56 @@ async function rerunTestcaseFromReview() {
     }
 
     const review = activeTestcaseReview;
+    const rejectedList = modalTestcaseRows
+        .filter(r => modalChoice[r.id] === 'rejected')
+        .map(r => `- [${r.test_suite || 'General'}] ${r.content?.id || 'TC'}: ${r.content?.muc_dich || ''}`);
+    const approvedList = modalTestcaseRows
+        .filter(r => modalChoice[r.id] === 'approved')
+        .map(r => `- [${r.test_suite || 'General'}] ${r.content?.id || 'TC'}: ${r.content?.muc_dich || ''}`);
+
+    // Lưu các câu đã chọn Giữ và xóa các câu Chờ duyệt / Bỏ cũ trong qa_memory để lượt sinh lại không bị lẫn câu cũ
+    if (!isModalMockMode && modalTestcaseRows.length > 0) {
+        try {
+            const approvedIds = modalTestcaseRows.filter(r => modalChoice[r.id] === 'approved').map(r => r.id);
+            const removeIds = modalTestcaseRows.filter(r => modalChoice[r.id] !== 'approved').map(r => r.id);
+            if (approvedIds.length > 0) {
+                await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/qa_memory?id=in.(${approvedIds.join(',')})`, {
+                    method: 'PATCH',
+                    headers: {
+                        apikey: SUPABASE_ANON_KEY,
+                        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+                        'Content-Type': 'application/json',
+                        Prefer: 'return=minimal'
+                    },
+                    body: JSON.stringify({
+                        review_status: 'approved',
+                        approved: true,
+                        reviewed_at: new Date().toISOString()
+                    })
+                });
+            }
+            if (removeIds.length > 0) {
+                await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/qa_memory?id=in.(${removeIds.join(',')})`, {
+                    method: 'DELETE',
+                    headers: {
+                        apikey: SUPABASE_ANON_KEY,
+                        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+                        Prefer: 'return=minimal'
+                    }
+                });
+            }
+        } catch (cleanErr) {
+            console.warn('Không thể dọn testcase cũ trước khi chạy lại:', cleanErr);
+        }
+    }
+
     const revisedPrompt = [
         review.testcasePrompt,
-        review.testcaseUrls.length > 0 ? `TESTCASE HIỆN TẠI:\n${review.testcaseUrls.join('\n')}` : '',
-        'YÊU CẦU ĐIỀU CHỈNH SAU KHI NGƯỜI DÙNG REVIEW:',
+        rejectedList.length > 0 ? `DANH SÁCH TESTCASE BỊ LOẠI BỎ / CẦN VIẾT LẠI:\n${rejectedList.slice(0, 40).join('\n')}` : '',
+        approvedList.length > 0 ? `DANH SÁCH TESTCASE ĐÃ ĐẠT (GIỮ NGUYÊN PHẠM VI NÀY):\n${approvedList.slice(0, 40).join('\n')}` : '',
+        'YÊU CẦU ĐIỀU CHỈNH BẮT BUỘC SAU KHI QA REVIEW:',
         additionalPrompt,
-        'Các yêu cầu điều chỉnh trên là bắt buộc. Hãy đối chiếu với testcase hiện tại, cập nhật nội dung thực sự thay vì chỉ diễn đạt lại, loại bỏ testcase trùng và bảo đảm Expected Result có thể kiểm chứng.'
+        'Các yêu cầu điều chỉnh trên là BẮT BUỘC. Hãy tập trung đúng phạm vi chức năng/Use Case được yêu cầu, bổ sung các kịch bản còn thiếu, ghi chú rõ [Q&A confirm BA] ở cột ghi_chu cho các điểm nghiệp vụ chưa rõ, và bảo đảm Kết quả mong muốn có thể kiểm chứng.'
     ].filter(Boolean).join('\n\n');
 
     activeTestcaseReview = null;
@@ -2177,7 +2325,7 @@ function openPromptModal(taskName, type) {
     currentRunMode = type; // 'phan_tich' or 'testcase'
     const typeLabel = type === 'phan_tich' ? 'Phân tích' : 'Testcase';
     setRunAIModalTitle(`Chạy AI (${typeLabel}) - ${currentRunTask}`);
-    document.getElementById('runTestcasePromptGroup').classList.toggle('hidden', type === 'phan_tich');
+    document.getElementById('runTestcasePromptGroup').classList.remove('hidden');
     document.getElementById('runTestcasePrompt').value = '';
     document.getElementById('runAIModal').classList.remove('hidden');
 }
@@ -2249,7 +2397,8 @@ async function doRunSingle(tenBaiToan, testcasePrompt, mode) {
         baiToan: tenBaiToan,
         loaiChay: mode,
         requestId,
-        promptAI2: mode === 'phan_tich' ? '' : (testcasePrompt || '')
+        promptAI1: testcasePrompt || '',
+        promptAI2: testcasePrompt || ''
     };
 
     try {
@@ -2317,6 +2466,7 @@ async function doRunMultiple(selectedTasks, testcasePrompt) {
     const payload = {
         danhSachBaiToan: selectedTasks,
         requestId,
+        promptAI1: testcasePrompt || '',
         promptAI2: testcasePrompt || ''
     };
 

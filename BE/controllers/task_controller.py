@@ -63,3 +63,10 @@ class TaskController:
         task = self.service.handle_ai_callback(request.read_json())
         return ApiResponse(200, {"success": True, "message": "Đã cập nhật kết quả AI", "data": task})
 
+    def approve_testcases(self, request) -> ApiResponse:
+        require_user(request)
+        payload = dict(request.read_json() or {})
+        payload["status"] = payload.get("status") or "Đã xong"
+        task = self.service.handle_ai_callback(payload)
+        return ApiResponse(200, {"success": True, "message": "Đã duyệt và xuất Testcase vào Google Sheet", "data": task})
+

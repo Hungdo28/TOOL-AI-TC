@@ -330,19 +330,27 @@ class GoogleWorkspace:
 
             if testcases and isinstance(testcases, list):
                 rows = []
+                tc_no = 0
                 for tc in testcases:
-                    muc_dich = str(tc.get("muc_dich") or tc.get("Mục đích kiểm thử ") or "").strip()
+                    row_type = str(tc.get("row_type") or "").strip()
+                    tc_id = str(tc.get("id") or tc.get("ID") or "").strip()
+                    if row_type == "suite":
+                        tc_id = ""
+                    elif not tc_id:
+                        tc_no += 1
+                        tc_id = f"[TC]_{tc_no}"
+                    muc_dich = str(tc.get("muc_dich") or tc.get("Mục đích kiểm thử ") or tc.get("test_suite") or "").strip()
                     cac_buoc = str(tc.get("cac_buoc") or tc.get("Các bước thực hiện") or "").strip()
                     ket_qua = str(tc.get("ket_qua_mong_muon") or tc.get("Kết quả mong muốn ") or "").strip()
                     ghi_chu = str(tc.get("ghi_chu") or tc.get("Ghi chú") or "").strip()
                     if muc_dich or cac_buoc or ket_qua:
-                        rows.append([muc_dich, cac_buoc, ket_qua, ghi_chu])
+                        rows.append([tc_id, muc_dich, cac_buoc, ket_qua, ghi_chu])
 
                 if rows:
                     try:
                         self.sheets.spreadsheets().values().append(
                             spreadsheetId=sheet_id,
-                            range="'Trang tính1'!B14:E",
+                            range="'Trang tính1'!A14:E",
                             valueInputOption="USER_ENTERED",
                             body={"values": rows},
                         ).execute()

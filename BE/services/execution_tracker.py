@@ -20,6 +20,7 @@ class ExecutionTracker:
         normalized = _normalized(status)
         return (
             normalized == _normalized("Đã xong")
+            or normalized == _normalized("Chờ duyệt")
             or "lỗi" in normalized
             or "thất bại" in normalized
             or "error" in normalized

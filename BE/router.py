@@ -25,6 +25,7 @@ class Router:
             ("DELETE", "/api/tasks/executions"): task_controller.stop_executions,
             ("PATCH", "/api/tasks/assignee"): task_controller.transfer_task,
             ("POST", "/api/tasks/ai-callback"): task_controller.ai_callback,
+            ("POST", "/api/tasks/approve-testcases"): task_controller.approve_testcases,
         }
         if auth_controller:
             self.routes[("POST", "/api/auth/token")] = auth_controller.get_token
@@ -36,4 +37,3 @@ class Router:
         if not handler:
             raise ApiError(404, "API không tồn tại")
         return handler(request)
-
