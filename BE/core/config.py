@@ -50,7 +50,10 @@ class Settings:
     n8n_webhook_url: str = "https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/luong-chuc-nang"
     ai_callback_token: str | None = None
     jwt_secret: str = "autotc_jwt_secret_key_2026_hungdv"
-
+    ai_api_url: str = "https://viettelai.vn/model-as-a-service"
+    ai_api_key: str = "sk-i3Pls4y--I4fTfS8VJdGHw"
+    ai_model: str = "DeepSeek-V4.1-Flash"
+    figma_access_token: str = ""
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -109,4 +112,8 @@ class Settings:
             ).strip(),
             ai_callback_token=os.getenv("AI_CALLBACK_TOKEN", "").strip() or None,
             jwt_secret=os.getenv("JWT_SECRET", "autotc_jwt_secret_key_2026_hungdv").strip(),
+            ai_api_url=os.getenv("AI_API_URL", "https://viettelai.vn/model-as-a-service").strip().rstrip("/"),
+            ai_api_key=os.getenv("AI_API_KEY", "sk-i3Pls4y--I4fTfS8VJdGHw").strip(),
+            ai_model=os.getenv("AI_MODEL", "DeepSeek-V4.1-Flash").strip(),
+            figma_access_token=os.getenv("FIGMA_ACCESS_TOKEN", "").strip(),
         )

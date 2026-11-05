@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from core.config import Settings
-from web.models import ApiResponse
 from middleware.auth import require_admin, require_callback_token, require_user, resolve_role
 from services.task_service import ApiError, TaskService
+from web.models import ApiResponse
 
 
 class TaskController:
@@ -11,14 +11,12 @@ class TaskController:
         self.service = service
         self.settings = settings
 
-        # MỚI
     def list_tasks(self, request) -> ApiResponse:
         if not self.settings.enforce_role_header:
             return ApiResponse(200, self.service.list_tasks())
 
-        username = require_user(request)          # 401 nếu thiếu X-User-Name
+        username = require_user(request)
         _, role = resolve_role(request, self.settings)
-        # Admin thấy tất cả; viewer chỉ thấy task có "Người làm" == username
         assignee = None if role == "admin" else username
         return ApiResponse(200, self.service.list_tasks(assignee))
 
@@ -70,3 +68,7 @@ class TaskController:
         task = self.service.handle_ai_callback(payload)
         return ApiResponse(200, {"success": True, "message": "Đã duyệt và xuất Testcase vào Google Sheet", "data": task})
 
+    def run_ai(self, request) -> ApiResponse:
+        payload = dict(request.read_json() or {})
+        result = self.service.run_ai_pipeline(payload)
+        return ApiResponse(200, result)

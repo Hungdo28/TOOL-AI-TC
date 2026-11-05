@@ -1,0 +1,340 @@
+{
+  "name": "Supabase_Core_Management_Flow",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## LUỒNG 1: API LẤY DANH SÁCH BÀI TOÁN (Render UI)\nĐọc dữ liệu từ Supabase trả về Frontend",
+        "height": 224,
+        "width": 640,
+        "color": 2
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "83077512-b686-4e3b-9f64-65330da14ef8",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "path": "api/jobs",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        48,
+        64
+      ],
+      "id": "a431f913-15d7-4da4-93d6-0af85e64456e",
+      "name": "GET /api/jobs",
+      "webhookId": "39aded22-0c1a-4452-b428-bfaae4f9f48f"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "ai_jobs"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        240,
+        64
+      ],
+      "id": "102a8ac7-f354-4c83-980e-3dbc6005eeec",
+      "name": "Lấy danh sách từ DB"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        448,
+        64
+      ],
+      "id": "44a10f62-5677-4b1f-95fb-37d89a97ca21",
+      "name": "Trả Data về UI"
+    },
+    {
+      "parameters": {
+        "content": "## LUỒNG 2: THÊM MỚI BÀI TOÁN TỪ GIAO DIỆN\nLưu vào Supabase với trạng thái 'queued'",
+        "height": 224,
+        "width": 640,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        304
+      ],
+      "id": "18f18346-11a3-4f5d-9990-c6305c4e621f",
+      "name": "Sticky Note 1"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "api/add-job",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        48,
+        368
+      ],
+      "id": "912d6ad5-f9a1-4351-8d15-b869b50756a1",
+      "name": "POST /add-job",
+      "webhookId": "11fa35ae-3637-4130-bfdf-51153e2c238c"
+    },
+    {
+      "parameters": {
+        "operation": "insert"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        240,
+        368
+      ],
+      "id": "37056bc2-5ac3-49b2-b905-d83fda48976a",
+      "name": "Tạo bài toán mới (queued)"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": true,\n  \"message\": \"Đã thêm bài toán vào hàng đợi thành công\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        448,
+        368
+      ],
+      "id": "bd56b8bd-417c-49e0-9919-566a49542f23",
+      "name": "Báo thành công"
+    },
+    {
+      "parameters": {
+        "content": "## LUỒNG 3: LUỒNG CHẠY AI CHÍNH\nCập nhật trạng thái -> Chạy AI -> Trả kết quả về DB",
+        "height": 420,
+        "width": 1080,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        608
+      ],
+      "id": "9b504154-60f2-4015-8205-cc65264f076e",
+      "name": "Sticky Note 2"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "api/run-ai",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        48,
+        768
+      ],
+      "id": "ce6698a3-1469-4acb-bbdd-f801248c087c",
+      "name": "Trigger: Chạy Bài Toán",
+      "webhookId": "c13b0ff1-6e25-4fdb-ad11-d5da9df916cc"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "ai_jobs",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.body.job_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "processing"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        240,
+        768
+      ],
+      "id": "b2a9b2f3-5b4a-479c-bd66-d4a838d279d5",
+      "name": "DB: Chuyển sang 'processing'"
+    },
+    {
+      "parameters": {
+        "content": "👉 KÉO & THẢ CỤM NODE AI CỦA BẠN VÀO ĐÂY\n(Parse Data -> Matrix Generator -> Gemini -> Xuất file Excel)\nĐầu vào: Thông tin bài toán từ DB.\nĐầu ra: Link file Testcase / Docs.",
+        "height": 180,
+        "width": 320,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        480,
+        704
+      ],
+      "id": "63869539-c74a-4611-84e0-960342f1ca51",
+      "name": "Sticky Note 3"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "ai_jobs",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Trigger: Chạy Bài Toán').item.json.body.job_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "completed"
+            },
+            {
+              "fieldId": "link_testcase",
+              "fieldValue": "={{ $json.link_ket_qua_excel }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        864,
+        704
+      ],
+      "id": "77319acb-f4c1-4f6a-83fb-1c70ba427551",
+      "name": "DB: Hoàn thành (completed)"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "ai_jobs",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Trigger: Chạy Bài Toán').item.json.body.job_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "failed"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        864,
+        880
+      ],
+      "id": "60847569-eee7-4a29-a798-2dd2f5875b5b",
+      "name": "DB: Lỗi (failed)"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "GET /api/jobs": {
+      "main": [
+        [
+          {
+            "node": "Lấy danh sách từ DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lấy danh sách từ DB": {
+      "main": [
+        [
+          {
+            "node": "Trả Data về UI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST /add-job": {
+      "main": [
+        [
+          {
+            "node": "Tạo bài toán mới (queued)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tạo bài toán mới (queued)": {
+      "main": [
+        [
+          {
+            "node": "Báo thành công",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger: Chạy Bài Toán": {
+      "main": [
+        [
+          {
+            "node": "DB: Chuyển sang 'processing'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "7c0490ea-1263-4606-9f25-4889f75ae12d",
+  "meta": {},
+  "id": "MIDG6NnTJyWJy0wI",
+  "tags": []
+}

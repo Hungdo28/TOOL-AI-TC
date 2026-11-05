@@ -1,0 +1,2748 @@
+// ================= KIỂM TRA ĐĂNG NHẬP & QUẢN LÝ PHIÊN =================
+const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // Thời hạn phiên: 7 ngày
+
+const currentUserJson = localStorage.getItem('currentUser');
+if (!currentUserJson) {
+    window.location.replace('login.html');
+}
+
+let currentUser = { role: 'viewer', fullName: 'Khách' };
+let hasValidSession = false;
+
+if (currentUserJson) {
+    try {
+        const parsedUser = JSON.parse(currentUserJson);
+        if (
+            !parsedUser
+            || typeof parsedUser !== 'object'
+            || typeof parsedUser.username !== 'string'
+            || !parsedUser.username.trim()
+            || !['admin', 'viewer'].includes(parsedUser.role)
+        ) {
+            throw new Error('Dữ liệu đăng nhập không hợp lệ');
+        }
+
+        const now = Date.now();
+        // Kiểm tra xem phiên đã hết hạn hay chưa
+        if (parsedUser.expiresAt && typeof parsedUser.expiresAt === 'number' && now > parsedUser.expiresAt) {
+            localStorage.removeItem('currentUser');
+            localStorage.removeItem('authToken');
+            window.location.replace('login.html?expired=1');
+        }
+
+        // Tương thích ngược: nếu phiên cũ chưa có expiresAt, gán hạn 7 ngày
+        if (!parsedUser.expiresAt) {
+            parsedUser.loggedInAt = now;
+            parsedUser.expiresAt = now + SESSION_DURATION_MS;
+            localStorage.setItem('currentUser', JSON.stringify(parsedUser));
+        }
+
+        currentUser = {
+            username: parsedUser.username.trim(),
+            role: parsedUser.role,
+            fullName: typeof parsedUser.fullName === 'string' ? parsedUser.fullName : parsedUser.username.trim(),
+            token: parsedUser.token || localStorage.getItem('authToken') || null,
+            loggedInAt: parsedUser.loggedInAt || now,
+            expiresAt: parsedUser.expiresAt
+        };
+        hasValidSession = true;
+    } catch (error) {
+        console.error('Không thể đọc thông tin đăng nhập:', error);
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem('authToken');
+        window.location.replace('login.html');
+    }
+}
+
+// Tự động gia hạn phiên làm việc khi người dùng tương tác (Rolling Renewal)
+function touchUserSession() {
+    try {
+        const raw = localStorage.getItem('currentUser');
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        const now = Date.now();
+        // Nếu thời hạn còn lại dưới 6 ngày (nghĩa là đã hoạt động được hơn 1 ngày), gia hạn lại đủ 7 ngày
+        if (parsed && parsed.expiresAt && (parsed.expiresAt - now < 6 * 24 * 60 * 60 * 1000)) {
+            parsed.expiresAt = now + SESSION_DURATION_MS;
+            localStorage.setItem('currentUser', JSON.stringify(parsed));
+            if (currentUser) currentUser.expiresAt = parsed.expiresAt;
+        }
+    } catch (e) {
+        console.warn('Không thể gia hạn phiên:', e);
+    }
+}
+
+let lastSessionTouchTime = 0;
+['click', 'keydown', 'scroll'].forEach((evtType) => {
+    window.addEventListener(evtType, () => {
+        const now = Date.now();
+        if (now - lastSessionTouchTime > 10 * 60 * 1000) { // Mỗi 10 phút kiểm tra gia hạn 1 lần
+            lastSessionTouchTime = now;
+            touchUserSession();
+        }
+    }, { passive: true });
+});
+
+// Khởi tạo Supabase để lấy danh sách User cho form Chuyển giao
+const SUPABASE_URL = 'https://zrwlzthteixjxdhsevkh.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_yA_P7i5OXAffRJwHx3hGvw_Wyo02_u3';
+let supabaseClient = null;
+if (window.supabase) {
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}
+
+// Hàm xử lý đăng xuất
+window.logout = function () {
+    if (confirm('Bạn có chắc chắn muốn thoát?')) {
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem('authToken');
+        window.location.replace('login.html');
+    }
+};
+
+function requireAdmin() {
+    if (currentUser.role === 'admin') return true;
+    alert('❌ Bạn không có quyền thực hiện thao tác này.');
+    return false;
+}
+
+// Hàm mã hóa an toàn chuỗi HTML dùng chung toàn ứng dụng
+function escapeHtml(value = '') {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+window.escapeHtml = escapeHtml;
+
+// Thuật toán sắp xếp tự nhiên theo thứ tự số cho testcase ([TC]_1 -> [TC]_178 hoặc TC_01 -> TC_99)
+const testcaseCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+
+function extractTestcaseSortKey(item) {
+    if (!item) return { code: '', num: null, raw: '' };
+    const content = item.content || {};
+    const code = String(content.id || content.ma_testcase || content.ma || item.id || '').trim();
+    const numMatch = code.match(/\d+/);
+    const num = numMatch ? parseInt(numMatch[0], 10) : null;
+    return {
+        code,
+        num,
+        raw: String(content.muc_dich || item.test_suite || '')
+    };
+}
+
+function compareTestcaseOrder(a, b, ascending = true) {
+    const keyA = extractTestcaseSortKey(a);
+    const keyB = extractTestcaseSortKey(b);
+    let diff = 0;
+
+    if (keyA.code && keyB.code) {
+        const prefixA = keyA.code.replace(/\d+.*$/, '').trim();
+        const prefixB = keyB.code.replace(/\d+.*$/, '').trim();
+
+        if (prefixA === prefixB && keyA.num !== null && keyB.num !== null && keyA.num !== keyB.num) {
+            diff = keyA.num - keyB.num;
+        } else {
+            diff = testcaseCollator.compare(keyA.code, keyB.code);
+        }
+    } else if (keyA.code) {
+        diff = -1;
+    } else if (keyB.code) {
+        diff = 1;
+    } else {
+        diff = testcaseCollator.compare(keyA.raw, keyB.raw);
+    }
+
+    return ascending ? diff : -diff;
+}
+window.compareTestcaseOrder = compareTestcaseOrder;
+
+// ================= CẤU HÌNH API =================
+const BACKEND_API_BASE = (
+    window.AUTO_TC_API_BASE ||
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+        ? 'http://localhost:8088/api'
+        : 'https://tool-ai-tc.onrender.com/api')
+).replace(/\/$/, '');
+const URL_GET_LIST = `${BACKEND_API_BASE}/tasks`;
+const URL_POST_RUN = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/luong-chuc-nang';
+const URL_POST_ADD = `${BACKEND_API_BASE}/tasks`;
+const URL_POST_EDIT = `${BACKEND_API_BASE}/tasks`;
+const URL_POST_DELETE = `${BACKEND_API_BASE}/tasks`;
+const URL_POST_UPDATE_STATUS = `${BACKEND_API_BASE}/tasks/status`;
+const URL_POST_TRANSFER = `${BACKEND_API_BASE}/tasks/assignee`;
+const URL_POST_EXECUTIONS = `${BACKEND_API_BASE}/tasks/executions`;
+const REQUEST_TIMEOUT_MS = 30000;
+const PROCESSING_POLL_INTERVAL_MS = 2 * 60 * 1000;
+const SHARED_STATUS_REFRESH_INTERVAL_MS = 30 * 1000;
+const MAX_POLL_RETRY_INTERVAL_MS = 10 * 60 * 1000;
+const PROCESSING_TIMEOUT_MS = 60 * 60 * 1000;
+const RUN_REQUEST_TIMEOUT_MS = PROCESSING_TIMEOUT_MS;
+const MAX_PERSISTED_PROCESSING_AGE_MS = 24 * 60 * 60 * 1000;
+const EXECUTION_STORAGE_VERSION = 1;
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
+const MAX_TOTAL_FILE_SIZE = 50 * 1024 * 1024;
+const ALLOWED_FILE_EXTENSIONS = new Set(['doc', 'docx', 'xls', 'xlsx', 'pdf', 'txt']);
+
+function getBackendHeaders(json = false) {
+    const headers = {};
+    const token = (currentUser && currentUser.token) || localStorage.getItem('authToken');
+    if (token) {
+        // Gửi Bearer token chuẩn bảo mật (không lộ username hay role thô trong Request Headers)
+        headers['Authorization'] = `Bearer ${token}`;
+    } else {
+        // Dự phòng tương thích nếu chưa kịp cấp JWT token
+        if (currentUser && currentUser.username) headers['X-User-Name'] = currentUser.username;
+        if (currentUser && currentUser.role) headers['X-User-Role'] = currentUser.role;
+    }
+    if (json) headers['Content-Type'] = 'application/json';
+    return headers;
+}
+
+// Tự động xin cấp JWT token an toàn từ backend nếu phiên chưa có token
+async function ensureAuthToken() {
+    const existingToken = (currentUser && currentUser.token) || localStorage.getItem('authToken');
+    if (existingToken) return existingToken;
+    if (!currentUser || !currentUser.username) return null;
+
+    try {
+        const resp = await fetch(`${BACKEND_API_BASE}/auth/token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: currentUser.username })
+        });
+        if (resp.ok) {
+            const data = await resp.json();
+            if (data && data.token) {
+                currentUser.token = data.token;
+                localStorage.setItem('authToken', data.token);
+                const raw = localStorage.getItem('currentUser');
+                if (raw) {
+                    try {
+                        const parsed = JSON.parse(raw);
+                        parsed.token = data.token;
+                        localStorage.setItem('currentUser', JSON.stringify(parsed));
+                    } catch (_) {}
+                }
+                return data.token;
+            }
+        }
+    } catch (e) {
+        console.warn('Không thể tự động cấp JWT token:', e);
+    }
+    return null;
+}
+
+
+let dataRows = [];
+let addMode = 'manual';
+let pollingTimer = null;
+let pollingInProgress = false;
+let pollingFailureCount = 0;
+let processingTasks = [];
+let taskStartTime = {};
+let runContextByTask = {};
+let testcaseReviewQueue = [];
+let activeTestcaseReview = null;
+let taskExecutionInfo = {};
+let elapsedTimeTimer = null;
+let toastTimer = null;
+
+// Bien luu trang thai task can dung (dung cho stop modal)
+let stopStreamContext = null; // { taskName, requestId }
+
+function getExecutionStorageKey() {
+    return `autotc:processing:${currentUser.username || 'anonymous'}`;
+}
+
+function persistProcessingState() {
+    if (!hasValidSession) return;
+
+    try {
+        if (processingTasks.length === 0) {
+            localStorage.removeItem(getExecutionStorageKey());
+            return;
+        }
+
+        localStorage.setItem(getExecutionStorageKey(), JSON.stringify({
+            version: EXECUTION_STORAGE_VERSION,
+            savedAt: Date.now(),
+            processingTasks,
+            taskStartTime,
+            runContextByTask,
+            taskExecutionInfo
+        }));
+    } catch (error) {
+        console.warn('Không thể lưu trạng thái task đang chạy:', error);
+    }
+}
+
+function restoreProcessingState() {
+    if (!hasValidSession) return 0;
+
+    try {
+        const rawState = localStorage.getItem(getExecutionStorageKey());
+        if (!rawState) return 0;
+
+        const state = JSON.parse(rawState);
+        if (state?.version !== EXECUTION_STORAGE_VERSION || !Array.isArray(state.processingTasks)) {
+            localStorage.removeItem(getExecutionStorageKey());
+            return 0;
+        }
+
+        const now = Date.now();
+        const restoredTasks = [...new Set(state.processingTasks)]
+            .filter(taskName => typeof taskName === 'string' && taskName.trim())
+            .filter(taskName => {
+                const startedAt = Number(state.taskStartTime?.[taskName]);
+                return Number.isFinite(startedAt) && now - startedAt <= MAX_PERSISTED_PROCESSING_AGE_MS;
+            });
+
+        processingTasks = restoredTasks;
+        taskStartTime = Object.fromEntries(restoredTasks.map(taskName => [
+            taskName,
+            Number(state.taskStartTime[taskName])
+        ]));
+        runContextByTask = Object.fromEntries(restoredTasks
+            .filter(taskName => state.runContextByTask?.[taskName])
+            .map(taskName => [taskName, state.runContextByTask[taskName]]));
+        taskExecutionInfo = Object.fromEntries(restoredTasks
+            .filter(taskName => state.taskExecutionInfo?.[taskName])
+            .map(taskName => [taskName, state.taskExecutionInfo[taskName]]));
+
+        persistProcessingState();
+        return restoredTasks.length;
+    } catch (error) {
+        console.warn('Không thể khôi phục trạng thái task đang chạy:', error);
+        localStorage.removeItem(getExecutionStorageKey());
+        return 0;
+    }
+}
+
+function createRequestId() {
+    if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+    return `run-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function formatElapsedTime(startTime) {
+    const elapsedSeconds = Math.max(0, Math.floor((Date.now() - startTime) / 1000));
+    const hours = Math.floor(elapsedSeconds / 3600);
+    const minutes = Math.floor((elapsedSeconds % 3600) / 60);
+    const seconds = elapsedSeconds % 60;
+
+    return hours > 0
+        ? `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+        : `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+function updateRunningTaskTimers() {
+    document.querySelectorAll('.task-elapsed-time').forEach(element => {
+        const startTime = taskStartTime[element.dataset.taskName];
+        if (startTime) element.textContent = formatElapsedTime(startTime);
+    });
+
+    if (processingTasks.length === 0 && elapsedTimeTimer) {
+        clearInterval(elapsedTimeTimer);
+        elapsedTimeTimer = null;
+    }
+}
+
+function startElapsedTimeUpdates() {
+    updateRunningTaskTimers();
+    if (!elapsedTimeTimer) {
+        elapsedTimeTimer = setInterval(updateRunningTaskTimers, 1000);
+    }
+}
+
+function showToast(message, type = 'info', durationMs) {
+    const toast = document.getElementById('appToast');
+    const toastMessage = document.getElementById('appToastMessage');
+    if (!toast || !toastMessage) return;
+
+    const stylesByType = {
+        success: ['border-emerald-200', 'bg-emerald-50', 'text-emerald-800'],
+        error: ['border-red-200', 'bg-red-50', 'text-red-800'],
+        warning: ['border-amber-200', 'bg-amber-50', 'text-amber-800'],
+        info: ['border-blue-200', 'bg-blue-50', 'text-blue-800']
+    };
+    const colorClasses = stylesByType[type] || stylesByType.info;
+    const visibleDuration = durationMs ?? (type === 'error' ? null : 6000);
+
+    toast.className = `fixed top-5 left-5 right-5 sm:left-auto sm:w-full z-[80] max-w-sm rounded-xl border shadow-lg px-4 py-3 transition-all ${colorClasses.join(' ')}`;
+    toastMessage.textContent = message;
+    toast.classList.remove('hidden');
+    toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    toast.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = null;
+    if (Number.isFinite(visibleDuration) && visibleDuration > 0) {
+        toastTimer = setTimeout(() => {
+            toast.classList.add('hidden');
+            toastTimer = null;
+        }, visibleDuration);
+    }
+}
+
+window.hideAppToast = function () {
+    const toast = document.getElementById('appToast');
+    if (toast) toast.classList.add('hidden');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = null;
+};
+
+function showResultPopup(message, type = 'success') {
+    const popup = document.getElementById('resultPopup');
+    const title = document.getElementById('resultPopupTitle');
+    const messageElement = document.getElementById('resultPopupMessage');
+    const icon = document.getElementById('resultPopupIcon');
+    if (!popup || !title || !messageElement || !icon) return;
+
+    const isSuccess = type === 'success';
+    document.getElementById('loadingOverlay')?.classList.add('hidden');
+    title.textContent = isSuccess ? 'Thành công' : 'Có lỗi xảy ra';
+    messageElement.textContent = message;
+    icon.className = `mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full ${isSuccess ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'
+        }`;
+    icon.innerHTML = `<i data-lucide="${isSuccess ? 'check-circle-2' : 'circle-alert'}" class="h-7 w-7"></i>`;
+    popup.classList.remove('hidden');
+    popup.classList.add('flex');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+window.closeResultPopup = function () {
+    const popup = document.getElementById('resultPopup');
+    if (!popup) return;
+    popup.classList.add('hidden');
+    popup.classList.remove('flex');
+};
+
+function showRunError(message) {
+    showToast(message, 'error');
+
+    if (
+        document.hidden
+        && 'Notification' in window
+        && Notification.permission === 'granted'
+    ) {
+        new Notification('Luồng xử lý bị lỗi', {
+            body: message,
+            tag: 'autotc-run-error'
+        });
+    }
+}
+
+function notifyTaskResult(title, message, type = 'info') {
+    showToast(`${title}: ${message}`, type);
+
+    if (
+        document.hidden
+        && 'Notification' in window
+        && Notification.permission === 'granted'
+    ) {
+        new Notification(title, { body: message, tag: 'autotc-task-result' });
+    }
+}
+
+async function syncExecutionMetadataFromResponse(response, taskNames) {
+    try {
+        const responseBody = await response.clone().json();
+        const data = Array.isArray(responseBody) ? responseBody[0] : responseBody;
+        if (!data || typeof data !== 'object') return;
+
+        const executionId = data.executionId || data.execution_id || data.execution?.id || '';
+        const startedAtValue = data.startedAt || data.started_at || data.execution?.startedAt || '';
+        const n8nStartedAt = Date.parse(startedAtValue);
+
+        taskNames.forEach(taskName => {
+            taskExecutionInfo[taskName] = {
+                ...taskExecutionInfo[taskName],
+                executionId: executionId || taskExecutionInfo[taskName]?.executionId || '',
+                startedAt: startedAtValue || taskExecutionInfo[taskName]?.startedAt || ''
+            };
+            if (Number.isFinite(n8nStartedAt)) taskStartTime[taskName] = n8nStartedAt;
+        });
+        persistProcessingState();
+        updateRunningTaskTimers();
+    } catch (_) {
+        // Webhook cũ không trả JSON metadata: tiếp tục dùng giờ bắt đầu tại frontend.
+    }
+}
+
+async function registerRunningTasks(taskNames, requestId) {
+    const response = await fetchWithTimeout(URL_POST_EXECUTIONS, {
+        method: 'POST',
+        headers: getBackendHeaders(true),
+        body: JSON.stringify({ taskNames, requestId })
+    });
+    const responseData = await readApiResponse(response);
+    if (!response.ok || responseData.data?.success === false) {
+        throw new Error(responseData.message || 'Không thể đồng bộ trạng thái đang chạy.');
+    }
+
+    const executions = responseData.data?.data || responseData.data?.executions || [];
+    executions.forEach(execution => {
+        const startedAt = Date.parse(execution.startedAt);
+        if (execution.taskName && Number.isFinite(startedAt)) {
+            taskStartTime[execution.taskName] = startedAt;
+            taskExecutionInfo[execution.taskName] = {
+                ...taskExecutionInfo[execution.taskName],
+                requestId: execution.requestId || requestId,
+                startedAt: execution.startedAt
+            };
+        }
+    });
+}
+
+async function unregisterRunningTasks(taskNames, requestId) {
+    try {
+        await fetchWithTimeout(URL_POST_EXECUTIONS, {
+            method: 'DELETE',
+            headers: getBackendHeaders(true),
+            body: JSON.stringify({ taskNames, requestId })
+        });
+    } catch (_) {
+        // Nếu backend mất kết nối, lần tải danh sách sau vẫn tự dọn khi n8n cập nhật trạng thái.
+    }
+}
+
+function syncRunningTasksFromServer(rows) {
+    const activeServerTasks = new Set();
+    rows.forEach(row => {
+        const taskName = getColVal(row, 'Bài toán');
+        const execution = row._execution;
+        const startedAt = Date.parse(execution?.startedAt || '');
+        if (!taskName || !execution?.requestId || !Number.isFinite(startedAt)) return;
+
+        activeServerTasks.add(taskName);
+        if (!processingTasks.includes(taskName)) processingTasks.push(taskName);
+        taskStartTime[taskName] = startedAt;
+        taskExecutionInfo[taskName] = {
+            ...taskExecutionInfo[taskName],
+            requestId: execution.requestId,
+            startedAt: execution.startedAt
+        };
+    });
+
+    processingTasks = processingTasks.filter(taskName => {
+        const row = rows.find(item => getColVal(item, 'Bài toán') === taskName);
+        const status = String(getColVal(row, 'Trạng thái') || '').toLowerCase();
+        const isTerminal = status === 'đã xong' || status.includes('lỗi') || status.includes('thất bại') || status.includes('error');
+        // Với task do chính phiên này khởi chạy, polling cần nhìn thấy trạng thái
+        // hoàn tất trước để mở popup review testcase. Chỉ tự dọn task đồng bộ từ
+        // phiên khác (không có run context) tại đây.
+        const shouldKeep = activeServerTasks.has(taskName)
+            || !isTerminal
+            || Boolean(runContextByTask[taskName]);
+        if (!shouldKeep) {
+            delete taskStartTime[taskName];
+            delete taskExecutionInfo[taskName];
+            delete runContextByTask[taskName];
+        }
+        return shouldKeep;
+    });
+
+    if (processingTasks.length > 0) {
+        persistProcessingState();
+        startElapsedTimeUpdates();
+        startPollingIfNeeded();
+    }
+}
+
+async function readApiResponse(response) {
+    try {
+        const responseBody = await response.clone().json();
+        const data = Array.isArray(responseBody) ? responseBody[0] : responseBody;
+        const nestedError = data?.error;
+
+        return {
+            data,
+            message: data?.message
+                || (typeof nestedError === 'string' ? nestedError : nestedError?.message)
+                || ''
+        };
+    } catch (_) {
+        try {
+            return { data: null, message: (await response.clone().text()).trim() };
+        } catch (_) {
+            return { data: null, message: '' };
+        }
+    }
+}
+
+async function showActionResponse(response, successMessage, errorMessage) {
+    const responseData = await readApiResponse(response);
+    const succeeded = response.ok && responseData.data?.success !== false;
+    showResultPopup(
+        responseData.message || (succeeded ? successMessage : errorMessage),
+        succeeded ? 'success' : 'error'
+    );
+    return { succeeded, data: responseData.data };
+}
+
+function startPollingIfNeeded(runOnce = false) {
+    if (processingTasks.length === 0) return;
+
+    if (runOnce && pollingTimer) {
+        clearTimeout(pollingTimer);
+        pollingTimer = null;
+    }
+
+    if (pollingTimer || pollingInProgress) return;
+
+    const poll = async () => {
+        pollingTimer = null;
+        if (processingTasks.length === 0) return;
+
+        pollingInProgress = true;
+        let loadedSuccessfully = false;
+
+        try {
+            loadedSuccessfully = await loadData();
+            if (!loadedSuccessfully) {
+                pollingFailureCount += 1;
+                if (pollingFailureCount === 3) {
+                    showToast('Tạm thời chưa kết nối được backend. Hệ thống vẫn đang tự thử lại.', 'warning', 10000);
+                }
+                return;
+            }
+
+            pollingFailureCount = 0;
+            const now = Date.now();
+            const newlyFinished = [];
+            const newlyErrored = [];
+            const newlyTimeout = [];
+
+            processingTasks.forEach(tenBaiToan => {
+                const row = dataRows.find(r => getColVal(r, 'Bài toán') === tenBaiToan);
+                const elapsed = now - (taskStartTime[tenBaiToan] || now);
+
+                if (!row) {
+                    if (elapsed > PROCESSING_TIMEOUT_MS) newlyTimeout.push(tenBaiToan);
+                    return;
+                }
+
+                const currentStatus = getColVal(row, 'Trạng thái') || '';
+                const normalizedStatus = currentStatus.toLowerCase();
+                const isDone = currentStatus === 'Đã xong' || currentStatus === 'Chờ duyệt';
+                const isError = normalizedStatus.includes('lỗi')
+                    || normalizedStatus.includes('thất bại')
+                    || normalizedStatus.includes('error');
+
+                if (isDone) {
+                    newlyFinished.push(tenBaiToan);
+                } else if (isError) {
+                    newlyErrored.push({ ten: tenBaiToan, status: currentStatus });
+                } else if (elapsed > PROCESSING_TIMEOUT_MS) {
+                    newlyTimeout.push(tenBaiToan);
+                }
+            });
+
+            const toRemove = [...newlyFinished, ...newlyErrored.map(item => item.ten), ...newlyTimeout];
+            if (toRemove.length === 0) return;
+
+            processingTasks = processingTasks.filter(taskName => !toRemove.includes(taskName));
+            toRemove.forEach(taskName => {
+                delete taskStartTime[taskName];
+                delete taskExecutionInfo[taskName];
+            });
+            const resultMessages = [];
+
+            if (newlyFinished.length > 0) {
+                const tasksNeedingReview = newlyFinished.filter(taskName => runContextByTask[taskName]?.requiresTestcaseReview);
+                const tasksWithoutReview = newlyFinished.filter(taskName => !tasksNeedingReview.includes(taskName));
+
+                tasksNeedingReview.forEach(queueTestcaseReview);
+                tasksWithoutReview.forEach(taskName => delete runContextByTask[taskName]);
+                resultMessages.push(`Hoàn thành: ${newlyFinished.join(', ')}`);
+            }
+
+            if (newlyErrored.length > 0) {
+                const errorMessage = newlyErrored.map(item => `${item.ten}: ${item.status}`).join('; ');
+                resultMessages.push(`Lỗi: ${errorMessage}`);
+            }
+
+            if (newlyTimeout.length > 0) {
+                resultMessages.push(`Quá 60 phút: ${newlyTimeout.join(', ')}`);
+            }
+
+            [...newlyErrored.map(item => item.ten), ...newlyTimeout]
+                .forEach(taskName => delete runContextByTask[taskName]);
+            const resultType = newlyErrored.length > 0
+                ? 'error'
+                : (newlyTimeout.length > 0 ? 'warning' : 'success');
+            notifyTaskResult('Cập nhật xử lý', resultMessages.join(' | '), resultType);
+            persistProcessingState();
+            renderTable();
+        } catch (error) {
+            pollingFailureCount += 1;
+            console.error('Lỗi khi kiểm tra trạng thái task:', error);
+        } finally {
+            pollingInProgress = false;
+            if (processingTasks.length > 0) {
+                const retryMultiplier = Math.max(1, 2 ** Math.max(0, pollingFailureCount - 1));
+                const nextPollDelay = loadedSuccessfully
+                    ? PROCESSING_POLL_INTERVAL_MS
+                    : Math.min(PROCESSING_POLL_INTERVAL_MS * retryMultiplier, MAX_POLL_RETRY_INTERVAL_MS);
+                pollingTimer = setTimeout(poll, nextPollDelay);
+            }
+        }
+    };
+
+    if (runOnce) return poll();
+    pollingTimer = setTimeout(poll, PROCESSING_POLL_INTERVAL_MS);
+}
+
+async function refreshDataManually() {
+    if (processingTasks.length > 0) {
+        await startPollingIfNeeded(true);
+    } else {
+        await loadData();
+    }
+}
+
+const getColVal = (row, colName) => {
+    if (!row || typeof row !== 'object') return '';
+    const key = Object.keys(row).find(k => k.trim() === colName);
+    return key && row[key] ? row[key] : '';
+};
+
+function isValidHttpUrl(value) {
+    try {
+        const parsedUrl = new URL(String(value).trim());
+        return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:';
+    } catch (_) {
+        return false;
+    }
+}
+
+function splitHttpLinks(value) {
+    if (!value) return [];
+    return String(value)
+        .split(/[\n\s]+/)
+        .map(url => url.trim())
+        .filter(isValidHttpUrl);
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+        return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+
+function setAddMode(mode) {
+    addMode = mode;
+
+    const manualBox = document.getElementById('manualUrlBox');
+    const importBox = document.getElementById('importFileBox');
+    const btnManual = document.getElementById('btnManualMode');
+    const btnImport = document.getElementById('btnImportMode');
+
+    if (mode === 'manual') {
+        manualBox.classList.remove('hidden');
+        importBox.classList.add('hidden');
+
+        btnManual.className = 'px-3 py-2 rounded-xl bg-blue-600 text-white text-sm font-bold transition';
+        btnImport.className = 'px-3 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-bold transition';
+    } else {
+        manualBox.classList.add('hidden');
+        importBox.classList.remove('hidden');
+
+        btnManual.className = 'px-3 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-bold transition';
+        btnImport.className = 'px-3 py-2 rounded-xl bg-blue-600 text-white text-sm font-bold transition';
+    }
+}
+
+function resetAddForm() {
+    document.getElementById('formAddDoc').reset();
+
+    document.getElementById('addUrlContainer').innerHTML = `
+            <input
+                type="url"
+                class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition add-url-input-item"
+                placeholder="https://docs.google.com/..."
+            >
+        `;
+
+    setAddMode('manual');
+}
+
+// 1. TẢI DỮ LIỆU & RENDER BẢNG
+async function loadData(silent = false) {
+    const tbody = document.getElementById('tableBody');
+
+    if (!pollingInProgress && !silent) {
+        tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-10 text-center text-slate-500"><div class="flex flex-col items-center gap-2"><i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i> Đang tải dữ liệu...</div></td></tr>';
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    try {
+        const res = await fetchWithTimeout(URL_GET_LIST + '?t=' + new Date().getTime(), {
+            headers: getBackendHeaders()
+        });
+        if (!res.ok) throw new Error('Network error');
+
+        const responseData = await res.json();
+        if (!Array.isArray(responseData)) {
+            throw new Error('Dữ liệu danh sách từ backend không hợp lệ');
+        }
+
+        dataRows = responseData.slice().sort((a, b) => {
+            const idA = parseInt(a.ID || a.id || 0, 10);
+            const idB = parseInt(b.ID || b.id || 0, 10);
+            if (!isNaN(idA) && !isNaN(idB) && idA !== idB) return idA - idB;
+            return String(a.ID || '').localeCompare(String(b.ID || ''), undefined, { numeric: true });
+        });
+        syncRunningTasksFromServer(dataRows);
+        renderTable();
+        return true;
+    } catch (err) {
+        console.error(err);
+        if (!pollingInProgress && !silent) {
+            tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-10 text-center text-red-500"><div class="flex flex-col items-center gap-2"><i data-lucide="alert-circle" class="w-5 h-5"></i> Lỗi kết nối backend.</div></td></tr>`;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+        return false;
+    }
+}
+
+function renderTable() {
+    const tbody = document.getElementById('tableBody');
+    tbody.innerHTML = '';
+
+    let displayRows = dataRows;
+
+    // Nếu không phải admin, chỉ lấy các bài toán của người làm đó
+    if (currentUser.role !== 'admin') {
+        displayRows = dataRows.filter(row => {
+            const creator = getColVal(row, 'Người làm') || getColVal(row, 'Username') || getColVal(row, 'Tài khoản');
+            return String(creator).trim() === currentUser.username;
+        });
+    }
+
+    if (!Array.isArray(displayRows) || displayRows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-10 text-center">Không có dữ liệu</td></tr>';
+        return;
+    }
+
+    const tableRowsHtml = displayRows.map(row => {
+        const originalIndex = dataRows.indexOf(row);
+        const ten = getColVal(row, 'Bài toán') || '-';
+        const nguoiLam = getColVal(row, 'Người làm') || getColVal(row, 'Username') || getColVal(row, 'Tài khoản') || '-';
+        let trangThai = getColVal(row, 'Trạng thái') || 'Chưa làm';
+        const urlGoc = getColVal(row, 'URL');
+        const linkTC = getColVal(row, 'Link Testcase');
+        const linkPT = getColVal(row, 'Link tài liệu phân tích');
+
+        const isErrorStatus = trangThai.toLowerCase().includes('lỗi') || trangThai.toLowerCase().includes('thất bại') || trangThai.toLowerCase().includes('error');
+        const isDone = trangThai === 'Đã xong';
+        const isActivelyProcessing = processingTasks.includes(ten);
+
+        if (isActivelyProcessing) {
+            trangThai = 'Đang xử lý AI...';
+        }
+
+        // Tim requestId cua task nay (de truyen vao stop modal)
+        const taskReqId = taskExecutionInfo[ten]?.requestId || '';
+
+        const escapeHtml = (value = '') => {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        };
+
+        const shortenText = (text = '', maxLength = 28) => {
+            const clean = String(text).trim();
+            if (!clean) return '';
+            return clean.length > maxLength ? clean.slice(0, maxLength - 1) + '…' : clean;
+        };
+
+        const getLinkIcon = (url = '', type = '') => {
+            const lowerUrl = String(url).toLowerCase();
+            if (type === 'testcase' || lowerUrl.includes('spreadsheets')) return '<i data-lucide="table" class="w-4 h-4 text-emerald-600"></i>';
+            if (type === 'analysis') return '<i data-lucide="file-text" class="w-4 h-4 text-blue-600"></i>';
+            if (lowerUrl.includes('figma.com')) return '<i data-lucide="figma" class="w-4 h-4 text-purple-600"></i>';
+            if (lowerUrl.includes('document')) return '<i data-lucide="file-text" class="w-4 h-4 text-blue-600"></i>';
+            return '<i data-lucide="link" class="w-4 h-4 text-slate-400"></i>';
+        };
+
+        const getLinkPrefix = (type = 'source', order = 1) => {
+            if (type === 'testcase') return order > 1 ? `TC ${order}` : 'TC';
+            if (type === 'analysis') return order > 1 ? `PT ${order}` : 'PT';
+            return '';
+        };
+
+        const makeLink = (linkStr, tenBaiToan, type = 'source') => {
+            const urls = splitHttpLinks(linkStr);
+
+            if (urls.length === 0) {
+                if (type === 'testcase' && trangThai === 'Chờ duyệt') {
+                    return '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">⏳ Chờ duyệt để tạo Sheet</span>';
+                }
+                return '<span class="text-slate-400 italic">Trống</span>';
+            }
+
+            const shortTaskName = shortenText(tenBaiToan || 'Tài liệu', 26);
+
+            return `<div class="flex flex-col gap-2 items-center">` + urls.map((url, linkIndex) => {
+                const cleanUrl = url.trim();
+                const icon = getLinkIcon(cleanUrl, type);
+                const prefix = getLinkPrefix(type, linkIndex + 1);
+                const label = prefix ? `${prefix} - ${shortTaskName}` : shortTaskName;
+                const title = `${prefix ? prefix + ' - ' : ''}${tenBaiToan || 'Tài liệu'}\n${cleanUrl}`;
+
+                return `
+                        <div class="flex items-center gap-1.5">
+                            <a href="${escapeHtml(cleanUrl)}"
+                               target="_blank"
+                               rel="noopener noreferrer"
+                               title="${escapeHtml(title)}"
+                               class="inline-flex max-w-[220px] items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200/80 hover:border-blue-300 hover:bg-blue-50/50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-300 text-xs font-semibold text-slate-700">
+                                <span class="shrink-0 text-sm">${icon}</span>
+                                <span class="truncate">${escapeHtml(label)}</span>
+                            </a>
+                        </div>`;
+            }).join('') + `</div>`;
+        };
+
+        return `
+            <tr class="hover:bg-blue-50/30 transition-all duration-300 border-b border-slate-100 group">
+                <td class="px-4 py-5 align-top text-center">
+                    <div class="inline-flex items-center justify-center p-1 rounded-lg transition-colors group-hover:bg-blue-100/50">
+                        <input type="checkbox" class="task-checkbox w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition-all" value="${escapeHtml(ten)}">
+                    </div>
+                </td>
+
+                <td class="px-4 py-5 align-top font-bold text-slate-800 text-[13px] leading-relaxed">${escapeHtml(ten)}</td>
+
+                <td class="px-4 py-5 align-top text-slate-600 font-medium text-xs">
+                    <div class="inline-flex items-center gap-1.5 px-2 py-1 bg-slate-100 rounded-md">
+                        <i data-lucide="user" class="w-3 h-3 text-slate-500"></i>
+                        ${escapeHtml(nguoiLam)}
+                    </div>
+                </td>
+
+                <td class="px-4 py-5 align-top">
+                    ${isActivelyProcessing
+                ? `<span
+                    onclick="openStopStreamModal('${escapeHtml(ten)}', '${escapeHtml(taskReqId)}')"
+                    class="relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-600 border border-blue-100 shadow-sm cursor-pointer hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all duration-200 group/spin"
+                    title="Bấm để dừng luồng AI này">
+                    <!-- Noi dung binh thuong (luon chiem khong gian) -->
+                    <i data-lucide="loader-2" class="w-3 h-3 animate-spin shrink-0 group-hover/spin:opacity-0 transition-opacity duration-150"></i>
+                    <span class="group-hover/spin:opacity-0 transition-opacity duration-150">Đang chạy</span>
+                    <span class="task-elapsed-time font-mono tabular-nums text-blue-800 group-hover/spin:opacity-0 transition-opacity duration-150" data-task-name="${escapeHtml(ten)}">${formatElapsedTime(taskStartTime[ten] || Date.now())}</span>
+                    <!-- Lop "Dung" hien len phia tren khi hover, khong lam thay doi kich thuoc -->
+                    <span class="absolute inset-0 flex items-center justify-center gap-1.5 opacity-0 group-hover/spin:opacity-100 transition-opacity duration-150 text-red-600 font-semibold text-xs rounded-lg">
+                        <i data-lucide="octagon-x" class="w-3 h-3 shrink-0"></i> Dừng
+                    </span>
+                   </span>`
+                : (currentUser.role === 'admin'
+                    ? `<select onchange="updateStatus(${originalIndex}, this.value)" class="px-3 py-1.5 text-xs rounded-lg border border-slate-200 cursor-pointer font-semibold outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm appearance-none pr-7 relative bg-no-repeat bg-right hover:border-blue-300 ${trangThai === 'Đã xong' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : (trangThai === 'Chờ duyệt' ? 'bg-amber-50 text-amber-700 border-amber-200' : (trangThai.toLowerCase().includes('lỗi') || trangThai.toLowerCase().includes('thất bại') || trangThai.toLowerCase().includes('error') ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-600'))}" style="background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2394a3b8%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E'); background-size: 8px; background-position: calc(100% - 8px) center;">
+                            <option value="Chưa làm" ${trangThai === 'Chưa làm' ? 'selected' : ''}>Chưa làm</option>
+                            <option value="Chờ duyệt" ${trangThai === 'Chờ duyệt' ? 'selected' : ''}>Chờ duyệt</option>
+                            <option value="Đã xong" ${trangThai === 'Đã xong' ? 'selected' : ''}>Đã xong</option>
+                            ${(trangThai !== 'Chưa làm' && trangThai !== 'Chờ duyệt' && trangThai !== 'Đã xong') ? `<option value="${escapeHtml(trangThai)}" selected>${escapeHtml(trangThai)}</option>` : ''}
+                        </select>`
+                    : `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm border ${trangThai === 'Đã xong' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : (trangThai === 'Chờ duyệt' ? 'bg-amber-50 text-amber-700 border-amber-200' : (trangThai.toLowerCase().includes('lỗi') || trangThai.toLowerCase().includes('thất bại') || trangThai.toLowerCase().includes('error') ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-600 border-slate-200'))}">${escapeHtml(trangThai)}</span>`)
+            }
+                </td>
+
+                <td class="px-4 py-5 align-top min-w-[220px] text-center">${makeLink(urlGoc, ten, 'source')}</td>
+                <td class="px-4 py-5 align-top min-w-[220px] text-center">${makeLink(linkTC, ten, 'testcase')}</td>
+                <td class="px-4 py-5 align-top min-w-[220px] text-center">${makeLink(linkPT, ten, 'analysis')}</td>
+
+                <!-- CỘT THAO TÁC -->
+                <td class="px-4 py-5 align-top min-w-[170px] text-center">
+                    <div class="flex items-center justify-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity duration-300">
+                        <button onclick="downloadSingleTaskFiles(${originalIndex})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-emerald-50 text-slate-600 hover:text-emerald-600 rounded-lg transition-all shadow-sm" title="Tải tài liệu"><i data-lucide="download" class="w-4 h-4"></i></button>
+                        <button onclick="runSingleTask(${originalIndex})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-blue-50 text-slate-600 hover:text-blue-600 rounded-lg transition-all shadow-sm" title="Chạy AI"><i data-lucide="play" class="w-4 h-4 fill-current"></i></button>
+                        ${currentUser.role === 'admin' ? `
+                        <button onclick="openTransferModal(${originalIndex})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-orange-50 text-slate-600 hover:text-orange-600 rounded-lg transition-all shadow-sm" title="Chuyển giao"><i data-lucide="send" class="w-4 h-4"></i></button>
+                        <button onclick="editDocument(${originalIndex})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-900 rounded-lg transition-all shadow-sm" title="Sửa"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
+                        <button onclick="deleteDocument(${originalIndex})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-red-50 text-slate-600 hover:text-red-600 rounded-lg transition-all shadow-sm" title="Xóa"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        ` : ''}
+                    </div>
+                </td>
+            </tr>`;
+    }).join('');
+
+    tbody.innerHTML = tableRowsHtml;
+
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+    updateRunningTaskTimers();
+}
+
+// 2. TÌM KIẾM BÀI TOÁN
+function searchTasks() {
+    const input = document.getElementById("searchInput").value.toLowerCase();
+    const tableBody = document.getElementById("tableBody");
+    const rows = tableBody.getElementsByTagName("tr");
+
+    for (let i = 0; i < rows.length; i++) {
+        if (rows[i].getElementsByTagName("td").length < 2) continue;
+
+        const tdName = rows[i].getElementsByTagName("td")[1];
+
+        if (tdName) {
+            const textValue = tdName.textContent || tdName.innerText;
+            rows[i].style.display = textValue.toLowerCase().indexOf(input) > -1 ? "" : "none";
+        }
+    }
+}
+
+// 3. THÊM TÀI LIỆU MỚI
+async function addDocument(e) {
+    e.preventDefault();
+
+    if (!requireAdmin()) return;
+
+    const btnAdd = document.getElementById('btnAdd');
+    btnAdd.innerText = 'Đang lưu...';
+    btnAdd.disabled = true;
+
+    try {
+        const tenBaiToan = document.getElementById('newTenBaiToan').value.trim();
+
+        if (!tenBaiToan) {
+            alert("❌ Vui lòng nhập tên bài toán!");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('baiToan', tenBaiToan);
+        formData.append('mode', addMode);
+        formData.append('username', currentUser.username); // Gửi thêm username để lưu trên DB/Google Sheet
+
+        if (addMode === 'manual') {
+            const urlInputs = document.querySelectorAll('.add-url-input-item');
+            const newUrlsArray = Array.from(urlInputs)
+                .map(input => input.value.trim())
+                .filter(val => val !== '');
+
+            if (newUrlsArray.length === 0) {
+                alert("❌ Vui lòng nhập ít nhất 1 link tài liệu!");
+                return;
+            }
+
+            if (newUrlsArray.some(url => !isValidHttpUrl(url))) {
+                alert("❌ Danh sách có URL không hợp lệ. Chỉ chấp nhận địa chỉ http hoặc https.");
+                return;
+            }
+
+            formData.append('urlGoc', newUrlsArray.join('\n'));
+        } else {
+            const files = document.getElementById('localFiles').files;
+
+            if (!files || files.length === 0) {
+                alert("❌ Vui lòng chọn ít nhất 1 file!");
+                return;
+            }
+
+            const invalidFile = Array.from(files).find(file => {
+                const extension = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : '';
+                return !ALLOWED_FILE_EXTENSIONS.has(extension) || file.size > MAX_FILE_SIZE;
+            });
+            const totalSize = Array.from(files).reduce((sum, file) => sum + file.size, 0);
+
+            if (invalidFile) {
+                alert(`❌ File "${invalidFile.name}" sai định dạng hoặc lớn hơn 20 MB.`);
+                return;
+            }
+            if (totalSize > MAX_TOTAL_FILE_SIZE) {
+                alert('❌ Tổng dung lượng file không được vượt quá 50 MB.');
+                return;
+            }
+
+            for (const file of files) {
+                formData.append('files', file);
+            }
+        }
+
+        const res = await fetchWithTimeout(URL_POST_ADD, {
+            method: 'POST',
+            headers: getBackendHeaders(false),
+            body: formData
+        }, 60000);
+
+        const result = await showActionResponse(
+            res,
+            'Đã thêm bài toán thành công.',
+            'Backend không thể thêm dữ liệu.'
+        );
+
+        if (result.succeeded) {
+            resetAddForm();
+            await loadData();
+        }
+    } catch (err) {
+        console.error(err);
+        showResultPopup('Không thể kết nối backend để thêm tài liệu.', 'error');
+    } finally {
+        btnAdd.innerText = 'Lưu bài toán';
+        btnAdd.disabled = false;
+    }
+}
+
+function addNewLinkInputForAdd() {
+    const container = document.getElementById('addUrlContainer');
+
+    const input = document.createElement('input');
+    input.type = 'url';
+    input.className = 'w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition add-url-input-item';
+    input.placeholder = 'https://...';
+
+    container.appendChild(input);
+}
+
+// 4. XÓA TÀI LIỆU
+async function deleteDocument(index) {
+    if (!requireAdmin()) return;
+
+    const row = dataRows[index];
+    const tenBaiToan = getColVal(row, 'Bài toán') || '';
+    const taskId = row.row_number;  // Backend luôn trả về row_number
+    if (!confirm(`⚠️ Anh có chắc chắn muốn xóa bài toán: "${tenBaiToan}" không? Hành động này không thể hoàn tác!`)) return;
+
+    document.getElementById('loadingText').innerText = 'Đang xóa...';
+    document.getElementById('loadingOverlay').classList.remove('hidden');
+
+    try {
+        const res = await fetchWithTimeout(URL_POST_DELETE, {
+            method: 'DELETE',
+            headers: getBackendHeaders(true),
+            body: JSON.stringify({ id: taskId })
+        });
+
+        const result = await showActionResponse(
+            res,
+            'Đã xóa bài toán thành công.',
+            'Backend không thể xóa dữ liệu.'
+        );
+
+        if (result.succeeded) {
+            await loadData();
+        }
+    } catch (err) {
+        showResultPopup('Lỗi mạng: Không thể kết nối backend để xóa.', 'error');
+    } finally {
+        document.getElementById('loadingOverlay').classList.add('hidden');
+    }
+}
+
+// ================= CHUYỂN GIAO BÀI TOÁN =================
+let currentTransferTask = '';
+
+async function openTransferModal(index) {
+    if (!requireAdmin()) return;
+
+    const row = dataRows[index];
+    currentTransferTask = getColVal(row, 'Bài toán') || '';
+
+    document.getElementById('transferTaskName').innerText = currentTransferTask;
+    document.getElementById('transferModal').classList.remove('hidden');
+
+    const select = document.getElementById('transferUserSelect');
+    select.innerHTML = '<option value="">Đang tải danh sách...</option>';
+    select.disabled = true;
+    document.getElementById('btnConfirmTransfer').disabled = true;
+
+    try {
+        if (!supabaseClient) throw new Error("Chưa khởi tạo Supabase");
+        const { data, error } = await supabaseClient.from('users').select('username, role');
+        if (error) throw error;
+
+        select.innerHTML = '<option value="">-- Chọn người nhận --</option>';
+        data.forEach(u => {
+            if (u.username !== currentUser.username) {
+                const opt = document.createElement('option');
+                opt.value = u.username;
+                opt.text = u.username;
+                select.appendChild(opt);
+            }
+        });
+        select.disabled = false;
+
+        select.onchange = function () {
+            document.getElementById('btnConfirmTransfer').disabled = !this.value;
+        };
+    } catch (err) {
+        console.error("Lỗi lấy user:", err);
+        select.replaceChildren();
+        const errorOption = document.createElement('option');
+        errorOption.value = '';
+        errorOption.textContent = `Lỗi: ${err.message || JSON.stringify(err)}`;
+        select.appendChild(errorOption);
+    }
+}
+
+function closeTransferModal() {
+    document.getElementById('transferModal').classList.add('hidden');
+}
+
+async function confirmTransfer() {
+    if (!requireAdmin()) return;
+
+    const select = document.getElementById('transferUserSelect');
+    const newUser = select.value;
+    if (!newUser) return;
+
+    closeTransferModal();
+    document.getElementById('loadingText').innerText = 'Đang chuyển giao...';
+    document.getElementById('loadingOverlay').classList.remove('hidden');
+
+    try {
+        const res = await fetchWithTimeout(URL_POST_TRANSFER, {
+            method: 'PATCH',
+            headers: getBackendHeaders(true),
+            body: JSON.stringify({
+                baiToan: currentTransferTask,
+                nguoiNhanMoi: newUser
+            })
+        });
+
+        const result = await showActionResponse(
+            res,
+            `Đã chuyển giao bài toán "${currentTransferTask}" cho ${newUser}.`,
+            'Backend không thể chuyển giao bài toán.'
+        );
+
+        if (result.succeeded) {
+            await loadData();
+        }
+    } catch (err) {
+        showResultPopup('Lỗi mạng: Không thể kết nối backend để chuyển giao.', 'error');
+    } finally {
+        document.getElementById('loadingOverlay').classList.add('hidden');
+    }
+}
+
+// 5. SỬA TÀI LIỆU
+let currentEditOldName = '';
+let currentEditOldUrl = '';
+
+function editDocument(index) {
+    if (!requireAdmin()) return;
+
+    const row = dataRows[index];
+
+    currentEditOldName = getColVal(row, 'Bài toán') || '';
+    currentEditOldUrl = getColVal(row, 'URL') || '';
+
+    document.getElementById('editTenBaiToan').value = currentEditOldName;
+
+    const urlContainer = document.getElementById('editUrlContainer');
+    urlContainer.innerHTML = '';
+
+    let urls = currentEditOldUrl.split(/[\n\s]+/).filter(url => url.trim().startsWith('http'));
+    if (urls.length === 0) urls = [''];
+
+    urls.forEach(url => addNewLinkInput(url));
+    document.getElementById('editModal').classList.remove('hidden');
+}
+
+function addNewLinkInput(value = '') {
+    const container = document.getElementById('editUrlContainer');
+
+    const input = document.createElement('input');
+    input.type = 'url';
+    input.value = value;
+    input.className = 'w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition url-input-item';
+    input.placeholder = 'https://...';
+
+    container.appendChild(input);
+}
+
+function closeEditModal() {
+    document.getElementById('editModal').classList.add('hidden');
+}
+
+document.getElementById('btnSaveEdit').onclick = async function () {
+    if (!requireAdmin()) return;
+
+    const newTen = document.getElementById('editTenBaiToan').value.trim();
+
+    const urlInputs = document.querySelectorAll('.url-input-item');
+    const newUrlsArray = Array.from(urlInputs)
+        .map(input => input.value.trim())
+        .filter(val => val !== '');
+
+    const newUrl = newUrlsArray.join('\n');
+
+    if (!newTen) {
+        alert("❌ Vui lòng nhập tên bài toán!");
+        return;
+    }
+
+    if (newUrlsArray.some(url => !isValidHttpUrl(url))) {
+        alert("❌ Danh sách có URL không hợp lệ. Chỉ chấp nhận địa chỉ http hoặc https.");
+        return;
+    }
+
+    if (newTen === currentEditOldName && newUrl === currentEditOldUrl) {
+        closeEditModal();
+        return;
+    }
+
+    closeEditModal();
+    document.getElementById('loadingText').innerText = 'Đang cập nhật...';
+    document.getElementById('loadingOverlay').classList.remove('hidden');
+
+    try {
+        const res = await fetchWithTimeout(URL_POST_EDIT, {
+            method: 'PUT',
+            headers: getBackendHeaders(true),
+            body: JSON.stringify({
+                oldBaiToan: currentEditOldName,
+                newBaiToan: newTen,
+                newUrl: newUrl
+            })
+        });
+
+        const result = await showActionResponse(
+            res,
+            'Đã cập nhật bài toán thành công.',
+            'Backend không thể cập nhật dữ liệu.'
+        );
+
+        if (result.succeeded) {
+            await loadData();
+        }
+    } catch (err) {
+        showResultPopup('Lỗi mạng: Không thể kết nối backend để sửa.', 'error');
+    } finally {
+        document.getElementById('loadingOverlay').classList.add('hidden');
+    }
+};
+
+// 6. MỞ MODAL CHẠY AI
+let currentRunMode = null; // 'single', 'multiple', 'phan_tich', 'testcase'
+let currentRunTask = null;
+let currentRunTasksList = [];
+const TESTCASE_REVIEW_SUGGESTIONS = [
+    {
+        id: 'negative',
+        label: 'Negative case',
+        prompt: 'Bổ sung ít nhất 5 negative testcase cho dữ liệu sai, thiếu dữ liệu và thao tác không hợp lệ.'
+    },
+    {
+        id: 'boundary',
+        label: 'Boundary',
+        prompt: 'Bổ sung các giá trị biên: nhỏ nhất, lớn nhất, ngay dưới biên, ngay trên biên và dữ liệu rỗng.'
+    },
+    {
+        id: 'permission',
+        label: 'Phân quyền',
+        prompt: 'Bổ sung testcase cho từng vai trò người dùng, trường hợp không có quyền và truy cập trái phép.'
+    },
+    {
+        id: 'exception',
+        label: 'Lỗi hệ thống',
+        prompt: 'Bổ sung testcase khi timeout, mất kết nối, API trả lỗi, dữ liệu không đồng bộ và người dùng thử lại.'
+    },
+    {
+        id: 'expected',
+        label: 'Expected Result',
+        prompt: 'Viết lại Expected Result cụ thể, đo lường và kiểm chứng được; tránh các mô tả chung chung như hoạt động đúng.'
+    },
+    {
+        id: 'duplicates',
+        label: 'Loại bỏ trùng lặp',
+        prompt: 'Rà soát và gộp các testcase trùng ý nghĩa, nhưng không làm mất phạm vi kiểm thử.'
+    },
+    {
+        id: 'full_regeneration',
+        label: 'Viết lại toàn bộ',
+        prompt: 'Viết lại toàn bộ bộ testcase theo một cấu trúc rõ ràng hơn, không chỉ bổ sung vài testcase vào kết quả cũ.'
+    }
+];
+let selectedTestcaseReviewSuggestions = new Set();
+
+function renderTestcaseReviewSuggestions() {
+    const container = document.getElementById('testcaseReviewSuggestions');
+    if (!container) return;
+
+    container.replaceChildren();
+    TESTCASE_REVIEW_SUGGESTIONS.forEach(suggestion => {
+        const isSelected = selectedTestcaseReviewSuggestions.has(suggestion.id);
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = isSelected
+            ? 'px-3 py-2 rounded-lg text-xs font-semibold border border-blue-300 bg-blue-50 text-blue-700 transition-all'
+            : 'px-3 py-2 rounded-lg text-xs font-semibold border border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 transition-all';
+        button.textContent = `${isSelected ? '✓ ' : '+ '}${suggestion.label}`;
+        button.setAttribute('aria-pressed', String(isSelected));
+        button.addEventListener('click', () => addTestcaseReviewSuggestion(suggestion.id));
+        container.appendChild(button);
+    });
+}
+
+function addTestcaseReviewSuggestion(suggestionId) {
+    if (selectedTestcaseReviewSuggestions.has(suggestionId)) return;
+
+    const suggestion = TESTCASE_REVIEW_SUGGESTIONS.find(item => item.id === suggestionId);
+    if (!suggestion) return;
+
+    const feedbackInput = document.getElementById('testcaseReviewFeedback');
+    const currentFeedback = feedbackInput.value.trim();
+    feedbackInput.value = `${currentFeedback}${currentFeedback ? '\n' : ''}- ${suggestion.prompt}`;
+    selectedTestcaseReviewSuggestions.add(suggestionId);
+    renderTestcaseReviewSuggestions();
+    feedbackInput.focus();
+}
+
+function clearTestcaseReviewSuggestions() {
+    selectedTestcaseReviewSuggestions.clear();
+    document.getElementById('testcaseReviewFeedback').value = '';
+    renderTestcaseReviewSuggestions();
+}
+
+function queueTestcaseReview(taskName) {
+    const row = dataRows.find(item => getColVal(item, 'Bài toán') === taskName);
+    const context = runContextByTask[taskName];
+    if (!context) return;
+
+    testcaseReviewQueue.push({
+        taskName,
+        testcaseUrls: splitHttpLinks(getColVal(row, 'Link Testcase')),
+        testcasePrompt: context.testcasePrompt || context.prompt2 || ''
+    });
+    openNextTestcaseReview();
+}
+
+// ================= QUẢN LÝ DUYỆT TESTCASE (TRỰC TIẾP TRÊN MODAL & TỰ ĐỘNG KHI CHẠY XONG) =================
+let modalTestcaseRows = [];
+let modalChoice = {};
+let currentModalFilter = 'all';
+let modalSearchQuery = '';
+let isModalMockMode = false;
+let modalSortAsc = true;
+
+function toggleModalSortOrder() {
+    modalSortAsc = !modalSortAsc;
+    const label = document.getElementById('modalSortOrderLabel');
+    if (label) {
+        label.textContent = modalSortAsc ? 'Thứ tự: Tăng dần' : 'Thứ tự: Giảm dần';
+    }
+    const icon = document.getElementById('modalSortOrderIcon');
+    if (icon) {
+        icon.setAttribute('data-lucide', modalSortAsc ? 'arrow-down-narrow-wide' : 'arrow-up-narrow-wide');
+    }
+    renderModalTestcaseCards();
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+window.toggleModalSortOrder = toggleModalSortOrder;
+
+function openNextTestcaseReview() {
+    if (activeTestcaseReview || testcaseReviewQueue.length === 0) return;
+
+    activeTestcaseReview = testcaseReviewQueue.shift();
+    openTestcaseReviewModalForTask(activeTestcaseReview.taskName);
+}
+
+function openTestcaseReviewModalForTask(taskName) {
+    if (!taskName) return;
+
+    const cleanTaskName = String(taskName).trim();
+    const row = dataRows.find(item => getColVal(item, 'Bài toán') === taskName || getColVal(item, 'Bài toán') === cleanTaskName);
+    const context = runContextByTask[taskName] || runContextByTask[cleanTaskName] || {};
+    const probId = (row && (row.id || row.problem_id)) || '';
+
+    activeTestcaseReview = {
+        taskName: cleanTaskName,
+        probId: probId,
+        testcaseUrls: splitHttpLinks(getColVal(row, 'Link Testcase')),
+        testcasePrompt: context.testcasePrompt || context.prompt2 || ''
+    };
+
+    // Cập nhật tiêu đề phụ phù hợp với ngữ cảnh
+    const subtitleEl = document.getElementById('testcaseReviewModalSubtitle');
+    if (subtitleEl) {
+        if (context.requiresTestcaseReview) {
+            subtitleEl.innerHTML = `AI vừa hoàn tất sinh testcase cho bài toán: <strong id="testcaseReviewTaskName" class="text-slate-900 font-bold">${escapeHtml(cleanTaskName)}</strong>.`;
+        } else {
+            subtitleEl.innerHTML = `Xem trước & Duyệt testcase cho bài toán: <strong id="testcaseReviewTaskName" class="text-slate-900 font-bold">${escapeHtml(cleanTaskName)}</strong>.`;
+        }
+    } else {
+        const nameEl = document.getElementById('testcaseReviewTaskName');
+        if (nameEl) nameEl.textContent = cleanTaskName;
+    }
+
+    // Đảm bảo thanh bộ lọc hiện lại nếu trước đó đã bị ẩn
+    const filterBar = document.getElementById('modalFilterTabs')?.closest('.bg-white');
+    if (filterBar) filterBar.classList.remove('hidden');
+
+    document.getElementById('testcaseReviewFeedback').value = '';
+    selectedTestcaseReviewSuggestions.clear();
+    renderTestcaseReviewSuggestions();
+
+    const linksContainer = document.getElementById('testcaseReviewLinks');
+    linksContainer.replaceChildren();
+
+    if (activeTestcaseReview.testcaseUrls.length > 0) {
+        activeTestcaseReview.testcaseUrls.forEach((url, index) => {
+            const link = document.createElement('a');
+            link.href = url;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.className = 'inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-semibold transition-all shadow-xs';
+            link.innerHTML = `<i data-lucide="table" class="w-3.5 h-3.5"></i> ${activeTestcaseReview.testcaseUrls.length > 1 ? `Google Sheet ${index + 1}` : 'Mở Google Sheet testcase'}`;
+            linksContainer.appendChild(link);
+        });
+    }
+
+    const revEl = document.getElementById('testcaseReviewRevision');
+    if (revEl) revEl.classList.add('hidden');
+
+    document.getElementById('testcaseReviewModal').classList.remove('hidden');
+    loadModalTestcases(cleanTaskName, probId);
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function getSheetPreviewUrl(url) {
+    if (!url) return '';
+    if (url.includes('docs.google.com/spreadsheets')) {
+        return url.replace(/\/edit([#?].*)?$/, '/preview?rm=minimal');
+    }
+    return url;
+}
+
+function renderModalGoogleSheetPreview(sheetUrls) {
+    const container = document.getElementById('modalTestcaseList');
+    if (!container) return;
+
+    // Ẩn thanh filter tabs & bulk action vì đang xem trực tiếp Google Sheet
+    const filterBar = document.getElementById('modalFilterTabs')?.closest('.bg-white');
+    if (filterBar) filterBar.classList.add('hidden');
+
+    const primaryUrl = sheetUrls[0];
+    const previewUrl = getSheetPreviewUrl(primaryUrl);
+
+    container.innerHTML = `
+        <div class="space-y-3">
+            <!-- Banner thông tin -->
+            <div class="p-4 bg-emerald-50/90 border border-emerald-200 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
+                <div class="flex items-start gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                        <i data-lucide="table" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                            Xem trước Testcase trên Google Sheets
+                            <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">Google Sheet</span>
+                        </h4>
+                        <p class="text-xs text-slate-600 mt-0.5">
+                            Toàn bộ testcase của bài toán này được lưu và quản lý trực tiếp trên file Google Sheets bên dưới.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 shrink-0">
+                    <a href="${escapeHtml(primaryUrl)}" target="_blank" rel="noopener noreferrer"
+                        class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs">
+                        <i data-lucide="external-link" class="w-3.5 h-3.5"></i> Mở Google Sheet tab mới
+                    </a>
+                </div>
+            </div>
+
+            <!-- Khung nhúng xem trước Google Sheet -->
+            <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+                <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-xs text-slate-600 font-semibold">
+                    <span class="flex items-center gap-1.5">
+                        <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-600"></i>
+                        Bảng tính Testcase (Google Sheets Preview)
+                    </span>
+                    <span class="text-[11px] text-slate-400 hidden sm:inline">
+                        Nhấn nút "Mở Google Sheet tab mới" nếu muốn chỉnh sửa trực tiếp trên Google Docs
+                    </span>
+                </div>
+                <div class="w-full h-[520px] bg-slate-50 relative">
+                    <iframe src="${escapeHtml(previewUrl)}" class="w-full h-full border-0" allowfullscreen></iframe>
+                </div>
+            </div>
+        </div>
+    `;
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function updateModalCountersForSheet(sheetCount) {
+    const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    setEl('modalStatTotal', `${sheetCount} Sheet`);
+    setEl('modalStatApproved', '—');
+    setEl('modalStatRejected', '—');
+
+    const dot = document.getElementById('modalSaveNoticeDot');
+    const noticeText = document.getElementById('modalSaveNoticeText');
+    if (dot && noticeText) {
+        dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
+        noticeText.textContent = `Testcase đã có trên Google Sheets. Bạn có thể kiểm tra nội dung và bấm nút Xác nhận & Đồng ý bên dưới.`;
+        noticeText.className = 'text-slate-700 font-medium';
+    }
+}
+
+async function loadModalTestcases(taskName, probId = '') {
+    const container = document.getElementById('modalTestcaseList');
+    if (!container) return;
+
+    container.innerHTML = `
+        <div class="py-10 text-center space-y-2 bg-white rounded-xl border border-slate-200">
+            <div class="w-8 h-8 border-3 border-slate-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
+            <p class="text-xs font-semibold text-slate-500">Đang tải testcase...</p>
+        </div>
+    `;
+
+    currentModalFilter = 'all';
+    modalSearchQuery = '';
+    const searchInput = document.getElementById('modalSearchInput');
+    if (searchInput) searchInput.value = '';
+
+    try {
+        const cleanName = String(taskName || '').trim();
+        const encoded = encodeURIComponent(cleanName);
+        const orClauses = [`problem_title.eq.${encoded}`, `problem_title.ilike.${encoded}`];
+        if (probId) {
+            orClauses.unshift(`problem_id.eq.${encodeURIComponent(probId)}`);
+        }
+
+        const queryPath = `qa_memory?kind=eq.testcase&or=(${orClauses.join(',')})&select=id,problem_id,problem_title,test_suite,content,review_status,approved&order=created_at.asc,id.asc&limit=2000`;
+        const url = `${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/${queryPath}`;
+
+        const res = await fetch(url, {
+            headers: {
+                apikey: SUPABASE_ANON_KEY,
+                Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!res.ok) throw new Error(`Lỗi kết nối Supabase (${res.status})`);
+        const data = await res.json();
+
+        isModalMockMode = false;
+
+        if (!Array.isArray(data) || data.length === 0) {
+            modalTestcaseRows = [];
+            modalChoice = {};
+
+            // Nếu bài toán có link Google Sheet testcase, hiển thị preview Google Sheet
+            const sheetUrls = (activeTestcaseReview && activeTestcaseReview.testcaseUrls) || [];
+            if (sheetUrls.length > 0) {
+                renderModalGoogleSheetPreview(sheetUrls);
+                updateModalCountersForSheet(sheetUrls.length);
+                return;
+            }
+
+            // Nếu hoàn toàn chưa có testcase ở cả Supabase lẫn Google Sheet
+            container.innerHTML = `
+                <div class="p-8 text-center space-y-3 bg-white rounded-2xl border border-slate-200">
+                    <div class="w-12 h-12 bg-slate-100 text-slate-400 rounded-2xl mx-auto flex items-center justify-center">
+                        <i data-lucide="inbox" class="w-6 h-6"></i>
+                    </div>
+                    <p class="text-sm font-bold text-slate-800">Chưa có testcase cho bài toán này</p>
+                    <p class="text-xs text-slate-500 max-w-md mx-auto">Bài toán này chưa có link Google Sheets và chưa được nạp testcase vào hệ thống. Bạn có thể bấm nạp dữ liệu mẫu bên dưới để trải nghiệm duyệt testcase.</p>
+                    <button type="button" onclick="loadModalMockTestcases()"
+                        class="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-semibold transition-all inline-flex items-center gap-1.5 shadow-xs">
+                        <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> Nạp testcase mẫu để thử duyệt
+                    </button>
+                </div>
+            `;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            updateModalCounters();
+            return;
+        }
+
+        modalTestcaseRows = data.map(normalizeModalTestcaseRow).sort((a, b) => compareTestcaseOrder(a, b, modalSortAsc));
+        modalChoice = {};
+        modalTestcaseRows.forEach(r => {
+            modalChoice[r.id] = r.review_status || (r.approved === true ? 'approved' : (r.approved === false ? 'rejected' : 'pending'));
+        });
+
+        renderModalTestcaseCards();
+        updateModalCounters();
+    } catch (err) {
+        console.error('Lỗi khi tải testcase cho modal:', err);
+        const errMsg = err && err.message ? err.message : String(err);
+        container.innerHTML = `
+            <div class="p-6 text-center space-y-2 bg-white rounded-2xl border border-slate-200">
+                <p class="text-xs text-red-500 font-semibold">Lỗi khi tải testcase: ${escapeHtml(errMsg)}</p>
+                <button type="button" onclick="loadModalMockTestcases()"
+                    class="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-semibold transition-all inline-flex items-center gap-1">
+                    <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> Nạp testcase mẫu để duyệt thử
+                </button>
+            </div>
+        `;
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+}
+
+function loadModalMockTestcases() {
+    isModalMockMode = true;
+    const mockList = [
+        {
+            id: 'mock_1',
+            test_suite: 'Xác thực',
+            review_status: 'pending',
+            content: {
+                id: 'TC_AUTH_01',
+                muc_dich: 'Đăng nhập thành công với tài khoản và mật khẩu hợp lệ',
+                cac_buoc: '1. Mở trang đăng nhập\n2. Nhập username đúng\n3. Nhập password đúng\n4. Nhấn Đăng nhập',
+                ket_qua_mong_muon: 'Đăng nhập thành công, chuyển hướng vào Dashboard và hiển thị tên người dùng.',
+                ghi_chu: 'Kiểm tra token phiên làm việc được lưu an toàn.'
+            }
+        },
+        {
+            id: 'mock_2',
+            test_suite: 'Xác thực',
+            review_status: 'pending',
+            content: {
+                id: 'TC_AUTH_02',
+                muc_dich: 'Hiển thị lỗi khi bỏ trống username hoặc mật khẩu',
+                cac_buoc: '1. Mở trang đăng nhập\n2. Để trống ô username hoặc password\n3. Nhấn Đăng nhập',
+                ket_qua_mong_muon: 'Hiển thị cảnh báo màu đỏ yêu cầu nhập đầy đủ thông tin.',
+                ghi_chu: ''
+            }
+        },
+        {
+            id: 'mock_3',
+            test_suite: 'Bảo mật',
+            review_status: 'pending',
+            content: {
+                id: 'TC_SEC_01',
+                muc_dich: 'Khóa tài khoản tạm thời khi nhập sai mật khẩu quá 5 lần liên tiếp',
+                cac_buoc: '1. Mở trang đăng nhập\n2. Nhập sai mật khẩu 5 lần liên tiếp\n3. Quan sát phản hồi hệ thống',
+                ket_qua_mong_muon: 'Hệ thống thông báo tài khoản bị tạm khóa 15 phút để bảo vệ chống dò quét.',
+                ghi_chu: 'Kiểm tra ghi log bảo mật.'
+            }
+        },
+        {
+            id: 'mock_4',
+            test_suite: 'Phân quyền',
+            review_status: 'pending',
+            content: {
+                id: 'TC_ROLE_01',
+                muc_dich: 'Người dùng role Viewer không thấy các nút thao tác Thêm / Sửa / Xóa bài toán',
+                cac_buoc: '1. Đăng nhập với quyền Viewer\n2. Quan sát giao diện Dashboard\n3. Kiểm tra các nút quản trị',
+                ket_qua_mong_muon: 'Giao diện ẩn các nút Thêm / Sửa / Xóa, chỉ cho phép Xem và Chạy AI.',
+                ghi_chu: ''
+            }
+        }
+    ];
+
+    modalTestcaseRows = mockList.map(normalizeModalTestcaseRow).sort((a, b) => compareTestcaseOrder(a, b, modalSortAsc));
+    modalChoice = {};
+    modalTestcaseRows.forEach(r => modalChoice[r.id] = 'pending');
+    renderModalTestcaseCards();
+    updateModalCounters();
+    showToast('Đã nạp 4 testcase mẫu vào bản xem trước!', 'info');
+}
+
+function normalizeModalTestcaseRow(item) {
+    let content = item.content;
+    if (typeof content === 'string') {
+        try { content = JSON.parse(content); } catch (_) { content = { raw: content }; }
+    }
+    content = content || {};
+
+    return {
+        id: item.id || `tc_${Math.random().toString(36).substring(2, 9)}`,
+        test_suite: item.test_suite || content.test_suite || content.suite || 'Chung',
+        review_status: item.review_status || 'pending',
+        approved: item.approved,
+        content: {
+            id: content.id || content.ma_testcase || '',
+            muc_dich: content.muc_dich || content.mục_đích || content.name || content.title || content.description || '',
+            cac_buoc: content.cac_buoc || content.các_bước || content.steps || '',
+            ket_qua_mong_muon: content.ket_qua_mong_muon || content.kết_quả_mong_muốn || content.expected || content.expected_result || '',
+            ghi_chu: content.ghi_chu || content.ghi_chú || content.notes || ''
+        },
+        _open: false
+    };
+}
+
+function renderModalTestcaseCards() {
+    const container = document.getElementById('modalTestcaseList');
+    if (!container) return;
+
+    container.innerHTML = '';
+    const visible = modalTestcaseRows.filter(r => {
+        const st = modalChoice[r.id] || 'pending';
+        if (currentModalFilter !== 'all' && st !== currentModalFilter) return false;
+        if (!modalSearchQuery) return true;
+
+        const c = r.content || {};
+        const text = [r.test_suite, c.id, c.muc_dich, c.cac_buoc, c.ket_qua_mong_muon, c.ghi_chu].join(' ').toLowerCase();
+        return text.includes(modalSearchQuery);
+    });
+
+    if (visible.length === 0) {
+        container.innerHTML = `
+            <div class="p-6 text-center text-xs text-slate-500 bg-white rounded-xl border border-slate-200">
+                Không có testcase nào khớp với bộ lọc hiện tại.
+            </div>
+        `;
+        return;
+    }
+
+    const grouped = {};
+    visible.forEach(r => {
+        const s = r.test_suite || 'Chung';
+        (grouped[s] = grouped[s] || []).push(r);
+    });
+
+    // Sắp xếp các testcase trong mỗi nhóm theo thứ tự tự nhiên (tăng dần / giảm dần)
+    Object.values(grouped).forEach(list => {
+        list.sort((a, b) => compareTestcaseOrder(a, b, modalSortAsc));
+    });
+
+    // Sắp xếp các nhóm (suites) theo thứ tự testcase đầu tiên
+    const sortedSuites = Object.entries(grouped).sort(([suiteA, listA], [suiteB, listB]) => {
+        const itemA = modalSortAsc ? listA[0] : listA[listA.length - 1];
+        const itemB = modalSortAsc ? listB[0] : listB[listB.length - 1];
+        return compareTestcaseOrder(itemA, itemB, modalSortAsc);
+    });
+
+    sortedSuites.forEach(([suite, list]) => {
+        const suiteEl = document.createElement('div');
+        suiteEl.className = 'space-y-2';
+
+        const approvedCount = list.filter(r => modalChoice[r.id] === 'approved').length;
+        const rejectedCount = list.filter(r => modalChoice[r.id] === 'rejected').length;
+
+        suiteEl.innerHTML = `
+            <div class="flex items-center justify-between text-xs font-bold text-slate-700 px-1 pt-1">
+                <span class="flex items-center gap-1.5">
+                    <i data-lucide="folder" class="w-3.5 h-3.5 text-blue-600"></i> ${escapeHtml(suite)} (${list.length})
+                </span>
+                <span class="text-[11px] font-semibold text-slate-500">
+                    ${approvedCount > 0 ? `<span class="text-emerald-600">Giữ: ${approvedCount}</span> ` : ''}
+                    ${rejectedCount > 0 ? `<span class="text-rose-600">Bỏ: ${rejectedCount}</span>` : ''}
+                </span>
+            </div>
+            <div class="cards-box space-y-2"></div>
+        `;
+
+        const cardsBox = suiteEl.querySelector('.cards-box');
+        list.forEach(r => cardsBox.appendChild(createModalCard(r)));
+        container.appendChild(suiteEl);
+    });
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function createModalCard(r) {
+    const c = r.content || {};
+    const st = modalChoice[r.id] || 'pending';
+    const card = document.createElement('div');
+    card.id = `modal_tc_${r.id}`;
+
+    let borderClass = 'border-l-slate-300 bg-white';
+    if (st === 'approved') borderClass = 'border-l-emerald-500 bg-emerald-50/25';
+    if (st === 'rejected') borderClass = 'border-l-rose-500 bg-rose-50/20 opacity-80';
+
+    card.className = `rounded-xl border border-slate-200 border-l-4 p-3 transition-all ${borderClass} shadow-xs`;
+
+    const codeBadge = c.id ? `<span class="font-mono text-[11px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 shrink-0">${escapeHtml(c.id)}</span>` : '';
+    const purposeText = c.muc_dich ? escapeHtml(c.muc_dich) : '<span class="italic text-slate-400">Không có mục đích</span>';
+
+    card.innerHTML = `
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div class="flex items-start sm:items-center gap-2 flex-1 min-w-0 cursor-pointer select-none" onclick="toggleModalCardDetail('${r.id}')">
+                <button type="button" class="p-0.5 text-slate-400 hover:text-slate-600 rounded shrink-0">
+                    <i data-lucide="${r._open ? 'chevron-up' : 'chevron-down'}" class="w-3.5 h-3.5"></i>
+                </button>
+                ${codeBadge}
+                <div class="text-xs sm:text-sm font-bold text-slate-800 truncate flex-1" title="${escapeHtml(c.muc_dich || '')}">
+                    ${purposeText}
+                </div>
+            </div>
+
+            <div class="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
+                <div class="inline-flex rounded-lg bg-slate-100 p-0.5 border border-slate-200 shadow-xs">
+                    <button type="button" onclick="setModalChoice('${r.id}', 'approved')"
+                        class="px-2.5 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1 ${st === 'approved' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-emerald-700 hover:bg-white'}">
+                        <i data-lucide="check" class="w-3 h-3"></i> Giữ
+                    </button>
+                    <button type="button" onclick="setModalChoice('${r.id}', 'rejected')"
+                        class="px-2.5 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1 ${st === 'rejected' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-600 hover:text-rose-700 hover:bg-white'}">
+                        <i data-lucide="x" class="w-3 h-3"></i> Bỏ
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="modal_detail_${r.id}" class="${r._open ? 'block' : 'hidden'} mt-3 pt-2.5 border-t border-slate-100 space-y-2 text-xs">
+            <div>
+                <span class="font-bold text-slate-500 uppercase text-[10px] block mb-1">Các bước thực hiện:</span>
+                <div class="p-2.5 bg-slate-50 rounded-lg border border-slate-200 font-mono text-[11px] text-slate-800 whitespace-pre-wrap">${c.cac_buoc ? escapeHtml(c.cac_buoc) : '<span class="italic text-slate-400">Không có bước</span>'}</div>
+            </div>
+            <div>
+                <span class="font-bold text-emerald-700 uppercase text-[10px] block mb-1">Kết quả mong muốn:</span>
+                <div class="p-2.5 bg-emerald-50/50 rounded-lg border border-emerald-200/80 text-[11px] text-emerald-950 font-medium whitespace-pre-wrap">${c.ket_qua_mong_muon ? escapeHtml(c.ket_qua_mong_muon) : '<span class="italic text-slate-400">Không có kết quả mong muốn</span>'}</div>
+            </div>
+            ${c.ghi_chu ? `
+            <div>
+                <span class="font-bold text-amber-700 uppercase text-[10px] block mb-1">Ghi chú:</span>
+                <div class="p-2 bg-amber-50/40 rounded-lg border border-amber-200/60 text-[11px] text-amber-900 whitespace-pre-wrap">${escapeHtml(c.ghi_chu)}</div>
+            </div>
+            ` : ''}
+        </div>
+    `;
+
+    return card;
+}
+
+function toggleModalCardDetail(id) {
+    const row = modalTestcaseRows.find(r => r.id === id);
+    if (!row) return;
+    row._open = !row._open;
+    renderModalTestcaseCards();
+}
+
+function setModalChoice(id, targetStatus) {
+    const current = modalChoice[id] || 'pending';
+    modalChoice[id] = current === targetStatus ? 'pending' : targetStatus;
+    renderModalTestcaseCards();
+    updateModalCounters();
+}
+
+function bulkSetModalStatus(targetStatus) {
+    const visible = modalTestcaseRows.filter(r => {
+        const st = modalChoice[r.id] || 'pending';
+        if (currentModalFilter !== 'all' && st !== currentModalFilter) return false;
+        if (!modalSearchQuery) return true;
+        const c = r.content || {};
+        const text = [r.test_suite, c.id, c.muc_dich, c.cac_buoc, c.ket_qua_mong_muon, c.ghi_chu].join(' ').toLowerCase();
+        return text.includes(modalSearchQuery);
+    });
+
+    if (visible.length === 0) return;
+    visible.forEach(r => modalChoice[r.id] = targetStatus);
+    renderModalTestcaseCards();
+    updateModalCounters();
+}
+
+function setModalFilter(filter) {
+    currentModalFilter = filter;
+    document.querySelectorAll('.modal-tab').forEach(tab => {
+        const isActive = tab.getAttribute('data-modal-filter') === filter;
+        tab.className = isActive
+            ? 'modal-tab px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-slate-900 text-white shadow-xs'
+            : 'modal-tab px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-slate-100 text-slate-600 hover:bg-slate-200';
+    });
+    renderModalTestcaseCards();
+}
+
+function handleModalSearch(val) {
+    modalSearchQuery = (val || '').toLowerCase().trim();
+    renderModalTestcaseCards();
+}
+
+function updateModalCounters() {
+    const total = modalTestcaseRows.length;
+    let approved = 0, rejected = 0, pending = 0;
+    modalTestcaseRows.forEach(r => {
+        const st = modalChoice[r.id] || 'pending';
+        if (st === 'approved') approved++;
+        else if (st === 'rejected') rejected++;
+        else pending++;
+    });
+
+    const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    setEl('modalStatTotal', total);
+    setEl('modalStatApproved', approved);
+    setEl('modalStatRejected', rejected);
+
+    setEl('modalTabAllCount', total);
+    setEl('modalTabPendingCount', pending);
+    setEl('modalTabApprovedCount', approved);
+    setEl('modalTabRejectedCount', rejected);
+
+    const unsaved = modalTestcaseRows.filter(r => (modalChoice[r.id] || 'pending') !== (r.review_status || 'pending')).length;
+    const dot = document.getElementById('modalSaveNoticeDot');
+    const noticeText = document.getElementById('modalSaveNoticeText');
+    if (dot && noticeText) {
+        if (unsaved > 0) {
+            dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse';
+            noticeText.textContent = `Bạn đã chọn giữ ${approved} và bỏ ${rejected} testcase (${unsaved} thay đổi chưa lưu).`;
+            noticeText.className = 'text-amber-700 font-bold';
+        } else {
+            dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
+            noticeText.textContent = `Hiện có: ${approved} Đã giữ, ${rejected} Đã bỏ, ${pending} Chưa duyệt.`;
+            noticeText.className = 'text-slate-600';
+        }
+    }
+}
+
+function buildApprovedSheetRows(rows) {
+    const groups = new Map();
+    rows.forEach(r => {
+        const suite = String(r.test_suite || 'General').trim() || 'General';
+        if (!groups.has(suite)) groups.set(suite, []);
+        groups.get(suite).push(r);
+    });
+    const out = [];
+    let tcNo = 0;
+    for (const [suite, list] of groups.entries()) {
+        out.push({
+            row_type: 'suite',
+            id: '',
+            test_suite: suite,
+            muc_dich: suite,
+            cac_buoc: '',
+            ket_qua_mong_muon: '',
+            ghi_chu: ''
+        });
+        for (const r of list) {
+            const c = r.content || {};
+            out.push({
+                row_type: 'testcase',
+                id: `[TC]_${++tcNo}`,
+                test_suite: suite,
+                muc_dich: c.muc_dich || '',
+                cac_buoc: c.cac_buoc || '',
+                ket_qua_mong_muon: c.ket_qua_mong_muon || '',
+                ghi_chu: c.ghi_chu || ''
+            });
+        }
+    }
+    return out;
+}
+
+async function saveAndApproveTestcaseReview() {
+    if (!activeTestcaseReview) return;
+
+    const taskName = activeTestcaseReview.taskName;
+    const probId = activeTestcaseReview.probId || '';
+    const approvedCount = modalTestcaseRows.filter(r => modalChoice[r.id] === 'approved').length;
+    const pendingCount = modalTestcaseRows.filter(r => (modalChoice[r.id] || 'pending') === 'pending').length;
+
+    // Nếu chưa chọn "Giữ" câu nào mà còn các câu "Chờ duyệt", tự động duyệt toàn bộ câu chưa bị "Bỏ"
+    if (approvedCount === 0 && pendingCount > 0) {
+        modalTestcaseRows.forEach(r => {
+            if ((modalChoice[r.id] || 'pending') === 'pending') {
+                modalChoice[r.id] = 'approved';
+            }
+        });
+    } else if (approvedCount > 0 && pendingCount > 0) {
+        const ok = confirm(`Bạn đã chọn Giữ ${approvedCount} testcase và còn ${pendingCount} testcase chưa chọn trạng thái.\n\nNhấn OK để chỉ xuất ${approvedCount} testcase Đã giữ vào Google Sheet (bỏ qua ${pendingCount} câu chưa chọn), hoặc Cancel để kiểm tra lại.`);
+        if (!ok) return;
+    }
+
+    const approvedRows = modalTestcaseRows
+        .filter(r => modalChoice[r.id] === 'approved')
+        .sort((a, b) => compareTestcaseOrder(a, b, true));
+
+    if (modalTestcaseRows.length > 0 && approvedRows.length === 0) {
+        alert('⚠️ Không có testcase nào được chọn "Giữ" để xuất vào Google Sheet! Vui lòng giữ lại ít nhất 1 testcase hoặc bấm "Cần chỉnh sửa & Chạy lại".');
+        return;
+    }
+
+    const btn = document.getElementById('btnSaveApprove');
+    const label = document.getElementById('btnSaveApproveLabel');
+    if (btn) btn.disabled = true;
+    if (label) label.textContent = 'Đang lưu & tạo Google Sheet...';
+
+    try {
+        if (!isModalMockMode && modalTestcaseRows.length > 0) {
+            for (const s of ['approved', 'rejected', 'pending']) {
+                const ids = modalTestcaseRows
+                    .filter(r => (modalChoice[r.id] || 'pending') === s && (r.review_status || 'pending') !== s)
+                    .map(r => r.id);
+
+                if (ids.length > 0) {
+                    const url = `${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/qa_memory?id=in.(${ids.join(',')})`;
+                    await fetch(url, {
+                        method: 'PATCH',
+                        headers: {
+                            apikey: SUPABASE_ANON_KEY,
+                            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+                            'Content-Type': 'application/json',
+                            Prefer: 'return=minimal'
+                        },
+                        body: JSON.stringify({
+                            review_status: s,
+                            approved: s === 'approved',
+                            reviewed_at: new Date().toISOString()
+                        })
+                    });
+                }
+            }
+        }
+
+        modalTestcaseRows.forEach(r => {
+            r.review_status = modalChoice[r.id];
+            r.approved = modalChoice[r.id] === 'approved';
+        });
+
+        // Xuất các testcase đã duyệt vào Google Sheet qua luồng n8n (loaiChay = 'export_sheet')
+        const sheetRows = buildApprovedSheetRows(approvedRows);
+        if (sheetRows.length > 0) {
+            const exportPayload = {
+                baiToan: taskName,
+                problem_id: probId,
+                loaiChay: 'export_sheet',
+                requestId: createRequestId(),
+                testcases: sheetRows
+            };
+            try {
+                await fetchWithTimeout(URL_POST_RUN, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(exportPayload)
+                }, 45000);
+            } catch (exportErr) {
+                console.warn('Gửi lệnh tạo Sheet sang n8n:', exportErr);
+            }
+
+            // Cập nhật trạng thái bài toán sang "Đã xong" trên Supabase nếu chưa được n8n cập nhật
+            try {
+                const filterQuery = probId
+                    ? `id=eq.${encodeURIComponent(probId)}`
+                    : `title=eq.${encodeURIComponent(taskName)}`;
+                await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/problems?${filterQuery}`, {
+                    method: 'PATCH',
+                    headers: {
+                        apikey: SUPABASE_ANON_KEY,
+                        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+                        'Content-Type': 'application/json',
+                        Prefer: 'return=minimal'
+                    },
+                    body: JSON.stringify({ status: 'Đã xong' })
+                });
+            } catch (_) {}
+        }
+
+        showToast(`Đã duyệt ${approvedRows.length} testcase & xuất vào Google Sheet cho "${taskName}"!`, 'success');
+        approveTestcaseReview();
+        await loadData();
+    } catch (err) {
+        console.error('Lỗi khi lưu duyệt testcase:', err);
+        alert(`❌ Lỗi khi duyệt và xuất Sheet: ${err.message}`);
+    } finally {
+        if (btn) btn.disabled = false;
+        if (label) label.textContent = 'Duyệt & Xuất vào Sheet';
+    }
+}
+
+function toggleTestcaseRevisionForm() {
+    const revEl = document.getElementById('testcaseReviewRevision');
+    if (!revEl) return;
+    const isHidden = revEl.classList.contains('hidden');
+    revEl.classList.toggle('hidden', !isHidden);
+
+    if (isHidden) {
+        // Auto-fill rejected testcases into prompt if any
+        const rejected = modalTestcaseRows.filter(r => modalChoice[r.id] === 'rejected');
+        const feedbackInput = document.getElementById('testcaseReviewFeedback');
+        if (rejected.length > 0 && feedbackInput && !feedbackInput.value.trim()) {
+            const rejectedNames = rejected.map(r => `${r.content.id || 'TC'}: ${r.content.muc_dich || ''}`).join('\n- ');
+            feedbackInput.value = `Yêu cầu loại bỏ hoặc viết lại các testcase sau không đạt yêu cầu:\n- ${rejectedNames}\n\nVui lòng sinh lại bộ testcase bổ sung bao quát hơn.`;
+        }
+        if (feedbackInput) feedbackInput.focus();
+    }
+}
+
+function cancelTestcaseRevision() {
+    document.getElementById('testcaseReviewRevision').classList.add('hidden');
+}
+
+function closeTestcaseReviewModal() {
+    document.getElementById('testcaseReviewModal').classList.add('hidden');
+    const filterBar = document.getElementById('modalFilterTabs')?.closest('.bg-white');
+    if (filterBar) filterBar.classList.remove('hidden');
+    activeTestcaseReview = null;
+    openNextTestcaseReview();
+}
+
+function approveTestcaseReview() {
+    if (!activeTestcaseReview) return;
+
+    delete runContextByTask[activeTestcaseReview.taskName];
+    persistProcessingState();
+    activeTestcaseReview = null;
+    document.getElementById('testcaseReviewModal').classList.add('hidden');
+    const filterBar = document.getElementById('modalFilterTabs')?.closest('.bg-white');
+    if (filterBar) filterBar.classList.remove('hidden');
+    openNextTestcaseReview();
+}
+
+function openTestcaseReviewPage(taskName, probId = '') {
+    if (!taskName) return;
+    const cleanName = String(taskName || '').trim();
+    const pid = probId || cleanName;
+    const url = `review.html?problem_id=${encodeURIComponent(pid)}&problem_title=${encodeURIComponent(cleanName)}&back=index.html`;
+    window.open(url, '_blank');
+}
+
+function openTestcaseReviewFromActiveModal() {
+    if (!activeTestcaseReview || !activeTestcaseReview.taskName) {
+        window.open('review.html', '_blank');
+        return;
+    }
+    openTestcaseReviewPage(activeTestcaseReview.taskName, activeTestcaseReview.probId);
+}
+
+async function rerunTestcaseFromReview() {
+    if (!activeTestcaseReview) return;
+
+    const feedbackInput = document.getElementById('testcaseReviewFeedback');
+    const additionalPrompt = feedbackInput.value.trim();
+    if (!additionalPrompt) {
+        feedbackInput.focus();
+        alert('⚠️ Vui lòng nhập nội dung muốn AI điều chỉnh.');
+        return;
+    }
+
+    const review = activeTestcaseReview;
+    const rejectedList = modalTestcaseRows
+        .filter(r => modalChoice[r.id] === 'rejected')
+        .map(r => `- [${r.test_suite || 'General'}] ${r.content?.id || 'TC'}: ${r.content?.muc_dich || ''}`);
+    const approvedList = modalTestcaseRows
+        .filter(r => modalChoice[r.id] === 'approved')
+        .map(r => `- [${r.test_suite || 'General'}] ${r.content?.id || 'TC'}: ${r.content?.muc_dich || ''}`);
+
+    // Lưu các câu đã chọn Giữ và xóa các câu Chờ duyệt / Bỏ cũ trong qa_memory để lượt sinh lại không bị lẫn câu cũ
+    if (!isModalMockMode && modalTestcaseRows.length > 0) {
+        try {
+            const approvedIds = modalTestcaseRows.filter(r => modalChoice[r.id] === 'approved').map(r => r.id);
+            const removeIds = modalTestcaseRows.filter(r => modalChoice[r.id] !== 'approved').map(r => r.id);
+            if (approvedIds.length > 0) {
+                await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/qa_memory?id=in.(${approvedIds.join(',')})`, {
+                    method: 'PATCH',
+                    headers: {
+                        apikey: SUPABASE_ANON_KEY,
+                        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+                        'Content-Type': 'application/json',
+                        Prefer: 'return=minimal'
+                    },
+                    body: JSON.stringify({
+                        review_status: 'approved',
+                        approved: true,
+                        reviewed_at: new Date().toISOString()
+                    })
+                });
+            }
+            if (removeIds.length > 0) {
+                await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/qa_memory?id=in.(${removeIds.join(',')})`, {
+                    method: 'DELETE',
+                    headers: {
+                        apikey: SUPABASE_ANON_KEY,
+                        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+                        Prefer: 'return=minimal'
+                    }
+                });
+            }
+        } catch (cleanErr) {
+            console.warn('Không thể dọn testcase cũ trước khi chạy lại:', cleanErr);
+        }
+    }
+
+    const revisedPrompt = [
+        review.testcasePrompt,
+        rejectedList.length > 0 ? `DANH SÁCH TESTCASE BỊ LOẠI BỎ / CẦN VIẾT LẠI:\n${rejectedList.slice(0, 40).join('\n')}` : '',
+        approvedList.length > 0 ? `DANH SÁCH TESTCASE ĐÃ ĐẠT (GIỮ NGUYÊN PHẠM VI NÀY):\n${approvedList.slice(0, 40).join('\n')}` : '',
+        'YÊU CẦU ĐIỀU CHỈNH BẮT BUỘC SAU KHI QA REVIEW:',
+        additionalPrompt,
+        'Các yêu cầu điều chỉnh trên là BẮT BUỘC. Hãy tập trung đúng phạm vi chức năng/Use Case được yêu cầu, bổ sung các kịch bản còn thiếu, ghi chú rõ [Q&A confirm BA] ở cột ghi_chu cho các điểm nghiệp vụ chưa rõ, và bảo đảm Kết quả mong muốn có thể kiểm chứng.'
+    ].filter(Boolean).join('\n\n');
+
+    activeTestcaseReview = null;
+    document.getElementById('testcaseReviewModal').classList.add('hidden');
+    await doRunSingle(review.taskName, revisedPrompt, 'testcase');
+    openNextTestcaseReview();
+}
+
+window.openTestcaseReviewPage = openTestcaseReviewPage;
+window.openTestcaseReviewModalForTask = openTestcaseReviewModalForTask;
+window.openTestcaseReviewFromActiveModal = openTestcaseReviewFromActiveModal;
+window.closeTestcaseReviewModal = closeTestcaseReviewModal;
+window.toggleTestcaseRevisionForm = toggleTestcaseRevisionForm;
+window.saveAndApproveTestcaseReview = saveAndApproveTestcaseReview;
+window.setModalChoice = setModalChoice;
+window.bulkSetModalStatus = bulkSetModalStatus;
+window.setModalFilter = setModalFilter;
+window.handleModalSearch = handleModalSearch;
+window.toggleModalCardDetail = toggleModalCardDetail;
+window.loadModalMockTestcases = loadModalMockTestcases;
+
+function closeRunAIModal() {
+    document.getElementById('runAIModal').classList.add('hidden');
+}
+
+function setRunAIModalTitle(title) {
+    const titleElement = document.getElementById('runAIModalTitle');
+    titleElement.replaceChildren();
+
+    const icon = document.createElement('i');
+    icon.setAttribute('data-lucide', 'bot');
+    icon.className = 'w-5 h-5 text-blue-600 inline-block mr-2';
+
+    titleElement.appendChild(icon);
+    titleElement.appendChild(document.createTextNode(title));
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function runSingleTask(index) {
+    const row = dataRows[index];
+    if (!row) return;
+
+    currentRunTask = getColVal(row, 'Bài toán');
+    currentRunMode = 'single';
+    setRunAIModalTitle(`Chạy AI - ${currentRunTask}`);
+    document.getElementById('runTestcasePromptGroup').classList.remove('hidden');
+    document.getElementById('runTestcasePrompt').value = '';
+    document.getElementById('runAIModal').classList.remove('hidden');
+}
+
+function openPromptModal(taskName, type) {
+    currentRunTask = taskName;
+    currentRunMode = type; // 'phan_tich' or 'testcase'
+    const typeLabel = type === 'phan_tich' ? 'Phân tích' : 'Testcase';
+    setRunAIModalTitle(`Chạy AI (${typeLabel}) - ${currentRunTask}`);
+    document.getElementById('runTestcasePromptGroup').classList.remove('hidden');
+    document.getElementById('runTestcasePrompt').value = '';
+    document.getElementById('runAIModal').classList.remove('hidden');
+}
+
+function toggleSelectAll(masterCheckbox) {
+    const checkboxes = document.querySelectorAll('.task-checkbox:not([disabled])');
+    checkboxes.forEach(cb => cb.checked = masterCheckbox.checked);
+}
+
+function runSelectedTasks() {
+    const selectedBoxes = document.querySelectorAll('.task-checkbox:checked');
+    const selectedTasks = Array.from(selectedBoxes).map(cb => cb.value);
+
+    if (selectedTasks.length === 0) {
+        alert("⚠️ Vui lòng tích chọn ít nhất một bài toán để chạy!");
+        return;
+    }
+
+    const availableTasks = selectedTasks.filter(taskName => !processingTasks.includes(taskName));
+    if (availableTasks.length === 0) {
+        alert('⚠️ Các bài toán đã chọn đều đang được xử lý.');
+        return;
+    }
+
+    currentRunTasksList = availableTasks;
+    currentRunMode = 'multiple';
+    setRunAIModalTitle(`Chạy AI - ${availableTasks.length} bài toán`);
+    document.getElementById('runTestcasePromptGroup').classList.remove('hidden');
+    document.getElementById('runTestcasePrompt').value = '';
+    document.getElementById('runAIModal').classList.remove('hidden');
+}
+
+async function executeRunAI() {
+    const testcasePrompt = document.getElementById('runTestcasePrompt').value.trim();
+
+    closeRunAIModal();
+
+    if (currentRunMode === 'single' || currentRunMode === 'phan_tich' || currentRunMode === 'testcase') {
+        await doRunSingle(currentRunTask, testcasePrompt, currentRunMode);
+    } else if (currentRunMode === 'multiple') {
+        await doRunMultiple(currentRunTasksList, testcasePrompt);
+    }
+}
+
+
+// 7. THỰC THI CHẠY AI (API CALL)
+async function doRunSingle(tenBaiToan, testcasePrompt, mode) {
+    if (!tenBaiToan || processingTasks.includes(tenBaiToan)) {
+        alert('⚠️ Bài toán này đang được xử lý. Vui lòng chờ hoàn thành.');
+        return;
+    }
+
+    const requestId = createRequestId();
+    taskStartTime[tenBaiToan] = Date.now();
+    processingTasks.push(tenBaiToan);
+    taskExecutionInfo[tenBaiToan] = { requestId, startedAt: new Date().toISOString() };
+    startElapsedTimeUpdates();
+    runContextByTask[tenBaiToan] = {
+        testcasePrompt,
+        requiresTestcaseReview: false
+    };
+    persistProcessingState();
+    renderTable();
+
+    document.getElementById('loadingText').innerText = `Đang gửi lệnh sang n8n...`;
+    document.getElementById('loadingOverlay').classList.remove('hidden');
+
+    const payload = {
+        baiToan: tenBaiToan,
+        loaiChay: mode,
+        requestId,
+        promptAI: testcasePrompt || ''
+    };
+
+    try {
+        const responsePromise = fetchWithTimeout(URL_POST_RUN, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }, RUN_REQUEST_TIMEOUT_MS);
+        startPollingIfNeeded();
+        document.getElementById('loadingOverlay').classList.add('hidden');
+        const res = await responsePromise;
+        const responseData = await readApiResponse(res);
+        const responseFailed = !res.ok || responseData.data?.success === false;
+
+        if (!responseFailed) {
+            await syncExecutionMetadataFromResponse(res, [tenBaiToan]);
+            await startPollingIfNeeded(true);
+            showToast(responseData.message || 'Xử lý bài toán thành công.', 'success');
+        } else {
+            processingTasks = processingTasks.filter(item => item !== tenBaiToan);
+            delete taskStartTime[tenBaiToan];
+            delete taskExecutionInfo[tenBaiToan];
+            delete runContextByTask[tenBaiToan];
+            persistProcessingState();
+            renderTable();
+            showRunError(responseData.message || 'n8n từ chối yêu cầu chạy. Vui lòng kiểm tra lại dữ liệu.');
+        }
+    } catch (err) {
+        // Request có thể đã tới n8n dù trình duyệt không nhận được response.
+        // Giữ trạng thái để tránh người dùng vô tình chạy trùng.
+        persistProcessingState();
+        startPollingIfNeeded();
+        showToast('Chưa nhận được phản hồi từ n8n. Hệ thống vẫn theo dõi task để tránh chạy trùng.', 'warning', 10000);
+    } finally {
+        document.getElementById('loadingOverlay').classList.add('hidden');
+    }
+}
+
+
+async function doRunMultiple(selectedTasks, testcasePrompt) {
+    selectedTasks = [...new Set(selectedTasks)].filter(taskName => taskName && !processingTasks.includes(taskName));
+    if (selectedTasks.length === 0) {
+        alert('⚠️ Không có bài toán hợp lệ để chạy.');
+        return;
+    }
+
+    const requestId = createRequestId();
+    const startedAt = Date.now();
+    selectedTasks.forEach(t => taskStartTime[t] = startedAt);
+    processingTasks.push(...selectedTasks);
+    startElapsedTimeUpdates();
+    selectedTasks.forEach(taskName => {
+        taskExecutionInfo[taskName] = { requestId, startedAt: new Date(startedAt).toISOString() };
+        runContextByTask[taskName] = {
+            testcasePrompt,
+            requiresTestcaseReview: false
+        };
+    });
+    persistProcessingState();
+    renderTable();
+
+    document.getElementById('loadingText').innerText = `Đang gửi lệnh sang n8n...`;
+    document.getElementById('loadingOverlay').classList.remove('hidden');
+
+    const payload = {
+        danhSachBaiToan: selectedTasks,
+        requestId,
+        promptAI: testcasePrompt || ''
+    };
+
+    try {
+        const responsePromise = fetchWithTimeout(URL_POST_RUN, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }, RUN_REQUEST_TIMEOUT_MS);
+        startPollingIfNeeded();
+        document.getElementById('loadingOverlay').classList.add('hidden');
+        const res = await responsePromise;
+        const responseData = await readApiResponse(res);
+        const responseFailed = !res.ok || responseData.data?.success === false;
+
+        if (!responseFailed) {
+            await syncExecutionMetadataFromResponse(res, selectedTasks);
+            await startPollingIfNeeded(true);
+            showToast(responseData.message || `Đã xử lý thành công ${selectedTasks.length} bài toán.`, 'success');
+            document.getElementById('selectAll').checked = false;
+        } else {
+            processingTasks = processingTasks.filter(item => !selectedTasks.includes(item));
+            selectedTasks.forEach(taskName => delete taskStartTime[taskName]);
+            selectedTasks.forEach(taskName => delete taskExecutionInfo[taskName]);
+            selectedTasks.forEach(taskName => delete runContextByTask[taskName]);
+            persistProcessingState();
+            renderTable();
+            showRunError(responseData.message || 'n8n từ chối yêu cầu chạy nhiều bài. Vui lòng kiểm tra lại dữ liệu.');
+        }
+    } catch (err) {
+        persistProcessingState();
+        startPollingIfNeeded();
+        showToast('Chưa nhận được phản hồi từ n8n. Hệ thống vẫn theo dõi các task để tránh chạy trùng.', 'warning', 10000);
+    } finally {
+        document.getElementById('loadingOverlay').classList.add('hidden');
+    }
+}
+
+async function updateStatus(index, newStatus) {
+    if (!requireAdmin()) {
+        renderTable();
+        return;
+    }
+
+    const row = dataRows[index];
+    const tenBaiToan = getColVal(row, 'Bài toán') || '';
+    const taskId = getColVal(row, 'ID') || row.id;
+
+
+    if (!tenBaiToan) {
+        alert("❌ Không tìm thấy tên bài toán.");
+        return;
+    }
+
+    if (!confirm(`Đổi trạng thái "${tenBaiToan}" thành "${newStatus}"?`)) {
+        renderTable();
+        return;
+    }
+
+    document.getElementById('loadingText').innerText = 'Đang cập nhật trạng thái...';
+    document.getElementById('loadingOverlay').classList.remove('hidden');
+
+    try {
+        const res = await fetchWithTimeout(URL_POST_UPDATE_STATUS, {
+            method: 'PATCH',
+            headers: getBackendHeaders(true),
+            body: JSON.stringify({
+                baiToan: tenBaiToan,
+                trangThai: newStatus
+            })
+        });
+
+        const result = await showActionResponse(
+            res,
+            'Đã cập nhật trạng thái.',
+            'Backend không thể cập nhật trạng thái.'
+        );
+
+        if (result.succeeded) {
+            await loadData();
+        } else {
+            renderTable();
+        }
+    } catch (err) {
+        renderTable();
+        showResultPopup('Không thể kết nối backend để cập nhật trạng thái.', 'error');
+    } finally {
+        document.getElementById('loadingOverlay').classList.add('hidden');
+    }
+}
+
+// 8. TẢI FILE CHO TỪNG BÀI TOÁN
+function downloadSingleTaskFiles(index) {
+    const row = dataRows[index];
+    if (!row) return;
+
+    const tenBaiToan = getColVal(row, 'Bài toán') || 'bài toán này';
+
+    const urlGoc = getColVal(row, 'URL') || '';
+    const linkTC = getColVal(row, 'Link Testcase') || '';
+    const linkPT = getColVal(row, 'Link tài liệu phân tích') || '';
+
+    const allLinks = [
+        ...splitHttpLinks(urlGoc),
+        ...splitHttpLinks(linkTC),
+        ...splitHttpLinks(linkPT)
+    ];
+
+    if (allLinks.length === 0) {
+        alert(`⚠️ Không có link tài liệu hợp lệ để tải cho: "${tenBaiToan}"`);
+        return;
+    }
+
+    let downloadCount = 0;
+
+    allLinks.forEach((url) => {
+        let downloadUrl = '';
+
+        if (url.includes('/spreadsheets/d/')) {
+            const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+            if (match) downloadUrl = `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=xlsx`;
+        } else if (url.includes('/document/d/')) {
+            const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+            if (match) downloadUrl = `https://docs.google.com/document/d/${match[1]}/export?format=docx`;
+        }
+
+        if (downloadUrl) {
+            downloadCount++;
+
+            // Dùng iframe để tải nhiều file cùng lúc không bị trình duyệt chặn
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = downloadUrl;
+            document.body.appendChild(iframe);
+
+            // Xóa iframe sau khi trình duyệt đã bắt đầu tải
+            setTimeout(() => {
+                document.body.removeChild(iframe);
+            }, 5000);
+        }
+    });
+
+    if (downloadCount > 0) {
+        alert(`✅ Đang tải ${downloadCount} file tài liệu của bài:\n"${tenBaiToan}"`);
+    } else {
+        alert(`⚠️ Link có tồn tại nhưng không phải là Google Docs/Sheets (Có thể là link Figma hoặc link web khác).`);
+    }
+}
+document.addEventListener("DOMContentLoaded", () => {
+    const aiToggle = document.getElementById("aiToggle");
+    const aiPanel = document.getElementById("aiPanel");
+    const closeAI = document.getElementById("closeAI");
+
+    if (!aiToggle || !aiPanel || !closeAI) return;
+
+    aiToggle.addEventListener("click", () => {
+        aiPanel.classList.remove("hidden");
+        aiPanel.classList.add("flex");
+    });
+
+    closeAI.addEventListener("click", () => {
+        aiPanel.classList.add("hidden");
+        aiPanel.classList.remove("flex");
+    });
+});
+
+// Đồng bộ quyền thực tế từ Database Supabase để ngăn chặn việc sửa đổi qua F12
+async function syncUserRoleFromDatabase() {
+    if (!supabaseClient || !currentUser.username) return;
+    try {
+        const { data, error } = await supabaseClient
+            .from('users')
+            .select('role')
+            .eq('username', currentUser.username)
+            .limit(1);
+
+        if (error || !data || data.length === 0) return;
+        const dbRole = data[0].role === 'admin' ? 'admin' : 'viewer';
+        if (currentUser.role !== dbRole) {
+            console.warn(`[Security] Phát hiện quyền bị sửa lệch (${currentUser.role} -> ${dbRole}). Đang phục hồi theo Database.`);
+            currentUser.role = dbRole;
+            const raw = localStorage.getItem('currentUser');
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                parsed.role = dbRole;
+                localStorage.setItem('currentUser', JSON.stringify(parsed));
+            }
+        }
+    } catch (e) {
+        console.warn('Lỗi khi đồng bộ quyền người dùng:', e);
+    }
+}
+
+window.addEventListener('load', async () => {
+    if (!hasValidSession) return;
+
+    // Đảm bảo có JWT Bearer Token để các request tới backend không bị lộ thông tin user
+    await ensureAuthToken();
+
+    // Xác minh lại quyền thực tế với Database trước khi vẽ giao diện
+    await syncUserRoleFromDatabase();
+
+    // Hiển thị thông tin user trên Header
+    const displayFullName = document.getElementById('displayFullName');
+    const displayRole = document.getElementById('displayRole');
+    if (displayFullName) displayFullName.innerText = currentUser.fullName || 'Khách';
+    if (displayRole) displayRole.innerText = currentUser.role === 'admin' ? 'Quản trị viên' : 'Người dùng';
+
+    if (currentUser.role !== 'admin') {
+        // Ẩn panel thêm bài toán
+        const leftPanel = document.getElementById('leftPanel');
+        if (leftPanel) leftPanel.style.display = 'none';
+
+        // Mở rộng bảng ra toàn bộ
+        const tablePanel = document.getElementById('tablePanel');
+        if (tablePanel) {
+            tablePanel.classList.remove('xl:col-span-3');
+            tablePanel.classList.add('xl:col-span-4');
+        }
+    }
+
+    const restoredTaskCount = restoreProcessingState();
+    if (restoredTaskCount > 0) {
+        startElapsedTimeUpdates();
+        await startPollingIfNeeded(true);
+        if (processingTasks.length > 0) {
+            showToast(`Đã khôi phục ${processingTasks.length} task đang chạy và tiếp tục theo dõi.`, 'info');
+        }
+    } else {
+        await loadData();
+    }
+
+    // Các phiên chỉ đang xem cũng tự nhận trạng thái chạy từ backend.
+    window.setInterval(() => {
+        if (!document.hidden) loadData(true);
+    }, SHARED_STATUS_REFRESH_INTERVAL_MS);
+});
+
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && processingTasks.length > 0) {
+        startPollingIfNeeded(true);
+    }
+});
+
+window.addEventListener('beforeunload', persistProcessingState);
+
+// =================================================================
+// CHUC NANG DUNG LUONG AI
+// =================================================================
+
+/**
+ * Mo modal xac nhan dung luong.
+ * @param {string} taskName  - Ten bai toan (hien thi cho user)
+ * @param {string} requestId - requestId dang chay (de huy theo lo)
+ */
+window.openStopStreamModal = function (taskName, requestId) {
+    stopStreamContext = { taskName, requestId };
+    const nameEl = document.getElementById('stopStreamTaskName');
+    if (nameEl) nameEl.textContent = taskName || '(khong ro ten)';
+    const modal = document.getElementById('stopStreamModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+};
+
+window.closeStopStreamModal = function () {
+    const modal = document.getElementById('stopStreamModal');
+    if (modal) modal.classList.add('hidden');
+    stopStreamContext = null;
+};
+
+window.confirmStopStream = async function () {
+    if (!stopStreamContext) return;
+    const { taskName } = stopStreamContext;
+    closeStopStreamModal();
+
+    if (!taskName) return;
+
+    // Don trang thai FE
+    processingTasks = processingTasks.filter(t => t !== taskName);
+    delete taskStartTime[taskName];
+    delete taskExecutionInfo[taskName];
+    delete runContextByTask[taskName];
+
+    persistProcessingState();
+    renderTable();
+
+    showToast(`Đã dừng theo dõi bài toán "${taskName}".`, 'info', 5000);
+};
+

@@ -167,7 +167,7 @@ const BACKEND_API_BASE = (
         : 'https://tool-ai-tc.onrender.com/api')
 ).replace(/\/$/, '');
 const URL_GET_LIST = `${BACKEND_API_BASE}/tasks`;
-const URL_POST_RUN = 'https://vdtc-hungdv.tailfb2503.ts.net:8443/webhook/luong-chuc-nang';
+const URL_POST_RUN = `${BACKEND_API_BASE}/tasks/run`;
 const URL_POST_ADD = `${BACKEND_API_BASE}/tasks`;
 const URL_POST_EDIT = `${BACKEND_API_BASE}/tasks`;
 const URL_POST_DELETE = `${BACKEND_API_BASE}/tasks`;
@@ -2380,7 +2380,7 @@ async function doRunSingle(tenBaiToan, testcasePrompt, mode) {
     persistProcessingState();
     renderTable();
 
-    document.getElementById('loadingText').innerText = `Đang gửi lệnh sang n8n...`;
+    document.getElementById('loadingText').innerText = `Đang gửi lệnh sang Backend AI...`;
     document.getElementById('loadingOverlay').classList.remove('hidden');
 
     const payload = {
@@ -2449,7 +2449,7 @@ async function doRunMultiple(selectedTasks, testcasePrompt) {
     persistProcessingState();
     renderTable();
 
-    document.getElementById('loadingText').innerText = `Đang gửi lệnh sang n8n...`;
+    document.getElementById('loadingText').innerText = `Đang gửi lệnh sang Backend AI...`;
     document.getElementById('loadingOverlay').classList.remove('hidden');
 
     const payload = {

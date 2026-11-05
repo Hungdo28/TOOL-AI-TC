@@ -1,0 +1,361 @@
+from __future__ import annotations
+
+import io
+import threading
+from typing import Any
+
+from google.auth import load_credentials_from_file
+from google.oauth2 import service_account
+from google.oauth2.credentials import Credentials as UserCredentials
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
+
+from core.config import Settings
+
+
+SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets"
+DRIVE_SCOPE = "https://www.googleapis.com/auth/drive"
+DOCS_SCOPE = "https://www.googleapis.com/auth/documents"
+
+TEMPLATE_TC_SHEET_ID = "1JOirPM9SyeyNgdnUtjyrrgrRQ1MmaoZIk5o-cepgV5Y"
+TEMPLATE_DOC_ID = "1FWzRAf5wouAzWUVLl9azJAuBKc7m8VTqeNb3YtFr5lM"
+
+
+def _column_name(index: int) -> str:
+    result = ""
+    current = index + 1
+    while current:
+        current, remainder = divmod(current - 1, 26)
+        result = chr(65 + remainder) + result
+    return result
+
+
+def _normalized(value: Any) -> str:
+    return str(value or "").strip().casefold()
+
+
+class GoogleWorkspace:
+    def __init__(self, settings: Settings):
+        self.settings = settings
+        scopes = [SHEETS_SCOPE, DRIVE_SCOPE, DOCS_SCOPE]
+        if settings.credentials_json:
+            credential_type = settings.credentials_json.get("type")
+            if credential_type == "service_account":
+                credentials = service_account.Credentials.from_service_account_info(
+                    settings.credentials_json, scopes=scopes
+                )
+            elif credential_type == "authorized_user":
+                credentials = UserCredentials.from_authorized_user_info(
+                    settings.credentials_json, scopes=scopes
+                )
+            else:
+                raise ValueError("JSON credential Google có type không được hỗ trợ")
+        else:
+            credentials, _ = load_credentials_from_file(settings.credentials_file, scopes=scopes)
+
+        self.sheets = build("sheets", "v4", credentials=credentials, cache_discovery=False)
+        self.drive = build("drive", "v3", credentials=credentials, cache_discovery=False)
+        self.docs = build("docs", "v1", credentials=credentials, cache_discovery=False)
+        self._mutation_lock = threading.RLock()
+
+    @property
+    def _range(self) -> str:
+        escaped = self.settings.sheet_name.replace("'", "''")
+        return f"'{escaped}'!A:ZZ"
+
+    def _read_grid(self) -> tuple[list[str], list[list[Any]]]:
+        response = (
+            self.sheets.spreadsheets()
+            .values()
+            .get(
+                spreadsheetId=self.settings.spreadsheet_id,
+                range=self._range,
+                valueRenderOption="FORMATTED_VALUE",
+            )
+            .execute()
+        )
+        values = response.get("values", [])
+        header_index = self.settings.header_row - 1
+        if len(values) <= header_index:
+            raise RuntimeError("Google Sheet chưa có dòng tiêu đề")
+        headers = [str(value).strip() for value in values[header_index]]
+        return headers, values[header_index + 1 :]
+
+    @staticmethod
+    def _header_index(headers: list[str], column: str) -> int:
+        wanted = _normalized(column)
+        for index, header in enumerate(headers):
+            if _normalized(header) == wanted:
+                return index
+        raise RuntimeError(f"Google Sheet thiếu cột bắt buộc: {column}")
+
+    def list_tasks(self) -> list[dict[str, Any]]:
+        headers, rows = self._read_grid()
+        result = []
+        for offset, row in enumerate(rows, start=self.settings.header_row + 1):
+            if not any(str(value).strip() for value in row):
+                continue
+            item = {
+                header: row[index] if index < len(row) else ""
+                for index, header in enumerate(headers)
+                if header
+            }
+            item["row_number"] = offset
+            result.append(item)
+        return result
+
+    def find_task(self, task_name: str) -> dict[str, Any] | None:
+        wanted = _normalized(task_name)
+        return next(
+            (
+                task
+                for task in self.list_tasks()
+                if _normalized(task.get("Bài toán")) == wanted
+            ),
+            None,
+        )
+
+    def append_task(self, values_by_column: dict[str, Any]) -> None:
+        with self._mutation_lock:
+            headers, _ = self._read_grid()
+            row = [""] * len(headers)
+            normalized_values = {_normalized(key): value for key, value in values_by_column.items()}
+            for index, header in enumerate(headers):
+                if _normalized(header) in normalized_values:
+                    row[index] = normalized_values[_normalized(header)]
+
+            self.sheets.spreadsheets().values().append(
+                spreadsheetId=self.settings.spreadsheet_id,
+                range=self._range,
+                valueInputOption="USER_ENTERED",
+                insertDataOption="INSERT_ROWS",
+                body={"values": [row]},
+            ).execute()
+
+    def update_task(self, task_name: str, changes: dict[str, Any]) -> dict[str, Any]:
+        with self._mutation_lock:
+            headers, rows = self._read_grid()
+            name_index = self._header_index(headers, "Bài toán")
+            wanted = _normalized(task_name)
+            for offset, original_row in enumerate(rows, start=self.settings.header_row + 1):
+                current_name = original_row[name_index] if name_index < len(original_row) else ""
+                if _normalized(current_name) != wanted:
+                    continue
+
+                row = list(original_row) + [""] * (len(headers) - len(original_row))
+                normalized_changes = {_normalized(key): value for key, value in changes.items()}
+                for index, header in enumerate(headers):
+                    if _normalized(header) in normalized_changes:
+                        row[index] = normalized_changes[_normalized(header)]
+
+                end_column = _column_name(len(headers) - 1)
+                escaped = self.settings.sheet_name.replace("'", "''")
+                self.sheets.spreadsheets().values().update(
+                    spreadsheetId=self.settings.spreadsheet_id,
+                    range=f"'{escaped}'!A{offset}:{end_column}{offset}",
+                    valueInputOption="USER_ENTERED",
+                    body={"values": [row]},
+                ).execute()
+                return {
+                    header: row[index] if index < len(row) else ""
+                    for index, header in enumerate(headers)
+                    if header
+                }
+
+        raise KeyError(task_name)
+
+    def delete_task(self, task_name: str) -> None:
+        with self._mutation_lock:
+            task = self.find_task(task_name)
+            if not task:
+                raise KeyError(task_name)
+            row_number = int(task["row_number"])
+            self.sheets.spreadsheets().batchUpdate(
+                spreadsheetId=self.settings.spreadsheet_id,
+                body={
+                    "requests": [
+                        {
+                            "deleteDimension": {
+                                "range": {
+                                    "sheetId": self.settings.sheet_id,
+                                    "dimension": "ROWS",
+                                    "startIndex": row_number - 1,
+                                    "endIndex": row_number,
+                                }
+                            }
+                        }
+                    ]
+                },
+            ).execute()
+
+    def delete_task_by_id(self, row_number: int) -> None:
+        with self._mutation_lock:
+            row_number = int(row_number)
+            self.sheets.spreadsheets().batchUpdate(
+                spreadsheetId=self.settings.spreadsheet_id,
+                body={
+                    "requests": [
+                        {
+                            "deleteDimension": {
+                                "range": {
+                                    "sheetId": self.settings.sheet_id,
+                                    "dimension": "ROWS",
+                                    "startIndex": row_number - 1,
+                                    "endIndex": row_number,
+                                }
+                            }
+                        }
+                    ]
+                },
+            ).execute()
+
+
+
+    def upload_file(
+        self,
+        filename: str,
+        content_type: str,
+        content: bytes,
+        target_mime_type: str,
+    ) -> str:
+        metadata: dict[str, Any] = {
+            "name": filename,
+            "mimeType": target_mime_type,
+        }
+        if self.settings.drive_folder_id:
+            metadata["parents"] = [self.settings.drive_folder_id]
+
+        media = MediaIoBaseUpload(
+            io.BytesIO(content),
+            mimetype=content_type or "application/octet-stream",
+            resumable=False,
+        )
+        uploaded = (
+            self.drive.files()
+            .create(
+                body=metadata,
+                media_body=media,
+                fields="id,webViewLink",
+                supportsAllDrives=True,
+            )
+            .execute()
+        )
+        file_id = uploaded["id"]
+
+        if self.settings.drive_share_mode == "anyone":
+            self.drive.permissions().create(
+                fileId=file_id,
+                body={"type": "anyone", "role": "reader"},
+                fields="id",
+                supportsAllDrives=True,
+            ).execute()
+
+        return uploaded.get("webViewLink") or f"https://drive.google.com/file/d/{file_id}/view"
+
+    def create_analysis_doc(self, task_name: str, analysis_text: str) -> str:
+        """Tạo Google Doc phân tích từ file template và ghi nội dung do AI sinh."""
+        with self._mutation_lock:
+            body: dict[str, Any] = {"name": f"Tài liệu phân tích  {task_name}"}
+            if self.settings.drive_folder_id:
+                body["parents"] = [self.settings.drive_folder_id]
+            copied = (
+                self.drive.files()
+                .copy(
+                    fileId=TEMPLATE_DOC_ID,
+                    body=body,
+                    fields="id,webViewLink",
+                    supportsAllDrives=True,
+                )
+                .execute()
+            )
+            doc_id = copied["id"]
+
+            try:
+                self.drive.permissions().create(
+                    fileId=doc_id,
+                    body={"type": "anyone", "role": "reader"},
+                    fields="id",
+                    supportsAllDrives=True,
+                ).execute()
+            except Exception:
+                pass
+
+            if analysis_text and analysis_text.strip():
+                try:
+                    self.docs.documents().batchUpdate(
+                        documentId=doc_id,
+                        body={
+                            "requests": [
+                                {
+                                    "insertText": {
+                                        "location": {"index": 1},
+                                        "text": analysis_text.strip() + "\n\n",
+                                    }
+                                }
+                            ]
+                        },
+                    ).execute()
+                except Exception:
+                    pass
+
+            return copied.get("webViewLink") or f"https://docs.google.com/document/d/{doc_id}/edit"
+
+    def create_testcase_sheet(self, task_name: str, testcases: list[dict[str, Any]]) -> str:
+        """Tạo Google Sheet Testcase từ file template và ghi các dòng Test Case bắt đầu từ dòng 14."""
+        with self._mutation_lock:
+            body: dict[str, Any] = {"name": f"[TC] {task_name}"}
+            if self.settings.drive_folder_id:
+                body["parents"] = [self.settings.drive_folder_id]
+            copied = (
+                self.drive.files()
+                .copy(
+                    fileId=TEMPLATE_TC_SHEET_ID,
+                    body=body,
+                    fields="id,webViewLink",
+                    supportsAllDrives=True,
+                )
+                .execute()
+            )
+            sheet_id = copied["id"]
+
+            try:
+                self.drive.permissions().create(
+                    fileId=sheet_id,
+                    body={"type": "anyone", "role": "reader"},
+                    fields="id",
+                    supportsAllDrives=True,
+                ).execute()
+            except Exception:
+                pass
+
+            if testcases and isinstance(testcases, list):
+                rows = []
+                tc_no = 0
+                for tc in testcases:
+                    row_type = str(tc.get("row_type") or "").strip()
+                    tc_id = str(tc.get("id") or tc.get("ID") or "").strip()
+                    if row_type == "suite":
+                        tc_id = ""
+                    elif not tc_id:
+                        tc_no += 1
+                        tc_id = f"[TC]_{tc_no}"
+                    muc_dich = str(tc.get("muc_dich") or tc.get("Mục đích kiểm thử ") or tc.get("test_suite") or "").strip()
+                    cac_buoc = str(tc.get("cac_buoc") or tc.get("Các bước thực hiện") or "").strip()
+                    ket_qua = str(tc.get("ket_qua_mong_muon") or tc.get("Kết quả mong muốn ") or "").strip()
+                    ghi_chu = str(tc.get("ghi_chu") or tc.get("Ghi chú") or "").strip()
+                    if muc_dich or cac_buoc or ket_qua:
+                        rows.append([tc_id, muc_dich, cac_buoc, ket_qua, ghi_chu])
+
+                if rows:
+                    try:
+                        self.sheets.spreadsheets().values().append(
+                            spreadsheetId=sheet_id,
+                            range="'Trang tính1'!A14:E",
+                            valueInputOption="USER_ENTERED",
+                            body={"values": rows},
+                        ).execute()
+                    except Exception:
+                        pass
+
+            return copied.get("webViewLink") or f"https://docs.google.com/spreadsheets/d/{sheet_id}/edit"
+

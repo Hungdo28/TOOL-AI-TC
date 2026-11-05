@@ -6,10 +6,10 @@ from http.server import ThreadingHTTPServer
 from controllers.auth_controller import AuthController
 from controllers.task_controller import TaskController
 from core.config import Settings
-from web.handler import create_handler
 from repositories.supabase_repository import SupabaseRepository
 from router import Router
 from services.task_service import TaskService
+from web.handler import create_handler
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -22,6 +22,7 @@ def build_server(settings: Settings) -> ThreadingHTTPServer:
         workspace,
         max_file_size=settings.max_file_size,
         max_total_file_size=settings.max_total_file_size,
+        settings=settings,
     )
     task_controller = TaskController(task_service, settings)
     auth_controller = AuthController(settings)

@@ -209,8 +209,6 @@ class GoogleWorkspace:
                 },
             ).execute()
 
-
-
     def upload_file(
         self,
         filename: str,
@@ -255,7 +253,7 @@ class GoogleWorkspace:
     def create_analysis_doc(self, task_name: str, analysis_text: str) -> str:
         """Tạo Google Doc phân tích từ file template và ghi nội dung do AI sinh."""
         with self._mutation_lock:
-            body: dict[str, Any] = {"name": f"Tài liệu phân tích  {task_name}"}
+            body: dict[str, Any] = {"name": f"Tài liệu phân tích {task_name}"}
             if self.settings.drive_folder_id:
                 body["parents"] = [self.settings.drive_folder_id]
             copied = (
@@ -301,7 +299,7 @@ class GoogleWorkspace:
             return copied.get("webViewLink") or f"https://docs.google.com/document/d/{doc_id}/edit"
 
     def create_testcase_sheet(self, task_name: str, testcases: list[dict[str, Any]]) -> str:
-        """Tạo Google Sheet Testcase từ file template và ghi các dòng Test Case bắt đầu từ dòng 14."""
+        """Tạo Google Sheet Testcase từ file template và ghi các dòng Test Case bắt đầu từ dòng 14 (dòng 13 là header)."""
         with self._mutation_lock:
             body: dict[str, Any] = {"name": f"[TC] {task_name}"}
             if self.settings.drive_folder_id:
@@ -339,18 +337,26 @@ class GoogleWorkspace:
                     elif not tc_id:
                         tc_no += 1
                         tc_id = f"[TC]_{tc_no}"
-                    muc_dich = str(tc.get("muc_dich") or tc.get("Mục đích kiểm thử ") or tc.get("test_suite") or "").strip()
+                    muc_dich = str(
+                        tc.get("muc_dich") or tc.get("Mục đích kiểm thử ") or tc.get("test_suite") or ""
+                    ).strip()
                     cac_buoc = str(tc.get("cac_buoc") or tc.get("Các bước thực hiện") or "").strip()
-                    ket_qua = str(tc.get("ket_qua_mong_muon") or tc.get("Kết quả mong muốn ") or "").strip()
+                    ket_qua = str(
+                        tc.get("ket_qua_mong_muon") or tc.get("Kết quả mong muốn ") or ""
+                    ).strip()
                     ghi_chu = str(tc.get("ghi_chu") or tc.get("Ghi chú") or "").strip()
                     if muc_dich or cac_buoc or ket_qua:
-                        rows.append([tc_id, muc_dich, cac_buoc, ket_qua, ghi_chu])
+                        # Khớp đúng 12 cột của dòng Header 13 trong Template:
+                        # A: ID | B: Mục đích | C: Các bước | D: Kết quả mong muốn | E..K: (7 cột thực tế/UAT/Prod/Bug) | L: Ghi chú
+                        rows.append(
+                            [tc_id, muc_dich, cac_buoc, ket_qua, "", "", "", "", "", "", "", ghi_chu]
+                        )
 
                 if rows:
                     try:
                         self.sheets.spreadsheets().values().append(
                             spreadsheetId=sheet_id,
-                            range="'Trang tính1'!A14:E",
+                            range="'Trang tính1'!A14:L",
                             valueInputOption="USER_ENTERED",
                             body={"values": rows},
                         ).execute()
@@ -358,4 +364,3 @@ class GoogleWorkspace:
                         pass
 
             return copied.get("webViewLink") or f"https://docs.google.com/spreadsheets/d/{sheet_id}/edit"
-

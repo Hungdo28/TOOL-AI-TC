@@ -1,0 +1,181 @@
+{
+  "name": "MAIN_FLOW",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "luong-chuc-nang",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        272,
+        -192
+      ],
+      "id": "d31e5c3a-a840-4c47-b319-9cebc65af88d",
+      "name": "Webhook",
+      "webhookId": "4936b46e-27c3-4b6f-b9c2-11bb96d9e3af"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "LJq0Sqvip2msX8Xr",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/LJq0Sqvip2msX8Xr",
+          "cachedResultName": "SUB_FLOW"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        512,
+        -192
+      ],
+      "id": "92edef09-b194-4fea-8241-f3e9126eb0d8",
+      "name": "Execute Workflow",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": true,\n  \"message\": \"Xử lý thành công\",\n  \"data\": \"={{ $json }}\"\n}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        752,
+        -272
+      ],
+      "id": "0ee068a5-81d3-4d8c-ae02-fcf8e2a53aab",
+      "name": "SUCCES"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": false,\n  \"message\": \"Hệ thống gặp sự cố trong quá trình xử lý bài toán, Vui lòng thử lại\",\n  \"error_detail\": \"={{ $json.error.message }}\",\n  \"failed_node\": \"={{ $json.error.node.name }}\"\n}",
+        "options": {
+          "responseCode": 500
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        752,
+        -112
+      ],
+      "id": "278ddcb6-9d00-4b50-b01a-9257d043aaf2",
+      "name": "FAIL"
+    }
+  ],
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "vdtc-hungdv.tailfb2503.ts.net:8443",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36 Edg/154.0.0.0",
+            "content-length": "120",
+            "accept": "*/*",
+            "accept-encoding": "gzip, deflate, br, zstd",
+            "accept-language": "en-US,en;q=0.9",
+            "content-type": "application/json",
+            "origin": "https://quanlv.io.vn",
+            "priority": "u=1, i",
+            "referer": "https://quanlv.io.vn/",
+            "sec-ch-ua": "\"Chromium\";v=\"154\", \"Microsoft Edge\";v=\"154\", \"Not A(Brand\";v=\"99\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"Windows\"",
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "cross-site",
+            "tailscale-headers-info": "https://tailscale.com/s/serve-headers",
+            "tailscale-user-login": "hungdowork28@gmail.com",
+            "tailscale-user-name": "Hung Do",
+            "tailscale-user-profile-pic": "https://lh3.googleusercontent.com/a/ACg8ocKCcLLjfEfW-EgPnDCgLAJm0bO3oGyo799eGfgl_rQ9psQ6Jg=s96-c",
+            "x-forwarded-for": "100.105.11.43",
+            "x-forwarded-host": "vdtc-hungdv.tailfb2503.ts.net:8443",
+            "x-forwarded-proto": "https"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "baiToan": "Xử lý nợ FPT v2",
+            "loaiChay": "single",
+            "requestId": "2b0cf32a-1e1d-44f9-b23d-4a9e7d27c25d",
+            "promptAI2": ""
+          },
+          "webhookUrl": "https://vdtc-hungdv.tailfb2503.ts.net/webhook/luong-chuc-nang",
+          "executionMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Execute Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Workflow": {
+      "main": [
+        [
+          {
+            "node": "SUCCES",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FAIL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FAIL": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "4d06e9fb-bcae-43fc-91b5-5d04d0efa8b1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "dksYx3LX3KJmRxxZ",
+  "tags": []
+}

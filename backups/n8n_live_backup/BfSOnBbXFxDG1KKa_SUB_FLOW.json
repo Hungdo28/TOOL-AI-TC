@@ -1,0 +1,3710 @@
+{
+  "name": "SUB_FLOW",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "7dea3b89-0dcf-4a98-b60b-191bdcb78e67",
+        "responseMode": "responseNode",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        7520,
+        1408
+      ],
+      "id": "8e0934bd-485e-49c4-93d9-18414dd32d62",
+      "name": "Webhook",
+      "webhookId": "7dea3b89-0dcf-4a98-b60b-191bdcb78e67"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": \"success\",\n  \"message\": \"Đã lưu tài liệu mới vào Google Sheets\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        9056,
+        1424
+      ],
+      "id": "3e74daa0-36e6-4cd6-a704-afb6b411ba42",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sua-tai-lieu",
+        "responseMode": "responseNode",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        7440,
+        1792
+      ],
+      "id": "aae7e1c5-298a-4ac1-a27c-e9831ee9fbb9",
+      "name": "Webhook1",
+      "webhookId": "7dea3b89-0dcf-4a98-b60b-191bdcb78e67",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": \"success\",\n  \"message\": \"Đã sửa tài liệu mới vào Google Sheets\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        8176,
+        1792
+      ],
+      "id": "b8990d33-3578-47ea-a511-ef263a9f5b5d",
+      "name": "Respond to Webhook1"
+    },
+    {
+      "parameters": {
+        "content": "Thêm bài toán",
+        "height": 544,
+        "width": 1956
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        7408,
+        1168
+      ],
+      "id": "0b270bbe-74d4-4bce-b8a4-8e9e19f7cb00",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "Chức năng sửa",
+        "height": 224,
+        "width": 1012,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        7408,
+        1744
+      ],
+      "id": "0cb1f926-9456-4996-a39b-4cca40e0fa55",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "xoa-tai-lieu",
+        "responseMode": "responseNode",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        7488,
+        2032
+      ],
+      "id": "fc2db888-01e9-43fd-89a7-63bd5fb64fa1",
+      "name": "Webhook2",
+      "webhookId": "7dea3b89-0dcf-4a98-b60b-191bdcb78e67",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": \"success\",\n  \"message\": \"Đã sửa tài liệu mới vào Google Sheets\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        8192,
+        2032
+      ],
+      "id": "8c227ba9-7575-42e6-91b7-12363fd5189f",
+      "name": "Respond to Webhook2"
+    },
+    {
+      "parameters": {
+        "content": "Chức năng xóa",
+        "height": 272,
+        "width": 1056
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        7408,
+        2000
+      ],
+      "id": "33757126-a2cf-47ce-81dd-bd0fa69a1ac0",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "trang-thai",
+        "responseMode": "responseNode",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        7488,
+        2352
+      ],
+      "id": "e15d926c-0d32-4075-921a-462b73b7743a",
+      "name": "Webhook3",
+      "webhookId": "7dea3b89-0dcf-4a98-b60b-191bdcb78e67",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": \"success\",\n  \"message\": \"Đã update trạng thái vào Google Sheets\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        8016,
+        2352
+      ],
+      "id": "5429b581-48e3-43c9-bd32-3f57e36a65b1",
+      "name": "Respond to Webhook3"
+    },
+    {
+      "parameters": {
+        "content": "Chức năng chọn trạng thái",
+        "height": 272,
+        "width": 1056
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        7408,
+        2320
+      ],
+      "id": "11c76d4a-3b27-4491-bbaa-f33b2dae945f",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        7888,
+        928
+      ],
+      "id": "929518c5-4bf5-400c-bfa2-9f774383ed7e",
+      "name": "Respond to Webhook4"
+    },
+    {
+      "parameters": {
+        "content": "GET_LIST",
+        "height": 224,
+        "width": 656
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        7408,
+        864
+      ],
+      "id": "a939b6bd-f1fd-410a-a79e-246c33f47140",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "path": "1981ca71-5359-43d7-94a4-aef5615653ea",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        7456,
+        928
+      ],
+      "id": "94ec679b-f8e2-447d-a0f9-5d3474c586a5",
+      "name": "Webhook4",
+      "webhookId": "1981ca71-5359-43d7-94a4-aef5615653ea",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "content": "Chức năng chính",
+        "height": 1968,
+        "width": 5856,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        6000,
+        752
+      ],
+      "id": "4addbe77-d9e2-4be5-bcc2-9a8ac17dafab",
+      "name": "Sticky Note7"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "d0f35c22-be62-41c1-a82a-b2e78d8c86b3",
+              "leftValue": "={{ Object.keys($binary || {}).length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        7728,
+        1408
+      ],
+      "id": "c2a6eed5-1343-494d-920b-1e3c33fce41a",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b2944346-bf66-41d2-b957-dc728fc12fee",
+              "name": "url_File",
+              "value": "={{ $json.webViewLink }}",
+              "type": "string"
+            },
+            {
+              "id": "593a80ec-1520-4764-af8e-b90393778073",
+              "name": "ten_bai_toan",
+              "value": "={{ $('Webhook').item.json.body.baiToan }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        8304,
+        1248
+      ],
+      "id": "edfe4fc3-a7e2-43c7-aa56-0bca041585cd",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "jsCode": "const urls = [];\n\nfor (const item of items) {\n  const url =\n    item.json.url_File ||\n    item.json.urlFile ||\n    item.json.webViewLink ||\n    item.json.webContentLink ||\n    (item.json.id ? `https://drive.google.com/file/d/${item.json.id}/view` : '');\n\n  if (url) urls.push(url);\n}\n\nconst webhookBody = $('Webhook').first().json.body || {};\n\nreturn [\n  {\n    json: {\n      baiToan: webhookBody.baiToan || items[0]?.json?.ten_bai_toan || '',\n      urlGoc: urls.join('\\n'),\n      trangThai: 'Chưa làm'\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8448,
+        1248
+      ],
+      "id": "4beb6f36-7a20-43e7-b7b3-3a57eba44c8e",
+      "name": "Gom URL file upload"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ======================================\n// Mục đích:\n// Tách tất cả file trong binary thành\n// các item riêng biệt để các node phía sau\n// (Google Drive Upload, Convert File, Extract Text...)\n// xử lý được từng file một.\n// ======================================\n// Mảng chứa kết quả trả về\nconst output = [];\n// Duyệt toàn bộ item đầu vào\nfor (const item of items) {\n  // Lấy object binary\n  // Nếu không tồn tại thì gán object rỗng\n  const binary = item.binary || {};\n  const keys = Object.keys(binary);\n  // Duyệt từng file trong binary\n  for (const key of keys) {\n    // Lấy thông tin file hiện tại\n    const file = binary[key];\n    // Tạo item mới cho file này\n    output.push({\n      // Dữ liệu metadata để tiện debug hoặc lưu DB\n      json: {\n        originalBinaryKey: key,\n        fileName: file.fileName || `file_${output.length + 1}`,\n        mimeType: file.mimeType || '',\n\n        // Phần mở rộng file\n        // pdf, docx, xlsx...\n        fileExtension: file.fileExtension || '',\n\n        // Kích thước file\n        fileSize: file.fileSize || ''\n      },\n\n      binary: {\n        file: file\n      }\n    });\n  }\n}\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7952,
+        1248
+      ],
+      "id": "13dc164b-ce51-43b5-b56e-67cf513aa503",
+      "name": "Chuan_Hoa_Du_lieu_docx_xlxs,..."
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "chuyen-giao",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        8720,
+        928
+      ],
+      "id": "22650e5f-ecfd-4864-a053-efa16cc307fb",
+      "name": "Chuyển giao bài toán",
+      "webhookId": "753e18d9-fed7-4f55-93cb-bbd5bf42f182",
+      "disabled": true
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        4640,
+        3072
+      ],
+      "id": "69d23b40-f71b-4809-b9e9-4474e1fcb8a1",
+      "name": "Embeddings Google Gemini",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "LDrdUYhWPG5baB50",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonMode": "expressionData",
+        "jsonData": "={{ $('Code: Format Markdown & Hash MD5').first().json.text_content }}",
+        "textSplittingMode": "custom",
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "doc_hash",
+                "value": "={{ $('Code: Format Markdown & Hash MD5').first().json.doc_hash }}"
+              },
+              {
+                "name": "project_id",
+                "value": "={{ $('Code: Format Markdown & Hash MD5').first().json.project_id }}"
+              }
+            ]
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        4816,
+        3072
+      ],
+      "id": "3c838bcf-d686-4537-83f5-1c868df3856c",
+      "name": "Default Data Loader"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Hàm tạo Hash bằng Pure JavaScript (Không gọi require / module external)\nfunction generateHash(str) {\n  let hash = 0;\n  for (let i = 0; i < str.length; i++) {\n    const char = str.charCodeAt(i);\n    hash = (hash << 5) - hash + char;\n    hash |= 0;\n  }\n  return Math.abs(hash).toString(16) + '_' + str.length;\n}\n\n// 2. Hàm convert dữ liệu động sang dạng Markdown\nfunction convertToMarkdown(data, depth = 2) {\n  if (!data) return '';\n  if (typeof data === 'string') return data;\n  let markdownText = '';\n  const prefix = '#'.repeat(Math.min(depth, 6));\n\n  if (Array.isArray(data)) {\n    data.forEach((item, index) => {\n      if (typeof item === 'object') {\n        markdownText += `${prefix} Mục ${index + 1}\\n${convertToMarkdown(item, depth + 1)}\\n\\n`;\n      } else {\n        markdownText += `- ${item}\\n`;\n      }\n    });\n    return markdownText;\n  }\n\n  if (typeof data === 'object') {\n    for (const [key, value] of Object.entries(data)) {\n      if (key.startsWith('_')) continue;\n      const readableKey = key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').toUpperCase().trim();\n      if (typeof value === 'object' && value !== null) {\n        markdownText += `${prefix} ${readableKey}\\n${convertToMarkdown(value, depth + 1)}\\n\\n`;\n      } else {\n        markdownText += `${prefix} ${readableKey}\\n${value}\\n\\n`;\n      }\n    }\n  }\n  return markdownText.trim();\n}\n\n// 3. Thực thi mã hóa và xuất dữ liệu\nconst rawInput = $json;\nconst formattedText = convertToMarkdown(rawInput);\nconst docHash = generateHash(formattedText);\n\n// Đã đổi thành \"Webhook5\" theo đúng danh sách node bên trái\nconst webhookBody = $node[\"Webhook5\"]?.json?.body || $node[\"Webhook5\"]?.json || {};\n\nreturn [{\n  json: {\n    doc_hash: docHash,\n    text_content: formattedText,\n    feature_name: webhookBody.feature_name || \"GENERAL_FEATURE\",\n    project_id: webhookBody.project_id || \"DEFAULT_PROJ\"\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4080,
+        2768
+      ],
+      "id": "2c93295d-2fd1-4505-8532-7113ac73be98",
+      "name": "Code: Format Markdown & Hash MD5"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT EXISTS (\n  SELECT 1 \n  FROM documents \n  WHERE metadata->>'doc_hash' = '{{ $json.doc_hash }}'\n) AS is_exist;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        4320,
+        2768
+      ],
+      "id": "948cc809-ccad-4e9f-a5fe-577c48d3893f",
+      "name": "Execute a SQL query",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "RLiFZpbhZTqOJwMX",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "fccf8158-d6f1-4cf6-a0e9-b0111fb58890",
+              "leftValue": "={{ $json.is_exist }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        4496,
+        2768
+      ],
+      "id": "64886145-96ff-4fb0-bcf6-92dd33c8bdd2",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "content": "Truyền File Local",
+        "height": 192,
+        "width": 976,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        7904,
+        1200
+      ],
+      "id": "768239a3-5f1b-43b4-bcd4-8df855b991c2",
+      "name": "Sticky Note8"
+    },
+    {
+      "parameters": {
+        "content": "Truyền File từ link",
+        "height": 192,
+        "width": 976,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        7904,
+        1408
+      ],
+      "id": "ccc55930-3919-4dd5-ab54-ca1ba29428bb",
+      "name": "Sticky Note9"
+    },
+    {
+      "parameters": {
+        "inputDataFieldName": "file",
+        "name": "={{ $json.fileName }}",
+        "driveId": {
+          "__rl": true,
+          "value": "My Drive",
+          "mode": "list",
+          "cachedResultName": "My Drive",
+          "cachedResultUrl": "https://drive.google.com/drive/my-drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "root",
+          "mode": "list",
+          "cachedResultName": "/ (Root folder)",
+          "cachedResultUrl": "https://drive.google.com/drive"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        8144,
+        1248
+      ],
+      "id": "bf2fc38b-f606-43a3-8b97-c7439effa0f4",
+      "name": "Upload file",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "SlnP0Af6SfNRGCxK",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "tableName": {
+          "__rl": true,
+          "value": "documents",
+          "mode": "list",
+          "cachedResultName": "documents"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1.3,
+      "position": [
+        4704,
+        2880
+      ],
+      "id": "d477843c-71fa-4a2c-af8b-3ff198819cc6",
+      "name": "Save_DB",
+      "credentials": {
+        "supabaseApi": {
+          "id": "YKLE3BWOKRZLmm95",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chunkOverlap": 120,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        4816,
+        3200
+      ],
+      "id": "f78266d2-9258-4e97-bad5-75bbab9e8c32",
+      "name": "Recursive Character Text Splitter"
+    },
+    {
+      "parameters": {
+        "content": "Phân chia bài toán",
+        "height": 224,
+        "width": 656
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        8560,
+        880
+      ],
+      "id": "48c21812-734a-4057-b6b7-a4951664529f",
+      "name": "Sticky Note10"
+    },
+    {
+      "parameters": {
+        "amount": 15
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        8800,
+        2896
+      ],
+      "id": "8af1349e-728b-4fa5-a7d9-81ccb0ee5a96",
+      "name": "Wait1",
+      "webhookId": "2c0277fb-49e6-4d25-9a74-7f8eb72df0b0"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ===== Helper parse JSON chịu lỗi (dán lặp lại trong từng Code node) =====\nfunction tryParse(s) { try { return JSON.parse(s); } catch (e) { return null; } }\n\nfunction salvageArray(t, key) {\n  const k = t.indexOf('\"' + key + '\"');\n  if (k < 0) return [];\n  let i = t.indexOf('[', k);\n  if (i < 0) return [];\n  i++;\n  const out = [];\n  let depth = 0, inStr = false, esc = false, start = -1;\n  for (; i < t.length; i++) {\n    const c = t[i];\n    if (inStr) {\n      if (esc) esc = false;\n      else if (c === '\\\\') esc = true;\n      else if (c === '\"') inStr = false;\n      continue;\n    }\n    if (c === '\"') { inStr = true; continue; }\n    if (c === '{') { if (depth === 0) start = i; depth++; }\n    else if (c === '}') {\n      depth--;\n      if (depth === 0 && start >= 0) {\n        const o = tryParse(t.slice(start, i + 1));\n        if (o) out.push(o);\n        start = -1;\n      }\n    } else if (c === ']' && depth === 0) break;\n  }\n  return out;\n}\n\n// Trả về { data, salvaged } hoặc null. arrayKey dùng để cứu các phần tử hoàn chỉnh khi JSON bị cắt cụt.\nfunction parseLoose(raw, arrayKey) {\n  let t = String(raw || '').replace(/```json/gi, '').replace(/```/g, '').trim();\n  const a = t.indexOf('{'), b = t.lastIndexOf('}');\n  if (a >= 0 && b > a) t = t.slice(a, b + 1);\n  const attempts = [\n    t,\n    t.replace(/,\\s*([}\\]])/g, '$1'),\n    t.replace(/[“”]/g, '\"').replace(/[‘’]/g, \"'\").replace(/,\\s*([}\\]])/g, '$1')\n  ];\n  for (const s of attempts) {\n    const p = tryParse(s);\n    if (p && typeof p === 'object') return { data: p, salvaged: false };\n  }\n  if (arrayKey) {\n    const items = salvageArray(t, arrayKey);\n    if (items.length) {\n      const m = t.match(/\"(?:chunk_id|condition_id)\"\\s*:\\s*\"([^\"]+)\"/);\n      const data = { [arrayKey]: items };\n      if (m) data[t.indexOf('\"chunk_id\"') >= 0 ? 'chunk_id' : 'condition_id'] = m[1];\n      return { data, salvaged: true };\n    }\n  }\n  return null;\n}\n\n// Chuẩn hóa test case do AI sinh cho 1 condition; gắn metadata từ condition (không tin AI); không để rơi phân vùng nào.\nconst first = $input.first().json;\nconst aiText = first.output || first.text || '';\nconst arrOf = v => (Array.isArray(v) ? v : v ? [v] : []);\n\n// 1. Xác định condition hiện tại: ưu tiên condition_id mà AI trả lại (tra trong Parse_conditions),\n//    nếu không có thì lấy theo item của vòng lặp (Loop Over Items1 -> Wait_Gemini -> AI)\nconst parsed = String(aiText).trim() ? parseLoose(aiText, 'testcases') : null;\nlet cond = null;\nif (parsed && parsed.data.condition_id) {\n  try {\n    for (const it of $('Parse_conditions').all()) {\n      const f = (it.json.conditions || []).find(c => c.condition_id === parsed.data.condition_id);\n      if (f) { cond = f; break; }\n    }\n  } catch (e) { /* bỏ qua */ }\n}\nif (!cond) {\n  try { cond = $('Wait_Gemini').first().json.conditions || null; } catch (e) { cond = null; }\n}\nif (!cond) {\n  if (!parsed) throw new Error('AI_Phan_tich_Testcase trả JSON không hợp lệ và không xác định được condition.\\nRAW:\\n' + String(aiText).slice(0, 3000));\n  cond = { condition_id: parsed.data.condition_id || '', test_suite: 'General', test_technique: '', condition_type: '', requirement_ids: [] };\n}\n\n// 2. Chuẩn hóa danh sách test case\nlet tcs = parsed && Array.isArray(parsed.data.testcases) ? parsed.data.testcases : [];\nconst plan = parsed && Array.isArray(parsed.data.phan_vung_ap_dung) ? parsed.data.phan_vung_ap_dung : [];\nconst notes = [];\nif (!tcs.length) notes.push('AI không trả test case hợp lệ cho condition này');\nelse if (parsed.salvaged) notes.push('JSON test case bị cắt cụt');\n\nfunction toList(value) {\n  if (value === null || value === undefined) return [];\n  const a = Array.isArray(value) ? value : String(value).split('\\n');\n  return a.map(x => String(x === null || x === undefined ? '' : x).trim().replace(/^\\d+\\s*[\\.\\)]\\s*/, '')).filter(x => x !== '');\n}\nfunction buildSteps(pre, steps) {\n  const numbered = list => list.map((x, i) => (i + 1) + '. ' + x).join('\\n');\n  const p = toList(pre), s = toList(steps);\n  if (p.length === 0) return numbered(s);\n  return 'Pre:\\n' + numbered(p) + '\\nStep:\\n' + numbered(s);\n}\nfunction formatResult(v) {\n  if (v === null || v === undefined) return '';\n  if (Array.isArray(v)) return v.filter(x => x !== null && x !== undefined && String(x).trim() !== '').map(x => String(x).trim()).join('\\n');\n  return String(v).trim();\n}\nconst startsOk = s => /^(Kiểm tra|Xác minh|Validate)\\b/i.test(s);\n\nfunction fallbackTC(label) {\n  const vp = cond.verify_points || {};\n  const steps = ['Đăng nhập thành công', 'Truy cập chức năng thuộc \"' + (cond.test_suite || '') + '\"']\n    .concat(arrOf(label ? [label] : cond.test_data_hint).map(h => 'Chuẩn bị/nhập dữ liệu: ' + h))\n    .concat(cond.context ? ['Thực hiện thao tác theo ngữ cảnh: ' + cond.context] : [])\n    .concat(['Quan sát và đối chiếu kết quả mong muốn']);\n  const exp = arrOf(cond.expected_behavior_hint);\n  const lines = exp.length ? exp.join('\\n- ') : 'N/A (Tài liệu chưa đặc tả)';\n  return {\n    test_suite: cond.test_suite,\n    muc_dich: 'Kiểm tra ' + (cond.condition || '') + (label ? ' - ' + label : ''),\n    dieu_kien_tien_quyet: cond.preconditions || [],\n    cac_buoc: steps,\n    ket_qua_mong_muon: [steps.length + '. - ' + lines],\n    _fallback: true\n  };\n}\n\n// Phân vùng trong kế hoạch mà AI chưa sinh TC -> sinh TC dự phòng để không rơi coverage\nif (!tcs.length) {\n  const labels = plan.length ? plan : arrOf(cond.test_data_hint);\n  tcs = labels.length ? labels.map(l => fallbackTC(l)) : [fallbackTC('')];\n} else if (plan.length > tcs.length) {\n  notes.push('AI lập kế hoạch ' + plan.length + ' phân vùng nhưng chỉ sinh ' + tcs.length + ' TC');\n  for (let i = tcs.length; i < plan.length; i++) tcs.push(fallbackTC(plan[i]));\n}\n\nconst srcRef = arrOf(cond.requirement_ids).join(', ');\nconst tag = '[Kỹ thuật: ' + (cond.test_technique || 'N/A') + '] [Loại: ' + (cond.condition_type || 'N/A') + ']' + (srcRef ? ' [Nguồn: ' + srcRef + ']' : '');\nconst gapNote = cond.requirement_gap ? ' [Thiếu đặc tả: ' + cond.requirement_gap + ']' : '';\n\nreturn tcs.map(tc => {\n  let purpose = String(tc.muc_dich || '').trim();\n  if (purpose && !startsOk(purpose)) purpose = 'Kiểm tra ' + purpose.charAt(0).toLowerCase() + purpose.slice(1);\n  const review = tc._fallback || cond._generated ? ' [CẦN RÀ SOÁT: ' + (notes.join('; ') || 'nội dung sinh dự phòng, chưa được AI chi tiết hóa') + ']' : '';\n  return {\n    json: {\n      test_suite: cond.test_suite || tc.test_suite || 'General',\n      suite_order: cond.suite_order !== undefined ? cond.suite_order : (first.suite_order !== undefined ? first.suite_order : 9999),\n      condition_id: cond.condition_id || '',\n      muc_dich: purpose,\n      cac_buoc: buildSteps(tc.dieu_kien_tien_quyet, tc.cac_buoc),\n      ket_qua_mong_muon: formatResult(tc.ket_qua_mong_muon),\n      ghi_chu: tag + gapNote + review\n    }\n  };\n}).filter(r => r.json.muc_dich && r.json.cac_buoc);\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        11968,
+        3792
+      ],
+      "id": "08fcd2d4-85ce-4db1-a42e-52f4d7199d80",
+      "name": "xu_ly_boc_du_lieu_json"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "3bafc86f-691c-4c47-b6da-8f5447780777",
+                    "leftValue": "={{ $('Loop Over Items').item.json['Trạng thái'] }}",
+                    "rightValue": "Đã xong",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "78dde4ca-ffdd-4e70-ba8b-107ee09f1e73",
+                    "leftValue": "={{ $('Loop Over Items').item.json['Trạng thái'] }}",
+                    "rightValue": "Waiting",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        7888,
+        2912
+      ],
+      "id": "eb68b606-4cfc-4580-871a-650910036748",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json['url_le'].replace(/\\/edit.*/, \"/export?format=txt\") }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDocsOAuth2Api",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        8576,
+        2896
+      ],
+      "id": "4a54bc12-d21b-48ac-b38a-ac5b1fea6d54",
+      "name": "Crawl_tai_lieu docs",
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "lzAvdLA0rH96ZJw4",
+          "name": "Google Docs account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.figma.com/v1/files/{{ $json.url_le.match(/(?:design|file)\\/([^\\/]+)/)[1] }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Figma-Token",
+              "value": "figd_YOUR_FIGMA_TOKEN"
+            }
+          ]
+        },
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 3000
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        8656,
+        3072
+      ],
+      "id": "297d6526-3f9b-4505-8e81-d835313ee333",
+      "name": "Craw_Figma",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        9248,
+        2912
+      ],
+      "id": "45d652cf-a513-4835-9e9f-be178faa04a2",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lấy data từ API Figma trả về\nconst figmaData = $input.first().json;\nconst documentNode = figmaData.document;\n\n// Lấy thông tin bài toán cũ truyền sang để không bị mất kết nối\nconst baiToanGoc = $(\"Switch\").item.json; \n\n// Đệ quy moi móc toàn bộ Text trên giao diện\nfunction extractText(node) {\n    let texts = [];\n    if (node.type === \"TEXT\" && node.characters) {\n        texts.push(`[${node.name}]: ${node.characters.replace(/\\n/g, ' ')}`); \n    }\n    if (node.children) {\n        for (let child of node.children) {\n            texts = texts.concat(extractText(child));\n        }\n    }\n    return texts;\n}\n\nconst allExtractedText = extractText(documentNode);\n\n// Trả về biến 'data' giống hệt định dạng của nhánh Google Docs\nreturn {\n    json: {\n        ...baiToanGoc, // Giữ lại tên Bài toán, Link Testcase...\n        \"data\": \"DỮ LIỆU GIAO DIỆN TỪ FIGMA:\\n\" + allExtractedText.join(\"\\n\")\n    }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8864,
+        3072
+      ],
+      "id": "7faab992-99f8-4175-a8e3-17e301458696",
+      "name": "get_Text_figma"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Lấy toàn bộ dữ liệu từ node trước đó (nhánh \"Chưa làm\")\nconst items = $input.all();\nconst newItems = [];\n\n// 2. Duyệt qua từng bài toán\nfor (let i = 0; i < items.length; i++) {\n    const item = items[i].json;\n    const rawUrls = item[\"URL\"] || \"\";\n\n    // 3. Tách link: Xử lý cắt chuỗi bằng dấu phẩy (,) hoặc dấu xuống dòng (\\n)\n    const urlArray = rawUrls.split(/[,\\n]+/);\n\n    // 4. Tạo ra các item lẻ cho từng link để node sau dễ đọc\n    for (let j = 0; j < urlArray.length; j++) {\n        const singleUrl = urlArray[j].trim();\n\n        // Nếu link không bị rỗng thì mới đẩy vào mảng\n        if (singleUrl !== \"\") {\n            newItems.push({\n                json: {\n                    ...item,             // Giữ lại toàn bộ data cũ (Tên bài toán, Link Testcase...)\n                    \"url_le\": singleUrl  // Tạo thêm 1 trường mới chỉ chứa 1 link duy nhất để đọc\n                }\n            });\n        }\n    }\n}\n\n// 5. Trả về danh sách các link lẻ đã được tách\nreturn newItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8112,
+        2928
+      ],
+      "id": "195bbf72-f4b8-41ab-942a-2a60bd5764e7",
+      "name": "Tách_link_tài_liệu"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.url_le }}",
+                    "rightValue": "/document/",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    },
+                    "id": "7bbd47bc-afed-4fc2-9262-c59ff652f57f"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "45313e36-ac7a-4511-b815-e7cbc1bf49af",
+                    "leftValue": "={{ $json.url_le }}",
+                    "rightValue": "figma.com",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "bca47ceb-f54b-464d-a24c-fc216f87cd04",
+                    "leftValue": "={{ $json.url_le }}",
+                    "rightValue": "/spreadsheets/",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        8336,
+        2912
+      ],
+      "id": "92e6f0dd-515b-4ffe-886b-132fef49ec61",
+      "name": "phân_luồng_tài_liệu"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst grouped = {};\n\nitems.forEach(item => {\n    const json = item.json;\n    const key = json['Bài toán'] || 'Default'; // Gom nhóm theo Tên bài toán\n    \n    if (!grouped[key]) {\n        // Tạo nhóm mới, giữ lại toàn bộ data gốc\n        grouped[key] = { ...json, data: [] };\n    }\n    \n    // Gom các text tài liệu lẻ vào mảng\n    if (json.data) {\n        grouped[key].data.push(json.data);\n    }\n});\n\n// Chạy vòng lặp nối chuỗi mảng thành Text khổng lồ\nconst results = [];\nfor (const key in grouped) {\n    const finalItem = grouped[key];\n    \n    // Chèn Separator siêu đẹp ở đây\n    finalItem.data = finalItem.data.join(\"\\n\\n--- TÀI LIỆU TIẾP THEO ---\\n\\n\");\n    \n    results.push({ json: finalItem });\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9424,
+        2928
+      ],
+      "id": "3db171fc-cbd8-4f63-897d-9d98945b22cc",
+      "name": "Gom_tài_liệu"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Update_link_sheet_TC').first().json['Link Testcase'] }}",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Trang tính1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1QFPEdrt-IQi_Ms5oYyt3woorwyHqNnA89xVuHn8A_IU/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Mục đích kiểm thử ": "={{ $json.muc_dich }}",
+            "Các bước thực hiện": "={{ $json.cac_buoc }}",
+            "Kết quả mong muốn ": "={{ $json.ket_qua_mong_muon }}",
+            "Ghi chú": "={{ $json.ghi_chu }}"
+          },
+          "matchingColumns": [
+            "KỊCH BẢN KIỂM THỬ  CHỨC NĂNG"
+          ],
+          "schema": [
+            {
+              "id": "ID",
+              "displayName": "ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Mục đích kiểm thử ",
+              "displayName": "Mục đích kiểm thử ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Các bước thực hiện",
+              "displayName": "Các bước thực hiện",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Kết quả mong muốn ",
+              "displayName": "Kết quả mong muốn ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Kết quả thực tế (UAT)",
+              "displayName": "Kết quả thực tế (UAT)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Kết quả thực tế (Prod)",
+              "displayName": "Kết quả thực tế (Prod)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Data test",
+              "displayName": "Data test",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "UAT",
+              "displayName": "UAT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "PROD",
+              "displayName": "PROD",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Kết quả hiện tại",
+              "displayName": "Kết quả hiện tại",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Mã lỗi\n(ID file log bug/ Jira)",
+              "displayName": "Mã lỗi\n(ID file log bug/ Jira)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Ghi chú",
+              "displayName": "Ghi chú",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Ngày test UAT",
+              "displayName": "Ngày test UAT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Ngày test PROD",
+              "displayName": "Ngày test PROD",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "locationDefine": {
+            "values": {
+              "headerRow": 13
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        11504,
+        3328
+      ],
+      "id": "fddc484c-fa22-48f0-badf-05f882d1ee53",
+      "name": "Sheet_luu_thong_tin_TC",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ZVpDXb95vPUzNkM5",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $json.url_le.match(/\\/d\\/([a-zA-Z0-9-_]+)/)[1] }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        8496,
+        3280
+      ],
+      "id": "7cf28558-dfe2-47ac-92a4-d0737ae88aa7",
+      "name": "Lay_thong_tin_sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ZVpDXb95vPUzNkM5",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $json.url_le }}",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "={{ $json.sheet_name }}"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        8896,
+        3280
+      ],
+      "id": "7a6992f8-51c4-4299-9773-728ab98b3be6",
+      "name": "lay_thong_tin_tung_tab",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ZVpDXb95vPUzNkM5",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst baiToanGoc = items[0].json; \n\nlet textContent = `\\n\\n--- DANH SÁCH API CẦN KIỂM THỬ (BẮT BUỘC ĐỌC) ---\\n`;\n\nitems.forEach((item) => {\n    const data = item.json;\n    // Bắt đúng các key từ file Google Sheets của anh\n    const tenApi = data[\"Danh sách api sử dụng \"] || \"\";\n    const endpoint = data[\"col_3\"] || data[\"Đầu api\"] || \"\";\n    const moTa = data[\"col_4\"] || data[\"Mô tả\"] || \"\";\n    \n    // Chỉ lấy những dòng có chứa đường link http/api\n    if (endpoint.includes(\"http\") || endpoint.includes(\"api/\")) {\n        textContent += `\\n* Tên API: ${tenApi}\\n  - Endpoint: ${endpoint}\\n  - Mô tả bổ sung: ${moTa}\\n`;\n    }\n});\n\nreturn {\n    json: {\n        \"Bài toán\": baiToanGoc[\"Bài toán\"],\n        \"Link Testcase\": baiToanGoc[\"Link Testcase\"],\n        \"Trạng thái\": baiToanGoc[\"Trạng thái\"],\n        \"url_le\": baiToanGoc[\"url_le\"],\n        \"data\": textContent\n    }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9072,
+        3280
+      ],
+      "id": "11ece8cb-a3c3-4847-aeae-1e391add1298",
+      "name": "gop_thong_tin_thanh_text"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.5-flash",
+        "options": {
+          "maxOutputTokens": 32768,
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        11472,
+        3712
+      ],
+      "id": "cbfd7f92-a6ff-4325-b3ea-9de2dbae4bcf",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "LDrdUYhWPG5baB50",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Bạn là Senior QA Engineer.\n\nNHIỆM VỤ\nSinh Test Case CHI TIẾT, thực thi được ngay bởi một tester bất kỳ, CHỈ dựa trên 1 Test Condition được cung cấp (kèm requirement_context) và \"YÊU CẦU BỔ SUNG CỦA NGƯỜI DÙNG\". Không bịa Business Rule, API, bảng/cột, trạng thái, quyền, thông báo, mã lỗi ngoài đầu vào.\n\nQUY TẮC TÁCH TEST CASE (QUAN TRỌNG NHẤT)\n1 Test Condition KHÔNG BẰNG 1 Test Case. Trước khi viết test case, hãy LIỆT KÊ KẾ HOẠCH TÁCH vào khóa \"phan_vung_ap_dung\" (mỗi phần tử = 1 lớp/giá trị/tổ hợp/chuyển trạng thái/phản hồi sẽ thành 1 test case). Sau đó \"testcases\" PHẢI có ĐÚNG số phần tử bằng kế hoạch (mỗi phần tử một test case, không gộp, không bỏ). Tối đa 6 phân vùng cho mỗi condition: nếu nhiều hơn, chọn 6 phân vùng đại diện (ưu tiên biên và các lớp không hợp lệ khác nhau về hành vi).\nQuy tắc tách theo kỹ thuật (condition.test_technique):\n- Phân vùng tương đương: mỗi lớp 1 TC. Mỗi phần tử trong test_data_hint là 1 TC riêng. Rỗng, null/không truyền, chỉ khoảng trắng, sai kiểu, sai định dạng, ký tự đặc biệt, ngoài danh sách cho phép = các TC KHÁC NHAU. Nguyên tắc 1 lỗi cho 1 TC: mỗi TC chỉ sai MỘT trường, các trường còn lại hợp lệ.\n- Phân tích giá trị biên: mỗi giá trị biên (min-1, min, max, max+1 - chỉ những giá trị tồn tại) 1 TC, ghi rõ giá trị cụ thể trong cac_buoc.\n- Bảng quyết định: mỗi tổ hợp điều kiện (mỗi cột) 1 TC, ghi rõ giá trị từng điều kiện trong dieu_kien_tien_quyet.\n- Chuyển trạng thái: mỗi chuyển hợp lệ 1 TC; mỗi trạng thái không hợp lệ 1 TC; thao tác lặp lại 1 TC.\n- Negative testing: mỗi phản hồi lỗi/mã lỗi/timeout/lỗi hệ thống 1 TC; kịch bản từ chối/hủy phải xác minh KHÔNG cập nhật CSDL và KHÔNG gọi hệ thống ngoài.\n- Hồi quy: mỗi luồng cũ bị ảnh hưởng 1 TC, xác minh hành vi cũ giữ nguyên (KHÔNG đi vào luồng mới, KHÔNG gọi hệ thống mới nếu điều kiện kích hoạt không thỏa).\n- Kiểm tra dữ liệu/tích hợp: mỗi bảng/cột hoặc mỗi endpoint/payload cần xác minh 1 TC (hoặc gộp trong cùng TC thành công nếu cùng một kịch bản nhưng phải liệt kê ĐỦ từng bảng.cột).\n- Use case: luồng chính và từng luồng thay thế mỗi luồng 1 TC.\nNếu condition không có đủ dữ liệu để tách (tài liệu thiếu giới hạn/giá trị), vẫn viết 1 TC và ghi \"N/A (Tài liệu chưa đặc tả)\" ở phần kết quả chưa có.\n\nTRƯỜNG DỮ LIỆU\n- \"test_suite\": giữ nguyên từ condition.\n- \"muc_dich\": BẮT ĐẦU bằng \"Kiểm tra\", \"Xác minh\" hoặc \"Validate\". Nêu rõ đối tượng, điều kiện/giá trị cụ thể và kết quả mong đợi. Mỗi TC có mục đích KHÁC NHAU (nêu giá trị/lớp/trạng thái phân biệt), không viết chung chung.\n- \"dieu_kien_tien_quyet\" (mảng chuỗi): trạng thái DỮ LIỆU/CẤU HÌNH/QUYỀN phải có TRƯỚC khi test, đủ chi tiết để tester tự dựng dữ liệu: bảng, cột, giá trị (VD \"Bảng X có bản ghi mã = ..., cột STATUS = 4\"); dữ liệu test cụ thể sẽ dùng; với TC lỗi/ngoại lệ phải có thiết lập Mock Server (endpoint nào, trả về phản hồi nào). Lấy từ preconditions, related_state, test_data_hint của condition. KHÔNG đưa đăng nhập/mở màn hình/nhấn nút vào đây. Không cần điều kiện đặc biệt thì trả [].\n- \"cac_buoc\" (mảng chuỗi): từng thao tác của tester, mỗi bước 1 hành động, không đánh số trong chuỗi. Bắt đầu bằng \"Đăng nhập thành công\" (nếu nghiệp vụ trên giao diện), điều hướng tới màn hình, nhập/chọn dữ liệu với GIÁ TRỊ CỤ THỂ (tên màn hình, tên trường, tên nút), rồi các bước XÁC MINH theo verify_points của condition:\n    + Giao diện: quan sát thông báo/nhãn/trạng thái nút.\n    + Network: mở DevTools (F12) -> tab Network, bật Preserve log, lọc theo endpoint cần kiểm tra, thực hiện thao tác, mở request để kiểm tra payload và response.\n    + Log: kiểm tra log server backend hoặc bảng audit (chỉ nêu tên bảng/file khi đầu vào có nêu) để xác nhận có/không gọi hệ thống ngoài đúng endpoint, đúng payload.\n    + Database: truy vấn đúng bảng/cột đầu vào nêu (VD \"SELECT <cột> FROM <bảng> WHERE <khóa> = <giá trị>\") trước và sau thao tác.\n  Chỉ thêm bước xác minh thuộc loại nào có trong verify_points của condition.\n- \"ket_qua_mong_muon\" (mảng chuỗi): mỗi phần tử là kết quả của 1 bước xác minh và BẮT ĐẦU bằng số thứ tự bước tương ứng trong \"cac_buoc\" (VD \"5. - Hiển thị ... \"). Phải ĐO LƯỜNG và XÁC MINH được:\n    + Nguyên văn thông báo/nhãn/mã lỗi.\n    + API: endpoint được gọi/KHÔNG được gọi, các trường payload, mã phản hồi.\n    + Database: \"bảng.cột = giá trị mong muốn (trước -> sau)\" hoặc \"bảng.cột giữ nguyên giá trị trước, không phát sinh bản ghi mới\".\n    + Log: có/không có bản ghi gọi hệ thống ngoài và nội dung request.\n  CẤM câu chung chung như \"hệ thống xử lý thành công\", \"đồng bộ thành công\". Phần tài liệu chưa nêu thì ghi \"N/A (Tài liệu chưa đặc tả)\".\n\nĐỊNH DẠNG ĐẦU RA\nTrả về đúng MỘT JSON object parse được bằng JSON.parse(). KHÔNG dùng ```json, KHÔNG có chữ ngoài JSON, KHÔNG có dấu phẩy thừa. Mọi chuỗi bằng tiếng Việt, NGẮN GỌN: mỗi bước tối đa 20 từ, mỗi ý kết quả tối đa 30 từ (vẫn giữ nguyên văn thông báo/mã lỗi). Mỗi test case có ĐÚNG 5 khóa: test_suite, muc_dich, dieu_kien_tien_quyet, cac_buoc, ket_qua_mong_muon. \"condition_id\" giữ nguyên từ đầu vào.\nVí dụ dưới đây CHỈ minh họa định dạng và cách tách (số test case luôn bằng số phần tử của phan_vung_ap_dung; ví dụ rút gọn còn 2 phần tử, thực tế có thể nhiều hơn). KHÔNG sao chép nội dung:\n{\n  \"condition_id\": \"<condition_id của đầu vào>\",\n  \"phan_vung_ap_dung\": [\n    \"Số lượng = 0 (dưới biên min = 1)\",\n    \"Số lượng = 1 (biên min)\"\n  ],\n  \"testcases\": [\n    {\n      \"test_suite\": \"Màn hình Đặt hàng\",\n      \"muc_dich\": \"Validate hệ thống từ chối khi nhập Số lượng = 0 (dưới biên min = 1)\",\n      \"dieu_kien_tien_quyet\": [\"Tồn tại sản phẩm mã SP01 trong bảng PRODUCT với cột STATUS = 1\"],\n      \"cac_buoc\": [\n        \"Đăng nhập thành công\",\n        \"Vào màn hình Đặt hàng\",\n        \"Chọn sản phẩm SP01\",\n        \"Nhập trường Số lượng = 0\",\n        \"Nhấn nút Đặt hàng\",\n        \"Quan sát thông báo trên giao diện\",\n        \"Truy vấn bảng ORDERS theo mã SP01\"\n      ],\n      \"ket_qua_mong_muon\": [\n        \"6. - Hiển thị thông báo \\\"Số lượng phải từ 1 đến 99\\\"\\n- Không gọi API tạo đơn hàng (tab Network không có request tới endpoint tạo đơn)\",\n        \"7. - Bảng ORDERS không phát sinh bản ghi mới cho SP01\"\n      ]\n    },\n    {\n      \"test_suite\": \"Màn hình Đặt hàng\",\n      \"muc_dich\": \"Xác minh hệ thống cho phép đặt hàng khi Số lượng = 1 (biên min)\",\n      \"dieu_kien_tien_quyet\": [\"Tồn tại sản phẩm mã SP01 trong bảng PRODUCT với cột STATUS = 1\"],\n      \"cac_buoc\": [\n        \"Đăng nhập thành công\",\n        \"Vào màn hình Đặt hàng\",\n        \"Chọn sản phẩm SP01\",\n        \"Nhập trường Số lượng = 1\",\n        \"Nhấn nút Đặt hàng\",\n        \"Quan sát thông báo trên giao diện\",\n        \"Truy vấn bảng ORDERS theo mã SP01\"\n      ],\n      \"ket_qua_mong_muon\": [\n        \"6. - Hiển thị thông báo \\\"Đặt hàng thành công\\\"\",\n        \"7. - Bảng ORDERS phát sinh 1 bản ghi mới với cột QUANTITY = 1\"\n      ]\n    }\n  ]\n}\n\n\nYÊU CẦU BỔ SUNG CỦA NGƯỜI DÙNG (nguồn hợp lệ thứ hai ngoài tài liệu; nếu mâu thuẫn tài liệu gốc thì ưu tiên tài liệu gốc):\n- Prompt phân tích tài liệu: {{ $('When Executed by Another Workflow').first().json.body.promptAI1 || \"Không có yêu cầu bổ sung.\" }}\n- Prompt thiết kế test: {{ $('When Executed by Another Workflow').first().json.body.promptAI2 || \"Không có yêu cầu bổ sung.\" }}\n\nINPUT TEST CONDITION:\n{{ JSON.stringify($json.conditions) }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        11472,
+        3536
+      ],
+      "id": "b1532d27-7ca7-4f9f-a4d5-37f3d82b1367",
+      "name": "AI_Phan_tich_Testcase",
+      "retryOnFail": true,
+      "waitBetweenTries": 10000,
+      "maxTries": 3,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentURL": "={{ $('tao_file_docs').item.json.id }}",
+        "actionsUi": {
+          "actionFields": [
+            {
+              "action": "insert",
+              "text": "={{ $json.final_text }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [
+        10656,
+        2928
+      ],
+      "id": "e21a461a-bd3f-4ae1-9da2-dd2becfa0542",
+      "name": "day_du_lieu_vao_docs",
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "lzAvdLA0rH96ZJw4",
+          "name": "Google Docs account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a Senior Technical Business Analyst and QA Lead.\nYour task is to deeply analyze the provided specifications, design documents, or raw text, and extract information to generate a Technical Analysis Report.\n\nTO ENSURE SYSTEM AUTOMATION, STRICTLY ADHERE TO THE FOLLOWING RULES:\n1. Tone: Professional, objective, concise, and technically direct. Avoid fluff and verbose explanations.\n2. Missing Data: Base your analysis ONLY on the provided inputs. If a specific detail is missing, you must output exactly: \"Tài liệu hiện tại chưa đặc tả phần này.\" Do not assume, guess, or hallucinate data.\n3. Output Format: MUST be PURE JSON for automated parsing.\n   - NO Markdown formatting (do not wrap in ```json).\n   - NO conversational text, greetings, or explanations outside the JSON object.\n4. Language Requirements: All generated text and values inside the JSON MUST be strictly written in Vietnamese.\n\nJSON STRUCTURE (Return exactly 1 JSON Object with these 6 keys. Values must be strings, use \"\\n\" for line breaks and \"-\" for lists):\n{\n  \"muc_tieu_tai_lieu\": \"1-2 sentences summarizing the problem to be solved. Followed by a bulleted Scope (main features and processes).\",\n  \"he_thong_va_api\": \"List interacting systems/components (e.g., Frontend, Backend, 3rd Party, Database). Extract APIs, background jobs, or communication methods. Format: [Method/Type] [Endpoint/Job Name] - Purpose.\",\n  \"luong_nghiep_vu\": \"Break down into main flows (A, B, C...). For each flow specify: Actor, Pre-condition, Steps (1, 2, 3...), and Data Impact (how data changes). Add 'CHÚ Ý' (uppercase) at critical logic points.\",\n  \"bang_du_lieu\": \"List mentioned data objects, tables, or fields. Briefly explain their meaning and statuses (e.g., STATUS = 0: init).\",\n  \"test_scenarios\": \"Propose comprehensive test scenarios grouped logically (e.g., UI/UX, API/Backend, Data, Integration). Focus on main flows, validation, authorization, and constraints.\",\n  \"rui_ro_va_cau_hoi\": \"Play devil's advocate. Point out document weaknesses: business logic contradictions, data inconsistencies, unhandled edge cases (network failure, concurrent actions), or questions to clarify with Stakeholders.\"\n}\n\nINPUT DATA TO ANALYZE:\n\nSource Document:\n{{ $json.data }}\n\nAdditional User Context:\n{{ $('When Executed by Another Workflow').item.json.body.promptAI2 }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        9760,
+        2928
+      ],
+      "id": "9cae1290-a148-4046-9494-b54fbefe532b",
+      "name": "AI_phan_tich_bai_toan",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Lấy dữ liệu từ con AI\nlet text = $('AI_phan_tich_bai_toan').first().json.output || $('AI_phan_tich_bai_toan').first().json.text || \"\";\n\n// 2. Dọn dẹp thẻ markdown bọc ngoài\ntext = text.replace(/^```(json|markdown|md)?/im, \"\");\ntext = text.replace(/```$/im, \"\");\n\n// 3. Ép kiểu JSON và GỘP THÀNH 1 ĐOẠN VĂN BẢN\nlet combinedText = \"\";\ntry {\n  let parsedData = JSON.parse(text.trim());\n  \n  // Gộp các phần lại và tự động thêm tiêu đề cho đẹp\n  if (parsedData.muc_tieu_tai_lieu) \n      combinedText += \"1. MỤC TIÊU TÀI LIỆU\\n\" + parsedData.muc_tieu_tai_lieu + \"\\n\\n\";\n  \n  if (parsedData.he_thong_va_api) \n      combinedText += \"2. CÁC HỆ THỐNG VÀ API\\n\" + parsedData.he_thong_va_api + \"\\n\\n\";\n  \n  if (parsedData.luong_nghiep_vu) \n      combinedText += \"3. LUỒNG NGHIỆP VỤ CHÍNH\\n\" + parsedData.luong_nghiep_vu + \"\\n\\n\";\n  \n  if (parsedData.bang_du_lieu) \n      combinedText += \"4. CÁC BẢNG DỮ LIỆU\\n\" + parsedData.bang_du_lieu + \"\\n\\n\";\n  \n  if (parsedData.test_scenarios) \n      combinedText += \"5. KỊCH BẢN KIỂM THỬ (TEST SCENARIOS)\\n\" + parsedData.test_scenarios + \"\\n\\n\";\n  \n  if (parsedData.rui_ro_va_cau_hoi) \n      combinedText += \"6. RỦI RO / ĐIỂM CHƯA RÕ\\n\" + parsedData.rui_ro_va_cau_hoi + \"\\n\\n\";\n\n  // Đề phòng trường hợp AI trả về key lạ, cứ có nội dung là in ra hết\n  if (combinedText === \"\") {\n      for (const key in parsedData) {\n          combinedText += `${key.toUpperCase()}:\\n${parsedData[key]}\\n\\n`;\n      }\n  }\n\n} catch (error) {\n  // Nếu lỗi (AI không trả JSON chuẩn), lấy luôn cục chữ nguyên bản của AI\n  combinedText = \"Nội dung phân tích:\\n\\n\" + text;\n}\n\n// 4. TRẢ VỀ ĐÚNG 1 ITEM ĐỂ GOOGLE DOCS IN 1 LẦN\nreturn [{\n  json: {\n    final_text: combinedText.trim()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        10432,
+        2928
+      ],
+      "id": "4bf4d49b-4cd1-42dd-a573-ac986822d631",
+      "name": "Clean_text"
+    },
+    {
+      "parameters": {
+        "jsCode": "const sheetsData = $input.first().json.sheets;\n// Móc lại thông tin Bài toán gốc từ node Switch1\nconst baiToanGoc = $(\"phân_luồng_tài_liệu\").first().json; \n\nconst results = [];\nfor (const sheet of sheetsData) {\n    results.push({\n        json: {\n            ...baiToanGoc,\n            sheet_name: sheet.properties.title\n        }\n    });\n}\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8688,
+        3280
+      ],
+      "id": "fb6c9d7f-5616-4002-95ac-2cc4a7e16ddb",
+      "name": "ghep_tung_tab_voi_id_bai_toan"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        7232,
+        2896
+      ],
+      "id": "5c4963df-8a98-4ab3-acd1-e41c6fe2e729",
+      "name": "Loop Over Items",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "operation": "copy",
+        "fileId": {
+          "__rl": true,
+          "value": "=https://docs.google.com/spreadsheets/d/1JOirPM9SyeyNgdnUtjyrrgrRQ1MmaoZIk5o-cepgV5Y/edit?gid=0#gid=0",
+          "mode": "url"
+        },
+        "name": "=[TC] {{ $('Lay_Tai_lieu_bai_toan1').item.json['Bài toán'] }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        7424,
+        2912
+      ],
+      "id": "22550a1c-3e3e-441c-a52d-ce8cc77f8ff8",
+      "name": "Copy_File_TC",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "SlnP0Af6SfNRGCxK",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "1. Node Lay_thong_tin_sheet: Có chức năng lấy ra toàn bộ tab thuộc sheet\n2. Node ghep_tung_tab_voi_id_bai_toan: Ghép từng tab của sheet với từng id của bài toán\n3. lay_thong_tin_tung_tab: Lấy thông tin của từng tab\n4. gop_thong_tin_thanh_text: Gộp thông tin từng tab thành 1 đoạn text",
+        "height": 224,
+        "width": 1416
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        7840,
+        3264
+      ],
+      "id": "c7119eb6-bf9d-4ca4-a439-7dbfdb738b57",
+      "name": "Sticky Note5"
+    },
+    {
+      "parameters": {
+        "content": "Luồng AI_XU_LY",
+        "height": 1312,
+        "width": 6836,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        5776,
+        2880
+      ],
+      "id": "3403ecf7-6254-44b5-a866-f84e074377da",
+      "name": "Sticky Note6"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body;\nconst newItems = [];\n\n// Trường hợp 1: Nhận mảng từ nút \"Chạy các bài đã chọn\"\nif (body.danhSachBaiToan && Array.isArray(body.danhSachBaiToan)) {\n  body.danhSachBaiToan.forEach(task => {\n    newItems.push({\n      json: {\n        baiToan: task,\n        promptAI1: body.promptAI1,\n        promptAI2: body.promptAI2\n      }\n    });\n  });\n} \n// Trường hợp 2: Nhận chuỗi từ nút \"Play\" của 1 bài đơn lẻ\nelse if (body.baiToan) {\n  newItems.push({\n    json: {\n      baiToan: body.baiToan,\n      promptAI1: body.promptAI1,\n      promptAI2: body.promptAI2\n    }\n  });\n}\n\nreturn newItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6112,
+        2896
+      ],
+      "id": "86ca5d1f-fdb7-4fd2-a3db-b403444852a3",
+      "name": "Code in JavaScript",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.5-flash-lite",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        9760,
+        3072
+      ],
+      "id": "1b9bf7a5-9858-46ae-8b82-6b44149af067",
+      "name": "Google Gemini Chat Model1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "LDrdUYhWPG5baB50",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "copy",
+        "fileId": {
+          "__rl": true,
+          "value": "https://docs.google.com/document/d/1FWzRAf5wouAzWUVLl9azJAuBKc7m8VTqeNb3YtFr5lM/edit?usp=sharing",
+          "mode": "url"
+        },
+        "name": "=Tài liệu phân tích  {{ $('Lay_Tai_lieu_bai_toan1').item.json['Bài toán'] }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        10128,
+        2928
+      ],
+      "id": "cee704d7-0a91-47bd-b12d-1df615096779",
+      "name": "tao_file_docs",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "SlnP0Af6SfNRGCxK",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Bạn là Senior Business Analyst kiêm QA Architect.\n\nNHIỆM VỤ\nĐọc TOÀN BỘ tài liệu đầu vào và trích xuất yêu cầu có cấu trúc ở mức CHI TIẾT, đủ để các bước sau sinh test case theo các kỹ thuật: Phân vùng tương đương, Phân tích giá trị biên, Bảng quyết định, Chuyển trạng thái, Negative testing, Hồi quy.\n- KHÔNG sinh Test Case, Test Scenario, Test Step.\n- ĐỦ Ý nhưng GỌN: không bỏ sót quy tắc/trường/trạng thái và không gộp các quy tắc khác nhau, nhưng mỗi chuỗi tối đa ~30 từ và KHÔNG lặp cùng một nội dung ở nhiều khóa (đã ghi ở business_rules thì không chép lại ở validation/exceptions). Khóa \"context\" của requirement để chuỗi rỗng.\n\nNGUỒN THÔNG TIN DUY NHẤT\nChỉ được dùng (1) nội dung tài liệu và (2) mục \"YÊU CẦU BỔ SUNG CỦA NGƯỜI DÙNG\" ở cuối. Tuyệt đối KHÔNG suy diễn/bịa thêm Business Rule, Validation, API, bảng/cột, trạng thái, quyền, thông báo, mã lỗi. Nếu chi tiết nào thiếu, ghi đúng chuỗi: \"Tài liệu hiện tại chưa đặc tả phần này.\" và đồng thời ghi vào \"ambiguities\".\n\nQUY TẮC TRÍCH XUẤT (bắt buộc rà soát từng mục, không bỏ sót):\n1. TRƯỜNG NHẬP LIỆU: với mỗi trường ghi đủ (nếu tài liệu có nêu): kiểu dữ liệu, bắt buộc/tùy chọn, độ dài min/max, định dạng, miền giá trị hợp lệ, giá trị mặc định, phụ thuộc vào trường khác. Đưa vào \"inputs\" và \"requirements[].validation\". Nếu tài liệu nêu giá trị/ví dụ cụ thể thì giữ NGUYÊN VĂN.\n2. QUY TẮC RẼ NHÁNH: mỗi nhánh IF/ELSE là 1 \"business_rules\" riêng (kể cả nhánh KHÔNG thỏa điều kiện, nhánh mặc định). Khi quyết định phụ thuộc từ 2 điều kiện trở lên, lập thêm \"decision_tables\" liệt kê đủ các tổ hợp tài liệu cho phép.\n3. TRẠNG THÁI: mỗi thực thể có trạng thái (VD STATUS = x) -> ghi đủ các giá trị tài liệu nêu, ý nghĩa, điều kiện chuyển trạng thái; ghi rõ trạng thái nào là HỢP LỆ để thực hiện nghiệp vụ và trạng thái nào KHÔNG hợp lệ.\n4. TÍCH HỢP/GỌI HỆ THỐNG: mỗi lần gọi hệ thống khác hay API -> \"integrations\": hệ thống, endpoint, điều kiện kích hoạt, từng trường trong request payload, phản hồi thành công, từng mã lỗi/phản hồi lỗi, hành vi khi timeout/lỗi, nơi lưu vết log/audit (bảng, file) CHỈ khi tài liệu nêu. Ghi rõ cả điều kiện KHÔNG được gọi.\n5. THAY ĐỔI DỮ LIỆU: với mỗi kịch bản (thành công, từ chối, hủy, lỗi, không đổi) ghi \"bảng.cột: giá trị trước -> giá trị sau\" vào \"data_objects[].data_change\". Kịch bản không được thay đổi dữ liệu phải ghi rõ \"không thay đổi\".\n6. THÔNG BÁO/LABEL/POPUP: giữ NGUYÊN VĂN trong \"expected_behavior\" hoặc \"error_handling\".\n7. NGOẠI LỆ: từ chối, hủy, tranh chấp, lỗi hệ thống, thao tác lặp, dữ liệu đã tồn tại/trùng, không tìm thấy... chỉ khi tài liệu nêu -> \"exceptions\".\n8. PHẠM VI THAY ĐỔI & HỒI QUY: xác định phần nào của hệ thống được sửa/thêm mới (changed) và phần nào KHÔNG sửa nhưng đi qua cùng API/module/bảng (unchanged_but_impacted) -> \"change_scope\". Nếu có, tạo thêm 1 feature riêng tên \"Hồi quy các luồng đi qua <tên API/module bị thay đổi>\" kèm requirement mô tả hành vi phải giữ nguyên. Nếu tài liệu không nêu luồng nào bị ảnh hưởng, ghi vào ambiguities, KHÔNG tự bịa tên luồng.\n9. TÁCH FEATURE THEO TIẾN TRÌNH NGHIỆP VỤ: mỗi feature là một bước/màn hình/luồng riêng (VD: Màn hình nhập liệu -> Kiểm tra dữ liệu trùng -> Gọi hệ thống ngoài -> Phê duyệt -> Xử lý sau phê duyệt -> Ngoại lệ). Đánh \"flow_order\" = 1..n theo THỨ TỰ THỜI GIAN xử lý thực tế. Mỗi feature chứa tối đa khoảng 8 requirement; nhiều hơn thì tách thành feature con theo bước. KHÔNG gộp cả tài liệu vào 1 feature.\n10. Mỗi requirement là 1 hành vi độc lập, kiểm chứng được. Gộp chỉ khi 2 requirement hoàn toàn giống nhau.\n11. Giữ nguyên tên kỹ thuật (API, endpoint, bảng, cột, tham số, trạng thái, mã lỗi, job).\n12. Mọi giá trị chuỗi trong JSON viết bằng tiếng Việt tự nhiên, văn phong BA chuyên nghiệp (trừ tên kỹ thuật giữ nguyên).\n13. Đầu ra là JSON thuần, parse được bằng JSON.parse(): KHÔNG dùng ```json, KHÔNG có chữ ngoài JSON, KHÔNG có dấu phẩy thừa.\n\nCẤU TRÚC JSON ĐẦU RA (các khóa cũ giữ nguyên, các khóa mới là bổ sung; khóa nào không có dữ liệu thì để mảng rỗng / null):\n{\n  \"features\": [\n    { \"feature_id\": \"FEAT001\", \"feature_name\": \"\", \"description\": \"\", \"flow_order\": 1 }\n  ],\n  \"requirements\": [\n    {\n      \"requirement_id\": \"REQ001\",\n      \"feature_id\": \"FEAT001\",\n      \"type\": \"Tên màn hình hoặc Luồng nghiệp vụ\",\n      \"requirement\": \"\",\n      \"context\": \"\",\n      \"preconditions\": [],\n      \"expected_behavior\": \"\",\n      \"related_api\": [],\n      \"related_fields\": [],\n      \"related_state\": [],\n      \"validation\": [],\n      \"error_handling\": []\n    }\n  ],\n  \"business_rules\": [\n    { \"rule_id\": \"BR001\", \"requirement_id\": \"REQ001\", \"condition\": \"\", \"expected_behavior\": \"\" }\n  ],\n  \"decision_tables\": [\n    {\n      \"table_id\": \"DT001\",\n      \"requirement_id\": \"REQ001\",\n      \"conditions\": [\"Tên điều kiện 1\", \"Tên điều kiện 2\"],\n      \"rules\": [\n        { \"rule_no\": 1, \"condition_values\": [\"Có\", \"Không\"], \"expected_action\": \"\" }\n      ]\n    }\n  ],\n  \"inputs\": [\n    {\n      \"name\": \"\",\n      \"required\": null,\n      \"data_type\": \"\",\n      \"min_length\": null,\n      \"max_length\": null,\n      \"format\": \"\",\n      \"default_value\": \"\",\n      \"valid_values\": [],\n      \"constraints\": []\n    }\n  ],\n  \"flows\": [\n    {\n      \"flow_id\": \"FLOW001\",\n      \"feature_id\": \"FEAT001\",\n      \"flow_name\": \"\",\n      \"flow_order\": 1,\n      \"preconditions\": [],\n      \"steps\": [ { \"step\": 1, \"action\": \"\", \"system_behavior\": \"\" } ]\n    }\n  ],\n  \"apis\": [\n    { \"name\": \"\", \"method\": \"\", \"purpose\": \"\", \"input\": \"\", \"output\": \"\" }\n  ],\n  \"integrations\": [\n    {\n      \"integration_id\": \"INT001\",\n      \"requirement_id\": \"REQ001\",\n      \"system\": \"\",\n      \"endpoint\": \"\",\n      \"trigger_condition\": \"\",\n      \"not_called_when\": \"\",\n      \"request_payload\": [],\n      \"response_success\": \"\",\n      \"response_errors\": [],\n      \"timeout_or_error_handling\": \"\",\n      \"log_or_audit_location\": \"\"\n    }\n  ],\n  \"data_objects\": [\n    { \"table_or_object\": \"\", \"field\": \"\", \"meaning\": \"\", \"allowed_values\": [], \"data_change\": \"\" }\n  ],\n  \"states\": [\n    { \"entity\": \"\", \"state\": \"\", \"meaning\": \"\", \"valid_for_processing\": null, \"transition_condition\": \"\" }\n  ],\n  \"exceptions\": [\n    { \"exception_id\": \"EXC001\", \"requirement_id\": \"REQ001\", \"scenario\": \"\", \"expected_behavior\": \"\" }\n  ],\n  \"change_scope\": {\n    \"changed\": [],\n    \"unchanged_but_impacted\": []\n  },\n  \"dependencies\": [\n    { \"source\": \"\", \"target\": \"\", \"dependency\": \"\" }\n  ],\n  \"ambiguities\": [\n    { \"related_requirement_id\": \"\", \"type\": \"\", \"description\": \"\" }\n  ]\n}\n\n\nYÊU CẦU BỔ SUNG CỦA NGƯỜI DÙNG (nguồn hợp lệ thứ hai ngoài tài liệu; nếu mâu thuẫn tài liệu gốc thì ưu tiên tài liệu gốc):\n- Prompt phân tích tài liệu: {{ $('When Executed by Another Workflow').first().json.body.promptAI1 || \"Không có yêu cầu bổ sung.\" }}\n- Prompt thiết kế test: {{ $('When Executed by Another Workflow').first().json.body.promptAI2 || \"Không có yêu cầu bổ sung.\" }}\n\nINPUT DATA:\n{{ $json.data }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        9408,
+        3344
+      ],
+      "id": "3369a384-07a3-477c-8efd-1cf8ac009fa0",
+      "name": "AI_structured_requirement",
+      "alwaysOutputData": false,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 10000
+    },
+    {
+      "parameters": {
+        "jsCode": "// ===== Helper parse JSON chịu lỗi (dán lặp lại trong từng Code node) =====\nfunction tryParse(s) { try { return JSON.parse(s); } catch (e) { return null; } }\n\nfunction salvageArray(t, key) {\n  const k = t.indexOf('\"' + key + '\"');\n  if (k < 0) return [];\n  let i = t.indexOf('[', k);\n  if (i < 0) return [];\n  i++;\n  const out = [];\n  let depth = 0, inStr = false, esc = false, start = -1;\n  for (; i < t.length; i++) {\n    const c = t[i];\n    if (inStr) {\n      if (esc) esc = false;\n      else if (c === '\\\\') esc = true;\n      else if (c === '\"') inStr = false;\n      continue;\n    }\n    if (c === '\"') { inStr = true; continue; }\n    if (c === '{') { if (depth === 0) start = i; depth++; }\n    else if (c === '}') {\n      depth--;\n      if (depth === 0 && start >= 0) {\n        const o = tryParse(t.slice(start, i + 1));\n        if (o) out.push(o);\n        start = -1;\n      }\n    } else if (c === ']' && depth === 0) break;\n  }\n  return out;\n}\n\n// Trả về { data, salvaged } hoặc null. arrayKey dùng để cứu các phần tử hoàn chỉnh khi JSON bị cắt cụt.\nfunction parseLoose(raw, arrayKey) {\n  let t = String(raw || '').replace(/```json/gi, '').replace(/```/g, '').trim();\n  const a = t.indexOf('{'), b = t.lastIndexOf('}');\n  if (a >= 0 && b > a) t = t.slice(a, b + 1);\n  const attempts = [\n    t,\n    t.replace(/,\\s*([}\\]])/g, '$1'),\n    t.replace(/[“”]/g, '\"').replace(/[‘’]/g, \"'\").replace(/,\\s*([}\\]])/g, '$1')\n  ];\n  for (const s of attempts) {\n    const p = tryParse(s);\n    if (p && typeof p === 'object') return { data: p, salvaged: false };\n  }\n  if (arrayKey) {\n    const items = salvageArray(t, arrayKey);\n    if (items.length) {\n      const m = t.match(/\"(?:chunk_id|condition_id)\"\\s*:\\s*\"([^\"]+)\"/);\n      const data = { [arrayKey]: items };\n      if (m) data[t.indexOf('\"chunk_id\"') >= 0 ? 'chunk_id' : 'condition_id'] = m[1];\n      return { data, salvaged: true };\n    }\n  }\n  return null;\n}\n\nconst first = $input.first().json;\nconst raw = first.output || first.text || first.content || first.response || '';\nif (!String(raw).trim()) throw new Error('AI_structured_requirement không trả về dữ liệu.');\n\nconst r = parseLoose(raw, 'requirements');\nif (!r) throw new Error('Không parse được JSON của AI_structured_requirement.\\n\\nRAW:\\n' + String(raw).slice(0, 4000));\n\nconst d = r.data;\nif (!Array.isArray(d.requirements) || d.requirements.length === 0) {\n  throw new Error('AI_structured_requirement không trích xuất được requirement nào từ tài liệu.');\n}\nif (r.salvaged) d._warning = 'JSON requirement bị cắt cụt, chỉ cứu được ' + d.requirements.length + ' requirement hoàn chỉnh.';\nreturn [{ json: d }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9744,
+        3344
+      ],
+      "id": "158ea6a8-950b-49d7-8e5f-057fa2a803b6",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Bạn là Senior QA Test Designer.\n\nNHIỆM VỤ\nNhận danh sách Coverage Item của MỘT Test Suite cùng ngữ cảnh yêu cầu gốc, và chuyển thành Test Condition CHI TIẾT, đủ dữ liệu để bước sau sinh test case thực thi được ngay. KHÔNG sinh Test Case, KHÔNG sinh Test Step.\n\nNGUỒN THÔNG TIN DUY NHẤT\nChỉ dùng \"requirement_context\", \"coverage_items\" và \"YÊU CẦU BỔ SUNG CỦA NGƯỜI DÙNG\". Nếu yêu cầu bổ sung mâu thuẫn tài liệu gốc thì ưu tiên tài liệu gốc. KHÔNG bịa feature, trường, API, bảng/cột, trạng thái, thông báo.\n\nQUY TẮC\n1. KHÔNG ĐƯỢC BỎ SÓT: mỗi coverage_id phải xuất hiện trong \"coverage_ids\" của ÍT NHẤT 1 condition. GỘP các coverage_item cùng đối tượng + cùng kỹ thuật + cùng hành vi mong đợi (VD các lớp không hợp lệ cùng báo 1 lỗi; các giá trị biên của cùng 1 trường) thành 1 condition; mỗi lớp/giá trị là 1 phần tử riêng trong test_data_hint (tối đa 6 phần tử/condition, nhiều hơn thì tách condition). Các requirement_id nằm trong \"uncovered_requirement_ids\" (nếu có) phải tự tạo thêm condition.\n2. ĐỘ MỊN: 1 condition = 1 đối tượng + 1 hành vi mong đợi (có thể gồm nhiều lớp/giá trị cùng hành vi). Mô tả \"condition\" như một ý kiểm thử rõ ràng (WHAT TO VERIFY), không viết bước.\n3. test_suite: giữ NGUYÊN \"suite_name\" của chunk.\n4. TIỀN ĐIỀU KIỆN (\"preconditions\"): mô tả CỤ THỂ trạng thái dữ liệu/cấu hình cần có TRƯỚC khi test: bản ghi ở bảng nào, cột nào, giá trị bao nhiêu (VD \"bảng X, cột STATUS = 4\"), còn/hết hạn, dữ liệu trùng/không trùng ở hệ thống nào... Với condition kiểm thử lỗi/ngoại lệ của hệ thống bên ngoài (timeout, lỗi, mã lỗi khác thành công) phải nêu thiết lập Mock Server: endpoint nào, trả về phản hồi nào (đúng theo tài liệu). Đăng nhập/mở màn hình KHÔNG đưa vào preconditions.\n5. DỮ LIỆU TEST (\"test_data_hint\"): liệt kê DỮ LIỆU CỤ THỂ cần dùng. Mỗi phần tử = 1 lớp/giá trị/tổ hợp khác nhau = 1 test case riêng ở bước sau. Giá trị biên/lớp không hợp lệ được phép suy ra bằng phép tính từ ràng buộc tài liệu nêu (VD max = 50 thì dùng chuỗi dài 51 ký tự). Không bịa giá trị nghiệp vụ (mã, tên hệ thống, trạng thái) không có trong tài liệu.\n6. KẾT QUẢ MONG ĐỢI (\"expected_behavior_hint\"): đo lường/xác minh được, giữ NGUYÊN VĂN thông báo, mã lỗi, endpoint, bảng.cột và giá trị. Cấm câu chung chung kiểu \"hệ thống xử lý thành công\". Phần tài liệu chưa nêu: ghi \"N/A (Tài liệu chưa đặc tả)\" và ghi vào \"requirement_gap\".\n7. ĐIỂM XÁC MINH (\"verify_points\"): nêu rõ cần xác minh ở đâu, CHỈ những mục có liên quan:\n   - ui: thông báo/nhãn/trạng thái nút, chuyển bước màn hình.\n   - network_api: endpoint nào PHẢI được gọi hoặc KHÔNG được gọi, request payload (từng trường) và response (mã/thông điệp) cần kiểm tra qua F12 Network.\n   - log: log server backend / bảng audit (CHỈ nêu tên bảng/file khi tài liệu nêu) để xác nhận hệ thống thực sự gọi hoặc không gọi hệ thống ngoài đúng endpoint, đúng payload.\n   - database: tên bảng, tên cột, giá trị trước -> sau; hoặc \"không thay đổi\" đối với kịch bản từ chối/hủy/lỗi.\n8. condition_type: Positive | Negative | Boundary | Regression. test_technique: một trong \"Phân vùng tương đương\", \"Phân tích giá trị biên\", \"Bảng quyết định\", \"Chuyển trạng thái\", \"Negative testing\", \"Kiểm tra dữ liệu/tích hợp\", \"Hồi quy\", \"Use case\" (kế thừa từ coverage_item).\n9. Với mỗi condition Positive (phê duyệt, thành công, có kích hoạt thay đổi...) phải có condition đối ứng (từ chối/hủy/thất bại, không kích hoạt/hồi quy, trạng thái không hợp lệ...) trong cùng danh sách. Nếu thiếu thì tự bổ sung dựa trên tài liệu.\n10. SẮP XẾP: theo thứ tự thực hiện nghiệp vụ: luồng chính -> luồng thay thế -> ngoại lệ -> hồi quy.\n\nĐỊNH DẠNG ĐẦU RA\nTrả về đúng MỘT JSON object parse được bằng JSON.parse(). KHÔNG dùng ```json, KHÔNG có chữ ngoài JSON, KHÔNG có dấu phẩy thừa. Mọi chuỗi bằng tiếng Việt tự nhiên (giữ nguyên tên kỹ thuật). NGẮN GỌN: mỗi chuỗi tối đa 25 từ; verify_points chỉ điền mục liên quan, mỗi mục tối đa 2 ý.\n{\n  \"chunk_id\": \"<giữ nguyên chunk_id trong dữ liệu đầu vào>\",\n  \"conditions\": [\n    {\n      \"condition_id\": \"COND001\",\n      \"coverage_ids\": [\"COV001\"],\n      \"requirement_ids\": [\"REQ001\"],\n      \"test_suite\": \"<suite_name của chunk>\",\n      \"condition\": \"Mô tả rõ điều cần kiểm tra\",\n      \"context\": \"Bối cảnh của điều kiện test này\",\n      \"condition_type\": \"Positive | Negative | Boundary | Regression\",\n      \"test_technique\": \"Phân vùng tương đương | Phân tích giá trị biên | Bảng quyết định | Chuyển trạng thái | Negative testing | Kiểm tra dữ liệu/tích hợp | Hồi quy | Use case\",\n      \"preconditions\": [],\n      \"test_data_hint\": [],\n      \"expected_behavior_hint\": [],\n      \"verify_points\": { \"ui\": [], \"network_api\": [], \"log\": [], \"database\": [] },\n      \"related_api\": [],\n      \"related_fields\": [],\n      \"related_state\": [],\n      \"requirement_gap\": null\n    }\n  ]\n}\n\n\nYÊU CẦU BỔ SUNG CỦA NGƯỜI DÙNG (nguồn hợp lệ thứ hai ngoài tài liệu; nếu mâu thuẫn tài liệu gốc thì ưu tiên tài liệu gốc):\n- Prompt phân tích tài liệu: {{ $('When Executed by Another Workflow').first().json.body.promptAI1 || \"Không có yêu cầu bổ sung.\" }}\n- Prompt thiết kế test: {{ $('When Executed by Another Workflow').first().json.body.promptAI2 || \"Không có yêu cầu bổ sung.\" }}\n\nINPUT DATA:\n{{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        10320,
+        3344
+      ],
+      "id": "4a8ee455-4f15-4706-ad54-6423290086e1",
+      "name": "Test_condition_generator",
+      "alwaysOutputData": false,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 10000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.5-flash",
+        "options": {
+          "maxOutputTokens": 32768,
+          "temperature": 0.1
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        9392,
+        3520
+      ],
+      "id": "c579fa6d-c1bd-4d10-9068-ad694691ebf6",
+      "name": "Google Gemini Chat Model2",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "LDrdUYhWPG5baB50",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.5-flash",
+        "options": {
+          "maxOutputTokens": 32768,
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        10320,
+        3520
+      ],
+      "id": "46ba33f4-d969-4da1-a4e7-b7b20447736a",
+      "name": "Google Gemini Chat Model3",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "LDrdUYhWPG5baB50",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "conditions",
+        "include": "allOtherFields",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        10800,
+        3344
+      ],
+      "id": "e03aa723-f979-47bc-843c-ce8edcb6ff0d",
+      "name": "Split_test_conditions"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        10992,
+        3344
+      ],
+      "id": "dbc3beed-99e5-418e-bc22-0788f2d3eff9",
+      "name": "Loop Over Items1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ===== Helper parse JSON chịu lỗi (dán lặp lại trong từng Code node) =====\nfunction tryParse(s) { try { return JSON.parse(s); } catch (e) { return null; } }\n\nfunction salvageArray(t, key) {\n  const k = t.indexOf('\"' + key + '\"');\n  if (k < 0) return [];\n  let i = t.indexOf('[', k);\n  if (i < 0) return [];\n  i++;\n  const out = [];\n  let depth = 0, inStr = false, esc = false, start = -1;\n  for (; i < t.length; i++) {\n    const c = t[i];\n    if (inStr) {\n      if (esc) esc = false;\n      else if (c === '\\\\') esc = true;\n      else if (c === '\"') inStr = false;\n      continue;\n    }\n    if (c === '\"') { inStr = true; continue; }\n    if (c === '{') { if (depth === 0) start = i; depth++; }\n    else if (c === '}') {\n      depth--;\n      if (depth === 0 && start >= 0) {\n        const o = tryParse(t.slice(start, i + 1));\n        if (o) out.push(o);\n        start = -1;\n      }\n    } else if (c === ']' && depth === 0) break;\n  }\n  return out;\n}\n\n// Trả về { data, salvaged } hoặc null. arrayKey dùng để cứu các phần tử hoàn chỉnh khi JSON bị cắt cụt.\nfunction parseLoose(raw, arrayKey) {\n  let t = String(raw || '').replace(/```json/gi, '').replace(/```/g, '').trim();\n  const a = t.indexOf('{'), b = t.lastIndexOf('}');\n  if (a >= 0 && b > a) t = t.slice(a, b + 1);\n  const attempts = [\n    t,\n    t.replace(/,\\s*([}\\]])/g, '$1'),\n    t.replace(/[“”]/g, '\"').replace(/[‘’]/g, \"'\").replace(/,\\s*([}\\]])/g, '$1')\n  ];\n  for (const s of attempts) {\n    const p = tryParse(s);\n    if (p && typeof p === 'object') return { data: p, salvaged: false };\n  }\n  if (arrayKey) {\n    const items = salvageArray(t, arrayKey);\n    if (items.length) {\n      const m = t.match(/\"(?:chunk_id|condition_id)\"\\s*:\\s*\"([^\"]+)\"/);\n      const data = { [arrayKey]: items };\n      if (m) data[t.indexOf('\"chunk_id\"') >= 0 ? 'chunk_id' : 'condition_id'] = m[1];\n      return { data, salvaged: true };\n    }\n  }\n  return null;\n}\n\n// Parse Test_condition_generator theo từng chunk, chuẩn hóa, và BẢO ĐẢM mọi coverage item đều có >= 1 condition.\nconst covChunks = $('Parse_Coverage').all().map(i => i.json);\nconst results = $input.all();\nconst arrOf = v => (Array.isArray(v) ? v : v ? [v] : []);\nconst low = x => String(x === null || x === undefined ? '' : x).toLowerCase().trim();\nconst fuzzy = (a, b) => a && b && a.length >= 2 && b.length >= 2 && (a.includes(b) || b.includes(a));\nconst anyFuzzy = (text, names) => names.some(n => fuzzy(low(text), n));\nconst flat = v => arrOf(v).map(low).filter(x => x.length >= 2);\nfunction pick(list, textOf, names, cap) {\n  if (!list.length) return [];\n  const hit = names.length ? list.filter(x => anyFuzzy(textOf(x), names)) : [];\n  if (hit.length) return hit;\n  return list.length <= cap ? list : [];\n}\nconst stripPrefix = id => String(id || '').replace(/^.*\\//, '');\n\nfunction conditionFromCoverage(c) {\n  return {\n    coverage_ids: [c.coverage_id],\n    requirement_ids: arrOf(c.requirement_ids),\n    test_suite: c.test_suite,\n    condition: c.coverage,\n    context: c.context || '',\n    condition_type: c.polarity || 'Positive',\n    test_technique: c.technique || 'Use case',\n    preconditions: [],\n    test_data_hint: arrOf(c.test_data_hint),\n    expected_behavior_hint: arrOf(c.expected_behavior_hint),\n    verify_points: { ui: [], network_api: [], log: [], database: [] },\n    related_api: arrOf(c.related_api),\n    related_fields: arrOf(c.related_fields),\n    related_state: arrOf(c.related_state),\n    requirement_gap: c.requirement_gap || null,\n    _generated: 'coverage_fallback'\n  };\n}\n\nconst out = [];\nresults.forEach((it, idx) => {\n  const raw = it.json.output || it.json.text || '';\n  let parsed = null;\n  if (String(raw).trim()) parsed = parseLoose(raw, 'conditions');\n  const cov = (parsed && covChunks.find(c => c.chunk_id === parsed.data.chunk_id)) || covChunks[idx];\n  if (!cov) return;\n\n  let conds = parsed && Array.isArray(parsed.data.conditions) ? parsed.data.conditions : [];\n  const warnings = [];\n  if (!conds.length) warnings.push('Test_condition_generator không trả dữ liệu hợp lệ -> sinh condition dự phòng từ coverage');\n  else if (parsed.salvaged) warnings.push('JSON condition bị cắt cụt, đã cứu ' + conds.length + ' condition');\n\n  // Đảm bảo mọi coverage item có ít nhất 1 condition\n  const coveredIds = new Set();\n  conds.forEach(c => arrOf(c.coverage_ids).forEach(id => coveredIds.add(stripPrefix(id))));\n  const covItems = cov.coverage_items || [];\n  covItems.forEach(c => {\n    if (!coveredIds.has(stripPrefix(c.coverage_id))) {\n      conds.push(conditionFromCoverage(c));\n    }\n  });\n\n  const reqCtx = cov.requirement_context || {};\n  const normalized = conds.map((c, i) => {\n    const reqIds = arrOf(c.requirement_ids);\n    const idSet = new Set(reqIds);\n    const byReq = x => (idSet.size ? idSet.has(x.requirement_id) : true);\n    const names = flat(c.related_fields).concat(flat(c.related_state));\n    const cond = {\n      ...c,\n      condition_id: cov.chunk_id + '_C' + String(i + 1).padStart(3, '0'),\n      test_suite: cov.suite_name,\n      suite_order: cov.suite_order,\n      coverage_ids: arrOf(c.coverage_ids),\n      requirement_ids: reqIds,\n      condition_type: c.condition_type || 'Positive',\n      test_technique: c.test_technique || 'Use case',\n      preconditions: arrOf(c.preconditions),\n      test_data_hint: arrOf(c.test_data_hint),\n      expected_behavior_hint: arrOf(c.expected_behavior_hint),\n      verify_points: Object.assign({ ui: [], network_api: [], log: [], database: [] }, c.verify_points || {}),\n      requirement_gap: c.requirement_gap || null\n    };\n    const tech = String(cond.test_technique || '');\n    const isDT = /quyết định/i.test(tech);\n    const isInt = /tích hợp|negative|hồi quy/i.test(tech) || cond.condition_type === 'Regression';\n    cond.requirement_context = {\n      requirements: (reqCtx.requirements || []).filter(byReq).map(r => ({\n        requirement_id: r.requirement_id, requirement: r.requirement,\n        expected_behavior: r.expected_behavior, validation: r.validation, error_handling: r.error_handling\n      })),\n      business_rules: (reqCtx.business_rules || []).filter(byReq),\n      decision_tables: isDT ? (reqCtx.decision_tables || []).filter(byReq) : [],\n      integrations: isInt ? (reqCtx.integrations || []).filter(byReq) : [],\n      exceptions: isInt ? (reqCtx.exceptions || []).filter(byReq) : [],\n      inputs: pick(reqCtx.inputs || [], x => x.name, names, 6),\n      data_objects: isInt ? pick(reqCtx.data_objects || [], x => (x.table_or_object || '') + ' ' + (x.field || ''), names, 6) : [],\n      states: pick(reqCtx.states || [], x => (x.entity || '') + ' ' + (x.state || ''), names, 6),\n      change_scope: /hồi quy/i.test(cond.test_technique) || cond.condition_type === 'Regression' ? reqCtx.change_scope : undefined\n    };\n    return cond;\n  });\n\n  out.push({\n    json: {\n      chunk_id: cov.chunk_id,\n      suite_name: cov.suite_name,\n      suite_order: cov.suite_order,\n      conditions: normalized,\n      _warnings: warnings.concat(cov._warnings || [])\n    }\n  });\n});\n\nif (!out.length) throw new Error('Test_condition_generator không trả về dữ liệu cho chunk nào.');\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        10624,
+        3344
+      ],
+      "id": "dd302aca-cb13-4ff1-89ad-9b76b7ac4b18",
+      "name": "Parse_conditions"
+    },
+    {
+      "parameters": {
+        "amount": 15
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        11216,
+        3536
+      ],
+      "id": "a8f34b74-2a3f-44a9-9d83-71564bb2703e",
+      "name": "Wait_Gemini",
+      "webhookId": "a6845495-0890-48a6-8d08-bafe5e542c31"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Gom test case theo Test Suite, sắp xếp suite theo tiến trình nghiệp vụ (suite_order), loại TC trùng hệt nhau.\nconst items = $input.all();\nif (items.length === 0) return [];\n\nconst norm = s => String(s || '').toLowerCase().replace(/\\s+/g, ' ').trim();\nconst seen = new Set();\nconst groups = new Map();\nlet seq = 0;\n\nfor (const item of items) {\n  const tc = item.json;\n  const suite = tc.test_suite && String(tc.test_suite).trim() ? String(tc.test_suite).trim() : 'General';\n  const key = suite + '||' + norm(tc.muc_dich) + '||' + norm(tc.cac_buoc) + '||' + norm(tc.ket_qua_mong_muon);\n  if (seen.has(key)) continue; // trùng hệt\n  seen.add(key);\n  if (!groups.has(suite)) groups.set(suite, { order: Number.isFinite(Number(tc.suite_order)) ? Number(tc.suite_order) : 9999, first: seq++, list: [] });\n  groups.get(suite).list.push(tc);\n}\n\nconst ordered = [...groups.entries()].sort((a, b) => (a[1].order - b[1].order) || (a[1].first - b[1].first));\n\nconst result = [];\nfor (const [suite, g] of ordered) {\n  result.push({ json: { row_type: 'suite', test_suite: suite, muc_dich: suite, cac_buoc: '', ket_qua_mong_muon: '', ghi_chu: '' } });\n  for (const tc of g.list) {\n    result.push({\n      json: {\n        row_type: 'testcase',\n        test_suite: suite,\n        muc_dich: tc.muc_dich || '',\n        cac_buoc: tc.cac_buoc || '',\n        ket_qua_mong_muon: tc.ket_qua_mong_muon || '',\n        ghi_chu: tc.ghi_chu || ''\n      }\n    });\n  }\n}\nreturn result;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        11296,
+        3328
+      ],
+      "id": "15312504-e328-4b47-a532-ee8ccfea9495",
+      "name": "Group_By_Test_Suite"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.5-flash",
+        "options": {
+          "maxOutputTokens": 32768,
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        9904,
+        3536
+      ],
+      "id": "22062709-3a69-49a7-9834-bea7eb9c80e5",
+      "name": "Google Gemini Chat Model4",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "LDrdUYhWPG5baB50",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Bạn là Senior QA Coverage Analyst.\n\nNHIỆM VỤ\nNhận MỘT NHÓM yêu cầu (chunk) của một Test Suite và khai triển thành các Coverage Item CHI TIẾT, áp dụng đầy đủ các kỹ thuật kiểm thử. KHÔNG sinh Test Case, Test Step.\n\nNGUỒN THÔNG TIN DUY NHẤT\nChỉ dùng dữ liệu trong \"INPUT CHUNK\" và \"YÊU CẦU BỔ SUNG CỦA NGƯỜI DÙNG\". KHÔNG bịa Business Rule, API, bảng/cột, trạng thái, thông báo, giới hạn số. Nếu một khía cạnh cần kiểm thử nhưng tài liệu chưa nêu kết quả/giới hạn: vẫn tạo Coverage Item và ghi chi tiết còn thiếu vào \"requirement_gap\" (KHÔNG tự đoán hành vi, KHÔNG tự bịa con số biên).\n\nĐỊNH NGHĨA ĐỘ MỊN\n1 Coverage Item = 1 đối tượng kiểm thử + 1 lớp/giá trị/nhánh/chuyển trạng thái cụ thể + 1 hành vi mong đợi. Không gộp các lớp có HÀNH VI MONG ĐỢI KHÁC NHAU. Các lớp không hợp lệ cùng hành vi (VD rỗng/null/khoảng trắng cùng báo 1 lỗi) được GỘP 1 item, liệt kê từng giá trị trong test_data_hint. NGÂN SÁCH: tối đa 8 item cho mỗi requirement và tối đa 40 item cho cả chunk; ưu tiên theo thứ tự: luồng chính -> nhánh IF/ELSE và cặp đối ứng -> lớp không hợp lệ khác hành vi -> biên -> trạng thái -> tích hợp/lỗi -> hồi quy.\n\nBỘ KỸ THUẬT BẮT BUỘC ÁP DỤNG (rà soát từng requirement/rule/field/state/integration trong chunk):\nA. PHÂN VÙNG TƯƠNG ĐƯƠNG (technique = \"Phân vùng tương đương\") cho MỖI trường nhập:\n   - Lớp hợp lệ: từng nhóm giá trị hợp lệ mà tài liệu nêu (mỗi giá trị trong danh sách valid_values là một lớp nếu hành vi khác nhau).\n   - Lớp không hợp lệ tách riêng từng loại: để trống (chuỗi rỗng), null/không truyền, chỉ chứa khoảng trắng, sai kiểu dữ liệu, sai định dạng, ký tự đặc biệt, giá trị ngoài danh sách cho phép, vượt độ dài (chỉ khi tài liệu nêu ràng buộc tương ứng).\n   - Trường tùy chọn: có giá trị / không có giá trị.\nB. GIÁ TRỊ BIÊN (technique = \"Phân tích giá trị biên\") cho MỌI ràng buộc số/độ dài/ngày/số lượng mà tài liệu nêu giới hạn: min-1, min, max, max+1 (bỏ giá trị không tồn tại, ví dụ không có min-1 khi min = 0 với số nguyên không âm). Nếu tài liệu không nêu giới hạn: tạo 1 item ghi \"requirement_gap: Tài liệu chưa đặc tả giới hạn\", không tự bịa số.\nC. BẢNG QUYẾT ĐỊNH (technique = \"Bảng quyết định\") cho MỌI quy tắc phụ thuộc từ 2 điều kiện: mỗi cột/tổ hợp là 1 item; liệt kê đủ tổ hợp True/False (đủ tất cả nếu ≤ 4 điều kiện; nếu nhiều hơn, dùng tổ hợp tài liệu nêu và các tổ hợp biên). Mọi nhánh IF/ELSE (cả nhánh không thỏa) đều phải có item.\nD. CHUYỂN TRẠNG THÁI (technique = \"Chuyển trạng thái\") cho MỌI thực thể có trạng thái: từng chuyển trạng thái hợp lệ; từng trạng thái KHÔNG hợp lệ (VD STATUS khác giá trị hợp lệ) bị từ chối; thao tác lặp lại (gửi 2 lần, phê duyệt lại); thao tác trên trạng thái cuối.\nE. NEGATIVE TESTING (technique = \"Negative testing\"): với MỖI hành động thành công phải có hành động đối ứng thất bại/từ chối/hủy; với MỖI lần gọi hệ thống: thành công, lỗi nghiệp vụ, từng mã lỗi tài liệu nêu, timeout/không phản hồi/lỗi hệ thống (nếu tài liệu nêu cách xử lý; nếu không, vẫn tạo item với requirement_gap), và trường hợp KHÔNG được gọi hệ thống khi điều kiện không thỏa.\nF. DỮ LIỆU & TÍCH HỢP (technique = \"Kiểm tra dữ liệu/tích hợp\"): với MỖI thay đổi dữ liệu: item kiểm tra từng bảng.cột trước/sau; với MỖI kịch bản từ chối/hủy/lỗi: item kiểm tra \"không thay đổi dữ liệu và không gọi hệ thống ngoài\"; với mỗi integration: item kiểm tra đúng endpoint, đúng từng trường payload, đúng điều kiện gọi.\nG. HỒI QUY (technique = \"Hồi quy\"): với MỖI phần được thay đổi: item kiểm tra luồng cũ CÒN LẠI không bị ảnh hưởng (VD: không thỏa điều kiện kích hoạt thay đổi -> hệ thống xử lý như trước, không đi vào luồng mới, không gọi hệ thống mới). Dựa vào \"change_scope\" và các luồng trong chunk.\nH. UI (technique = \"Phân vùng tương đương\" hoặc \"Use case\"): hiển thị, giá trị mặc định, enable/disable/readonly/ẩn-hiện, thông báo lỗi nguyên văn, chuyển bước màn hình, trạng thái sau khi thao tác.\nI. LUỒNG CHỨC NĂNG (technique = \"Use case\"): luồng chính (Happy path) và từng luồng thay thế tài liệu nêu.\n\nCẶP ĐỐI ỨNG BẮT BUỘC (nếu thiếu 1 vế là chưa đạt):\n- Phê duyệt/Thành công <-> Từ chối/Hủy/Thất bại (không cập nhật dữ liệu, không gọi hệ thống ngoài).\n- Có kích hoạt thay đổi <-> Không kích hoạt (hồi quy).\n- Trạng thái hợp lệ <-> Từng trạng thái không hợp lệ.\n- Tìm thấy/trùng <-> Không tìm thấy/không trùng.\n- Lần đầu <-> Lặp lại.\n- Điều kiện thỏa <-> Không thỏa (mỗi nhánh).\n\nTRƯỜNG TEST_SUITE\n\"test_suite\" PHẢI giữ nguyên bằng đúng \"suite_name\" trong INPUT CHUNK (không đổi tên, không dùng thuật ngữ kỹ thuật như Functional/Validation/API/UI).\n\nBẢNG TỰ KIỂM TRA TRƯỚC KHI XUẤT (thực hiện trong đầu, không in ra):\n1. Mọi requirement_id trong chunk đều xuất hiện trong ít nhất 1 Coverage Item.\n2. Mọi trường nhập có đủ lớp hợp lệ + từng lớp không hợp lệ (+ biên nếu tài liệu có giới hạn).\n3. Mọi rule/nhánh/tổ hợp điều kiện có item.\n4. Mọi trạng thái hợp lệ và không hợp lệ có item.\n5. Mọi integration có item gọi/không gọi/lỗi.\n6. Mọi cặp đối ứng ở trên đủ 2 vế.\n7. Mọi kịch bản có thay đổi dữ liệu có item kiểm tra bảng.cột trước/sau; mọi kịch bản từ chối có item \"không đổi dữ liệu\".\n\nĐỊNH DẠNG ĐẦU RA\nTrả về đúng MỘT JSON object parse được bằng JSON.parse(). KHÔNG dùng ```json, KHÔNG có chữ ngoài JSON, KHÔNG có dấu phẩy thừa. Mọi chuỗi viết bằng tiếng Việt tự nhiên (giữ nguyên tên kỹ thuật và nội dung thông báo từ tài liệu). NGẮN GỌN: mỗi chuỗi tối đa 25 từ, \"context\" để chuỗi rỗng, chỉ điền related_* khi thật sự cần.\n{\n  \"chunk_id\": \"<giữ nguyên chunk_id của INPUT CHUNK>\",\n  \"coverage_items\": [\n    {\n      \"coverage_id\": \"COV001\",\n      \"test_suite\": \"<suite_name của chunk>\",\n      \"requirement_ids\": [\"REQ001\"],\n      \"target_type\": \"Field | Business Rule | API | UI | State | Data | Regression\",\n      \"target_name\": \"Tên trường/đối tượng cụ thể\",\n      \"technique\": \"Phân vùng tương đương | Phân tích giá trị biên | Bảng quyết định | Chuyển trạng thái | Negative testing | Kiểm tra dữ liệu/tích hợp | Hồi quy | Use case\",\n      \"coverage_type\": \"Valid | Empty | Null | Whitespace | Invalid Format | Below Min | Min | Max | Above Max | Rule Satisfied | Rule Not Satisfied | Valid State | Invalid State | Repeated Action | Success | Business Error | Timeout | Not Called | No Data Change | Regression | Alternative Flow\",\n      \"polarity\": \"Positive | Negative | Boundary | Regression\",\n      \"coverage\": \"Câu hoàn chỉnh mô tả cần kiểm tra điều gì, gắn ngữ cảnh người dùng\",\n      \"context\": \"Bối cảnh thực hiện\",\n      \"test_data_hint\": [\"Giá trị/dữ liệu cụ thể cho item này, suy ra từ ràng buộc trong tài liệu\"],\n      \"expected_behavior_hint\": [\"Kết quả mong đợi theo tài liệu, giữ nguyên văn thông báo\"],\n      \"related_api\": [],\n      \"related_fields\": [],\n      \"related_state\": [],\n      \"requirement_gap\": null\n    }\n  ]\n}\n\n\nYÊU CẦU BỔ SUNG CỦA NGƯỜI DÙNG (nguồn hợp lệ thứ hai ngoài tài liệu; nếu mâu thuẫn tài liệu gốc thì ưu tiên tài liệu gốc):\n- Prompt phân tích tài liệu: {{ $('When Executed by Another Workflow').first().json.body.promptAI1 || \"Không có yêu cầu bổ sung.\" }}\n- Prompt thiết kế test: {{ $('When Executed by Another Workflow').first().json.body.promptAI2 || \"Không có yêu cầu bổ sung.\" }}\n\nINPUT CHUNK:\n{{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        9904,
+        3344
+      ],
+      "id": "c397ff92-7378-4149-bfab-6096e3e58236",
+      "name": "Coverage_Expansion",
+      "alwaysOutputData": false,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 10000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ===== Helper parse JSON chịu lỗi (dán lặp lại trong từng Code node) =====\nfunction tryParse(s) { try { return JSON.parse(s); } catch (e) { return null; } }\n\nfunction salvageArray(t, key) {\n  const k = t.indexOf('\"' + key + '\"');\n  if (k < 0) return [];\n  let i = t.indexOf('[', k);\n  if (i < 0) return [];\n  i++;\n  const out = [];\n  let depth = 0, inStr = false, esc = false, start = -1;\n  for (; i < t.length; i++) {\n    const c = t[i];\n    if (inStr) {\n      if (esc) esc = false;\n      else if (c === '\\\\') esc = true;\n      else if (c === '\"') inStr = false;\n      continue;\n    }\n    if (c === '\"') { inStr = true; continue; }\n    if (c === '{') { if (depth === 0) start = i; depth++; }\n    else if (c === '}') {\n      depth--;\n      if (depth === 0 && start >= 0) {\n        const o = tryParse(t.slice(start, i + 1));\n        if (o) out.push(o);\n        start = -1;\n      }\n    } else if (c === ']' && depth === 0) break;\n  }\n  return out;\n}\n\n// Trả về { data, salvaged } hoặc null. arrayKey dùng để cứu các phần tử hoàn chỉnh khi JSON bị cắt cụt.\nfunction parseLoose(raw, arrayKey) {\n  let t = String(raw || '').replace(/```json/gi, '').replace(/```/g, '').trim();\n  const a = t.indexOf('{'), b = t.lastIndexOf('}');\n  if (a >= 0 && b > a) t = t.slice(a, b + 1);\n  const attempts = [\n    t,\n    t.replace(/,\\s*([}\\]])/g, '$1'),\n    t.replace(/[“”]/g, '\"').replace(/[‘’]/g, \"'\").replace(/,\\s*([}\\]])/g, '$1')\n  ];\n  for (const s of attempts) {\n    const p = tryParse(s);\n    if (p && typeof p === 'object') return { data: p, salvaged: false };\n  }\n  if (arrayKey) {\n    const items = salvageArray(t, arrayKey);\n    if (items.length) {\n      const m = t.match(/\"(?:chunk_id|condition_id)\"\\s*:\\s*\"([^\"]+)\"/);\n      const data = { [arrayKey]: items };\n      if (m) data[t.indexOf('\"chunk_id\"') >= 0 ? 'chunk_id' : 'condition_id'] = m[1];\n      return { data, salvaged: true };\n    }\n  }\n  return null;\n}\n\n// Parse kết quả Coverage_Expansion theo từng chunk; không để rơi requirement nào.\nconst chunks = $('Split_By_Feature').all().map(i => i.json);\nconst results = $input.all();\nconst arrOf = v => (Array.isArray(v) ? v : v ? [v] : []);\nconst out = [];\nconst warnings = [];\n\nfunction fallbackCoverage(chunk) {\n  return (chunk.context.requirements || []).map((r, i) => ({\n    coverage_id: 'FB' + String(i + 1).padStart(3, '0'),\n    test_suite: chunk.suite_name,\n    requirement_ids: [r.requirement_id],\n    target_type: 'Business Rule',\n    target_name: r.type || '',\n    technique: 'Use case',\n    coverage_type: 'Alternative Flow',\n    polarity: 'Positive',\n    coverage: 'Kiểm tra ' + (r.requirement || ''),\n    context: r.context || '',\n    test_data_hint: [],\n    expected_behavior_hint: r.expected_behavior ? [r.expected_behavior] : [],\n    related_api: arrOf(r.related_api),\n    related_fields: arrOf(r.related_fields),\n    related_state: arrOf(r.related_state),\n    requirement_gap: 'Coverage sinh dự phòng vì AI không trả JSON hợp lệ cho nhóm này - cần rà soát/bổ sung'\n  }));\n}\n\nresults.forEach((it, idx) => {\n  const raw = it.json.output || it.json.text || '';\n  let parsed = null;\n  if (String(raw).trim()) parsed = parseLoose(raw, 'coverage_items');\n  const chunk = (parsed && chunks.find(c => c.chunk_id === parsed.data.chunk_id)) || chunks[idx];\n  if (!chunk) { warnings.push('Không xác định được chunk cho kết quả #' + idx); return; }\n\n  let items;\n  if (parsed && Array.isArray(parsed.data.coverage_items) && parsed.data.coverage_items.length) {\n    items = parsed.data.coverage_items;\n    if (parsed.salvaged) warnings.push(chunk.chunk_id + ': JSON bị cắt cụt, chỉ cứu được ' + items.length + ' coverage item');\n  } else {\n    warnings.push(chunk.chunk_id + ': Coverage_Expansion không trả dữ liệu hợp lệ -> dùng coverage dự phòng');\n    items = fallbackCoverage(chunk);\n  }\n\n  items = items.map((c, i) => ({\n    ...c,\n    coverage_id: chunk.chunk_id + '/' + (c.coverage_id || ('COV' + String(i + 1).padStart(3, '0'))),\n    test_suite: chunk.suite_name,\n    requirement_ids: arrOf(c.requirement_ids),\n    test_data_hint: arrOf(c.test_data_hint),\n    expected_behavior_hint: arrOf(c.expected_behavior_hint),\n    related_api: arrOf(c.related_api),\n    related_fields: arrOf(c.related_fields),\n    related_state: arrOf(c.related_state)\n  }));\n\n  const covered = new Set([].concat(...items.map(c => c.requirement_ids)));\n  const uncovered = (chunk.context.requirements || []).map(r => r.requirement_id).filter(id => !covered.has(id));\n\n  out.push({\n    json: {\n      chunk_id: chunk.chunk_id,\n      suite_name: chunk.suite_name,\n      suite_order: chunk.suite_order,\n      requirement_context: chunk.context,\n      coverage_items: items,\n      uncovered_requirement_ids: uncovered,\n      _warnings: warnings.filter(w => w.startsWith(chunk.chunk_id))\n    }\n  });\n});\n\nif (!out.length) throw new Error('Coverage_Expansion không trả về dữ liệu cho chunk nào. ' + warnings.join(' | '));\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        10176,
+        3344
+      ],
+      "id": "188a55a5-d840-4f73-9cb6-365b214c811d",
+      "name": "Parse_Coverage"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        5952,
+        2896
+      ],
+      "id": "f98c18dd-7af0-4dc3-8f4c-c64c617efe0f",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "ai_jobs",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "job_id",
+              "condition": "eq",
+              "keyValue": "=={{ $('When Executed by Another Workflow').item.json.body.requestId }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "waiting"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        5296,
+        2768
+      ],
+      "id": "458abab2-8280-4ba9-80a8-b403ea6ece32",
+      "name": "Update a row",
+      "credentials": {
+        "supabaseApi": {
+          "id": "YKLE3BWOKRZLmm95",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "ai_jobs",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "job_id",
+              "condition": "eq",
+              "keyValue": "=={{ $('When Executed by Another Workflow').item.json.body.requestId }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "Đã xong"
+            },
+            {
+              "fieldId": "result",
+              "fieldValue": "={{ $json.url }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        13216,
+        3680
+      ],
+      "id": "6cd09537-68ac-4389-8384-87aa8691e813",
+      "name": "Update a row1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "YKLE3BWOKRZLmm95",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "path": "0d40e92d-d610-451c-b1f2-c7cbef3691b8",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        9088,
+        1808
+      ],
+      "id": "30b0bb8b-642d-4989-b208-b206803856e5",
+      "name": "Webhook5",
+      "webhookId": "0d40e92d-d610-451c-b1f2-c7cbef3691b8"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "ai_jobs",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "job_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.query.job_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        9296,
+        1808
+      ],
+      "id": "6983dfdb-aded-4ccf-8fae-8c37c8b84b70",
+      "name": "Get many rows",
+      "credentials": {
+        "supabaseApi": {
+          "id": "YKLE3BWOKRZLmm95",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api-ai-memory.onrender.com/search-memory",
+        "sendBody": true,
+        "specifyBody": "={\n  \"query_text\": \"{{ $json.data }}\",\n  \"top_k\": 3\n}",
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        12912,
+        3248
+      ],
+      "id": "23cfaf97-85e1-4d12-a4a0-c2179e375ba0",
+      "name": "HTTP_Search_Memory",
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api-ai-memory.onrender.com/save-memory",
+        "sendBody": true,
+        "specifyBody": "={{\n  JSON.stringify({\n    \"doc_id\": ($json.ten_bai_toan || $json.task_name || \"Task\") + \"_\" + Date.now(),\n    \"text\": \"TÊN BÀI TOÁN: \" + ($json.ten_bai_toan || $json.task_name || \"N/A\") + \n            \"\\n\\n--- PHÂN TÍCH NGHIỆP VỤ & QUY TẮC ---\\n\" + \n            ($node[\"AI_structured_requirement\"]?.json?.text || $node[\"AI_phan_tich_bai_toan\"]?.json?.text || \"\") + \n            \"\\n\\n--- KỊCH BẢN TEST (TEST CONDITIONS) ---\\n\" + \n            ($node[\"Test_condition_generator\"]?.json?.text || \"\")\n  })\n}}",
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        12912,
+        3424
+      ],
+      "id": "90d8a958-e554-4ea9-96af-a52077018c57",
+      "name": "HTTP_Save_Memory"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Chia dữ liệu requirement thành các chunk theo feature (đúng thứ tự tiến trình nghiệp vụ)\n// để mỗi lần gọi AI chỉ xử lý 1 nhóm nhỏ -> không bị cắt cụt/rút gọn, coverage chi tiết hơn.\nconst s = $input.first().json;\nconst arr = k => (Array.isArray(s[k]) ? s[k] : []);\nconst MAX_REQ = 6; // số requirement tối đa trong 1 chunk\nconst BIG = 1e6;\nconst num = v => (v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? BIG : Number(v));\nconst low = x => String(x === null || x === undefined ? '' : x).toLowerCase().trim();\nconst pad = n => String(n).padStart(2, '0');\nconst flat = v => (Array.isArray(v) ? v : v ? [v] : []).map(low).filter(x => x.length >= 2);\nconst fuzzy = (a, b) => a && b && a.length >= 2 && b.length >= 2 && (a.includes(b) || b.includes(a));\nconst anyFuzzy = (text, names) => names.some(n => fuzzy(low(text), n));\n// Lọc theo tên; nếu không khớp gì và danh sách nhỏ thì lấy hết\nfunction pick(list, textOf, names, cap) {\n  if (!list.length) return [];\n  const hit = names.length ? list.filter(x => anyFuzzy(textOf(x), names)) : [];\n  if (hit.length) return hit;\n  return list.length <= cap ? list : [];\n}\n\nconst requirements = arr('requirements');\nif (!requirements.length) throw new Error('Không có requirement để chia chunk.');\n\n// 1. Sắp xếp feature theo flow_order (tiến trình nghiệp vụ), ổn định theo thứ tự xuất hiện\nlet features = arr('features').map((f, i) => ({ ...f, _i: i }));\nfeatures.sort((a, b) => (num(a.flow_order) - num(b.flow_order)) || (a._i - b._i));\nconst known = new Set(features.map(f => f.feature_id));\nconst orphans = requirements.filter(r => !known.has(r.feature_id));\nif (orphans.length) {\n  features.push({\n    feature_id: '__GENERAL__',\n    feature_name: features.length ? 'Yêu cầu chung' : (orphans[0].type || 'Yêu cầu chung'),\n    description: '', flow_order: BIG, _i: BIG\n  });\n}\nconst suiteNames = features.map(f => f.feature_name);\n\nconst changeScope = s.change_scope || { changed: [], unchanged_but_impacted: [] };\nconst baseCtx = {\n  all_suites_in_order: suiteNames,\n  change_scope: changeScope,\n  dependencies: arr('dependencies').slice(0, 30)\n};\n\nfunction buildContext(feature, reqs) {\n  const ids = new Set(reqs.map(r => r.requirement_id));\n  const names = [].concat(...reqs.map(r => flat(r.related_fields)));\n  const apis = [].concat(...reqs.map(r => flat(r.related_api)));\n  const sts = [].concat(...reqs.map(r => flat(r.related_state)));\n  const byReq = x => ids.has(x.requirement_id);\n  return {\n    ...baseCtx,\n    feature,\n    requirements: reqs,\n    business_rules: arr('business_rules').filter(byReq),\n    decision_tables: arr('decision_tables').filter(byReq),\n    integrations: arr('integrations').filter(byReq),\n    exceptions: arr('exceptions').filter(byReq),\n    flows: arr('flows').filter(f => f.feature_id === feature.feature_id),\n    inputs: pick(arr('inputs'), x => x.name, names, 20),\n    apis: pick(arr('apis'), x => x.name, apis, 15),\n    data_objects: pick(arr('data_objects'), x => (x.table_or_object || '') + ' ' + (x.field || ''), names.concat(sts), 20),\n    states: pick(arr('states'), x => (x.entity || '') + ' ' + (x.state || ''), sts.concat(names), 20),\n    ambiguities: arr('ambiguities').filter(a => ids.has(a.related_requirement_id))\n  };\n}\n\nconst out = [];\nfeatures.forEach((f, idx) => {\n  const reqs = requirements.filter(r =>\n    f.feature_id === '__GENERAL__' ? !known.has(r.feature_id) : r.feature_id === f.feature_id);\n  if (!reqs.length) return;\n  const parts = Math.ceil(reqs.length / MAX_REQ);\n  for (let p = 0; p < parts; p++) {\n    const slice = reqs.slice(p * MAX_REQ, (p + 1) * MAX_REQ);\n    const feature = { feature_id: f.feature_id, feature_name: f.feature_name, description: f.description || '' };\n    out.push({\n      json: {\n        chunk_id: 'F' + pad(idx + 1) + (parts > 1 ? '-' + (p + 1) : ''),\n        suite_name: f.feature_name,\n        suite_order: idx + 1,\n        part: p + 1,\n        total_parts: parts,\n        context: buildContext(feature, slice)\n      }\n    });\n  }\n});\n\n// 2. Chunk hồi quy riêng nếu tài liệu có phạm vi thay đổi mà chưa có feature hồi quy\nconst hasRegression = features.some(f => /hồi quy|regression/i.test(f.feature_name || ''));\nconst csHas = (changeScope.changed || []).length || (changeScope.unchanged_but_impacted || []).length;\nif (csHas && !hasRegression) {\n  const order = features.length + 1;\n  out.push({\n    json: {\n      chunk_id: 'F' + pad(order),\n      suite_name: 'Hồi quy các luồng bị ảnh hưởng bởi thay đổi',\n      suite_order: order,\n      part: 1,\n      total_parts: 1,\n      context: {\n        ...baseCtx,\n        feature: { feature_id: '__REGRESSION__', feature_name: 'Hồi quy các luồng bị ảnh hưởng bởi thay đổi', description: 'Các luồng đi qua API/module bị thay đổi phải giữ nguyên hành vi cũ.' },\n        requirements: requirements.map(r => ({\n          requirement_id: r.requirement_id, type: r.type, requirement: r.requirement,\n          expected_behavior: r.expected_behavior, preconditions: r.preconditions,\n          related_api: r.related_api, related_fields: r.related_fields, related_state: r.related_state\n        })),\n        business_rules: arr('business_rules'),\n        decision_tables: [],\n        integrations: arr('integrations'),\n        exceptions: [],\n        flows: arr('flows'),\n        inputs: [],\n        apis: arr('apis'),\n        data_objects: arr('data_objects').slice(0, 30),\n        states: arr('states').slice(0, 30),\n        ambiguities: []\n      }\n    }\n  });\n}\n\nif (!out.length) throw new Error('Không tạo được chunk nào từ dữ liệu requirement.');\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9824,
+        3168
+      ],
+      "id": "0b105192-c956-450d-bfc7-379e75944e36",
+      "name": "Split_By_Feature"
+    },
+    {
+      "parameters": {
+        "content": "## v4 - Sinh TC chi tiết\n- Requirement trích xuất kèm decision table, tích hợp, trạng thái, phạm vi hồi quy, flow_order.\n- Split_By_Feature: mỗi lần gọi AI chỉ xử lý 1 nhóm <= 6 requirement.\n- Coverage: áp dụng EP/BVA/Decision table/State/Negative/Hồi quy + cặp đối ứng.\n- Condition: có verify_points (UI/Network/Log/DB), Mock Server.\n- TC: lập phan_vung_ap_dung rồi sinh đúng 1 TC/phân vùng.\n- Dùng cả promptAI1 và promptAI2. Parse chịu lỗi, không rơi coverage (TC dự phòng gắn [CẦN RÀ SOÁT]).\n- Cột Ghi chú: [Kỹ thuật] [Loại] [Nguồn REQ].\n\n## v4-lite (tối ưu token)\n- Coverage: tối đa 8 item/REQ, 4-point BVA, gộp lớp cùng hành vi.\n- Condition: gộp coverage cùng hành vi (<=6 data/condition).\n- TC: tối đa 6 phân vùng/condition, câu ngắn.\n- requirement_context thu gọn theo kỹ thuật.\n- AI node lỗi -> continueRegularOutput, dùng fallback.",
+        "height": 260,
+        "width": 380,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        9696,
+        2816
+      ],
+      "id": "84307f94-bb03-4c49-a227-7b922744645d",
+      "name": "Sticky Note v4"
+    },
+    {
+      "parameters": {
+        "tableId": "problems",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "title",
+              "fieldValue": "={{ $json.body.baiToan }}"
+            },
+            {
+              "fieldId": "source_url",
+              "fieldValue": "={{ $json.body.urlGoc }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "Chưa làm"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        8192,
+        1424
+      ],
+      "id": "9939cae8-88d5-4ba2-8fcb-a82d2fb6e3ad",
+      "name": "SB · Append row in sheet",
+      "credentials": {
+        "supabaseApi": {
+          "id": "YKLE3BWOKRZLmm95",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Chuyển dòng Supabase về đúng tên cột của Sheet cũ để các node phía sau giữ nguyên\nconst r = $input.item.json;\nreturn { json: {\n  ID: r.legacy_id ?? '',\n  'Bài toán': r.title ?? '',\n  URL: r.source_url ?? '',\n  'Link Testcase': r.testcase_url ?? '',\n  'Link tài liệu phân tích': r.analysis_doc_url ?? '',\n  'Trạng thái': r.status ?? '',\n  'Người làm': r.assignee ?? '',\n  problem_id: r.id ?? ''\n} };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8464,
+        1424
+      ],
+      "id": "98f434e9-1607-449f-9833-005f5013384a",
+      "name": "Append row in sheet"
+    },
+    {
+      "parameters": {
+        "tableId": "problems",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "title",
+              "fieldValue": "={{ $json.baiToan }}"
+            },
+            {
+              "fieldId": "source_url",
+              "fieldValue": "={{ $json.urlGoc }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "Chưa làm"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        8592,
+        1248
+      ],
+      "id": "057ca449-14ad-42ac-b865-31d8f9627049",
+      "name": "SB · Append row in sheet1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "YKLE3BWOKRZLmm95",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Chuyển dòng Supabase về đúng tên cột của Sheet cũ để các node phía sau giữ nguyên\nconst r = $input.item.json;\nreturn { json: {\n  ID: r.legacy_id ?? '',\n  'Bài toán': r.title ?? '',\n  URL: r.source_url ?? '',\n  'Link Testcase': r.testcase_url ?? '',\n  'Link tài liệu phân tích': r.analysis_doc_url ?? '',\n  'Trạng thái': r.status ?? '',\n  'Người làm': r.assignee ?? '',\n  problem_id: r.id ?? ''\n} };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8848,
+        1248
+      ],
+      "id": "c3c26e5c-54d5-431c-b7fa-35e174bd9de2",
+      "name": "Append row in sheet1"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "problems",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "title",
+              "condition": "eq",
+              "keyValue": "={{ $('Webhook1').first().json.body.oldBaiToan }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        7520,
+        1792
+      ],
+      "id": "1d2ef2b1-e83c-4ed9-ace4-8f2e32f40a9f",
+      "name": "SB · Get row(s) in sheet1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "YKLE3BWOKRZLmm95",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Chuyển dòng Supabase về đúng tên cột của Sheet cũ để các node phía sau giữ nguyên\nconst r = $input.item.json;\nreturn { json: {\n  ID: r.legacy_id ?? '',\n  'Bài toán': r.title ?? '',\n  URL: r.source_url ?? '',\n  'Link Testcase': r.testcase_url ?? '',\n  'Link tài liệu phân tích': r.analysis_doc_url ?? '',\n  'Trạng thái': r.status ?? '',\n  'Người làm': r.assignee ?? '',\n  problem_id: r.id ?? ''\n} };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7792,
+        1792
+      ],
+      "id": "91ae1009-9c6a-4b8a-9be7-acb3bd306859",
+      "name": "Get row(s) in sheet1"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "problems",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Get row(s) in sheet1').first().json.problem_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "title",
+              "fieldValue": "={{ $('Webhook1').first().json.body.newBaiToan }}"
+            },
+            {
+              "fieldId": "source_url",
+              "fieldValue": "={{ $('Webhook1').first().json.body.newUrl }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        7776,
+        1792
+      ],
+      "id": "2f48e272-f363-481f-b463-5bf8b7b70067",
+      "name": "SB · Update row in sheet",
+      "credentials": {
+        "supabaseApi": {
+          "id": "YKLE3BWOKRZLmm95",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Chuyển dòng Supabase về đúng tên cột của Sheet cũ để các node phía sau giữ nguyên\nconst r = $input.item.json;\nreturn { json: {\n  ID: r.legacy_id ?? '',\n  'Bài toán': r.title ?? '',\n  URL: r.source_url ?? '',\n  'Link Testcase': r.testcase_url ?? '',\n  'Link tài liệu phân tích': r.analysis_doc_url ?? '',\n  'Trạng thái': r.status ?? '',\n  'Người làm': r.assignee ?? '',\n  problem_id: r.id ?? ''\n} };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8048,
+        1792
+      ],
+      "id": "18b9cc9f-993f-4bcc-9a6e-0154fac8d631",
+      "name": "Update row in sheet"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "problems",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "title",
+              "condition": "eq",
+              "keyValue": "={{ $json.body.baiToan }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        7600,
+        2032
+      ],
+      "id": "9932e379-aefb-4775-8add-bfc6955208e0",
+      "name": "SB · Get row(s) in sheet",
+      "credentials": {
+        "supabaseApi": {
+          "id": "YKLE3BWOKRZLmm95",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Chuyển dòng Supabase về đúng tên cột của Sheet cũ để các node phía sau giữ nguyên\nconst r = $input.item.json;\nreturn { json: {\n  ID: r.legacy_id ?? '',\n  'Bài toán': r.title ?? '',\n  URL: r.source_url ?? '',\n  'Link Testcase': r.testcase_url ?? '',\n  'Link tài liệu phân tích': r.analysis_doc_url ?? '',\n  'Trạng thái': r.status ?? '',\n  'Người làm': r.assignee ?? '',\n  problem_id: r.id ?? ''\n} };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7872,
+        2032
+      ],
+      "id": "261d44a0-b520-4b28-a697-5ce4332bd6ee",
+      "name": "Get row(s) in sheet"
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "tableId": "problems",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Get row(s) in sheet').first().json.problem_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        7824,
+        2032
+      ],
+      "id": "4a23ba2a-beb6-494b-985c-de13a9660fad",
+      "name": "SB · Delete rows or columns from sheet",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "YKLE3BWOKRZLmm95",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Supabase có thể không trả dòng đã xóa -> luôn trả kết quả để Respond to Webhook chạy\nconst r = $input.item.json;\nreturn { json: { deleted: true, 'Bài toán': r.title ?? $('Webhook2').first().json.body.baiToan } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8096,
+        2032
+      ],
+      "id": "4c52fa5e-08bc-4d66-af08-a2f48ed93872",
+      "name": "Delete rows or columns from sheet"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "problems",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "title",
+              "condition": "eq",
+              "keyValue": "={{ $json.body.baiToan }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "={{ $json.body.trangThai }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        7616,
+        2352
+      ],
+      "id": "c5e6f1e3-4aa5-41e6-88d8-a306101611ef",
+      "name": "SB · Update row in sheet1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "YKLE3BWOKRZLmm95",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Chuyển dòng Supabase về đúng tên cột của Sheet cũ để các node phía sau giữ nguyên\nconst r = $input.item.json;\nreturn { json: {\n  ID: r.legacy_id ?? '',\n  'Bài toán': r.title ?? '',\n  URL: r.source_url ?? '',\n  'Link Testcase': r.testcase_url ?? '',\n  'Link tài liệu phân tích': r.analysis_doc_url ?? '',\n  'Trạng thái': r.status ?? '',\n  'Người làm': r.assignee ?? '',\n  problem_id: r.id ?? ''\n} };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7888,
+        2352
+      ],
+      "id": "a5c80d79-73eb-4144-b464-5facbdb99a25",
+      "name": "Update row in sheet1"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "problems",
+        "returnAll": true
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        7552,
+        928
+      ],
+      "id": "450c963a-db6d-4b67-8a1a-179bf94f929a",
+      "name": "SB · Lay_Tai_lieu_bai_toan",
+      "credentials": {
+        "supabaseApi": {
+          "id": "YKLE3BWOKRZLmm95",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Danh sách bài toán: giữ định dạng cột của Sheet cũ, sắp theo ID\nconst rows = $input.all().map((it, i) => ({ r: it.json, i }));\nrows.sort((a, b) => (a.r.legacy_id ?? 1e12) - (b.r.legacy_id ?? 1e12));\nreturn rows.map(({ r, i }) => ({ json: {\n  ID: r.legacy_id ?? '',\n  'Bài toán': r.title ?? '',\n  URL: r.source_url ?? '',\n  'Link Testcase': r.testcase_url ?? '',\n  'Link tài liệu phân tích': r.analysis_doc_url ?? '',\n  'Trạng thái': r.status ?? '',\n  'Người làm': r.assignee ?? '',\n  problem_id: r.id ?? ''\n}, pairedItem: { item: i } }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7824,
+        928
+      ],
+      "id": "351608ea-fcfe-4a95-a296-a3eb1b7a1d51",
+      "name": "Lay_Tai_lieu_bai_toan"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "problems",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "title",
+              "condition": "eq",
+              "keyValue": "={{ $json.body.baiToan }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "assignee",
+              "fieldValue": "={{ $json.body.nguoiNhanMoi }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        8800,
+        928
+      ],
+      "id": "d2e5d745-3425-434a-b0ac-4d0b60580566",
+      "name": "SB · Cập nhật bài toán cho user",
+      "credentials": {
+        "supabaseApi": {
+          "id": "YKLE3BWOKRZLmm95",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Chuyển dòng Supabase về đúng tên cột của Sheet cũ để các node phía sau giữ nguyên\nconst r = $input.item.json;\nreturn { json: {\n  ID: r.legacy_id ?? '',\n  'Bài toán': r.title ?? '',\n  URL: r.source_url ?? '',\n  'Link Testcase': r.testcase_url ?? '',\n  'Link tài liệu phân tích': r.analysis_doc_url ?? '',\n  'Trạng thái': r.status ?? '',\n  'Người làm': r.assignee ?? '',\n  problem_id: r.id ?? ''\n} };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9072,
+        928
+      ],
+      "id": "4af76900-9610-4619-b905-ceb89a6aa26b",
+      "name": "Cập nhật bài toán cho user"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "problems",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "title",
+              "condition": "eq",
+              "keyValue": "={{ $json.baiToan }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        6272,
+        2896
+      ],
+      "id": "882c12ca-ee13-4abd-8c97-ff8f81d30302",
+      "name": "SB · Lay_Tai_lieu_bai_toan1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "YKLE3BWOKRZLmm95",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Chuyển dòng Supabase về đúng tên cột của Sheet cũ để các node phía sau giữ nguyên\nconst r = $input.item.json;\nreturn { json: {\n  ID: r.legacy_id ?? '',\n  'Bài toán': r.title ?? '',\n  URL: r.source_url ?? '',\n  'Link Testcase': r.testcase_url ?? '',\n  'Link tài liệu phân tích': r.analysis_doc_url ?? '',\n  'Trạng thái': r.status ?? '',\n  'Người làm': r.assignee ?? '',\n  problem_id: r.id ?? ''\n} };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6448,
+        2896
+      ],
+      "id": "2a122d6b-db7c-4f18-b81c-6014c20f387b",
+      "name": "Lay_Tai_lieu_bai_toan1"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "problems",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "source_url",
+              "condition": "eq",
+              "keyValue": "={{ $json.URL }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "Waiting"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        6624,
+        2896
+      ],
+      "id": "c6b1a5aa-6a60-4714-9fab-7e9201b2e31a",
+      "name": "SB · update_waiting",
+      "credentials": {
+        "supabaseApi": {
+          "id": "YKLE3BWOKRZLmm95",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Chuyển dòng Supabase về đúng tên cột của Sheet cũ để các node phía sau giữ nguyên\nconst r = $input.item.json;\nreturn { json: {\n  ID: r.legacy_id ?? '',\n  'Bài toán': r.title ?? '',\n  URL: r.source_url ?? '',\n  'Link Testcase': r.testcase_url ?? '',\n  'Link tài liệu phân tích': r.analysis_doc_url ?? '',\n  'Trạng thái': r.status ?? '',\n  'Người làm': r.assignee ?? '',\n  problem_id: r.id ?? ''\n} };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6944,
+        2896
+      ],
+      "id": "0f6197ea-6686-4bd4-8209-7a821943182b",
+      "name": "update_waiting"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "problems",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "source_url",
+              "condition": "eq",
+              "keyValue": "={{ $('Loop Over Items').first().json.URL }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "Đã xong"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        12144,
+        3696
+      ],
+      "id": "656b5d76-92ba-49bc-99fe-834535099027",
+      "name": "SB · update_trang_thai_done",
+      "credentials": {
+        "supabaseApi": {
+          "id": "YKLE3BWOKRZLmm95",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Chuyển dòng Supabase về đúng tên cột của Sheet cũ để các node phía sau giữ nguyên\nconst r = $input.item.json;\nreturn { json: {\n  ID: r.legacy_id ?? '',\n  'Bài toán': r.title ?? '',\n  URL: r.source_url ?? '',\n  'Link Testcase': r.testcase_url ?? '',\n  'Link tài liệu phân tích': r.analysis_doc_url ?? '',\n  'Trạng thái': r.status ?? '',\n  'Người làm': r.assignee ?? '',\n  problem_id: r.id ?? ''\n} };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        12384,
+        3824
+      ],
+      "id": "ddf837d2-06f7-4363-9d0b-ce1aa28f6bbc",
+      "name": "update_trang_thai_done"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "problems",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "source_url",
+              "condition": "eq",
+              "keyValue": "={{ $('Loop Over Items').item.json.URL }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "testcase_url",
+              "fieldValue": "=https://docs.google.com/spreadsheets/d/{{ $json.id }}/edit"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        7600,
+        2912
+      ],
+      "id": "8f6bd99b-2626-40a7-8f32-a16be301a6c0",
+      "name": "SB · Update_link_sheet_TC",
+      "credentials": {
+        "supabaseApi": {
+          "id": "YKLE3BWOKRZLmm95",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Chuyển dòng Supabase về đúng tên cột của Sheet cũ để các node phía sau giữ nguyên\nconst r = $input.item.json;\nreturn { json: {\n  ID: r.legacy_id ?? '',\n  'Bài toán': r.title ?? '',\n  URL: r.source_url ?? '',\n  'Link Testcase': r.testcase_url ?? '',\n  'Link tài liệu phân tích': r.analysis_doc_url ?? '',\n  'Trạng thái': r.status ?? '',\n  'Người làm': r.assignee ?? '',\n  problem_id: r.id ?? ''\n} };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7744,
+        2912
+      ],
+      "id": "2c8188e7-d784-4e45-ab8d-8a2376be0841",
+      "name": "Update_link_sheet_TC"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "problems",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "title",
+              "condition": "eq",
+              "keyValue": "={{ $('Lay_Tai_lieu_bai_toan1').item.json['Bài toán'] }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "analysis_doc_url",
+              "fieldValue": "=https://docs.google.com/document/d/{{ $('tao_file_docs').item.json.id }}/edit"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        10768,
+        2928
+      ],
+      "id": "37fdc7f6-f29b-435e-a393-2f551ccc72a0",
+      "name": "SB · Upadate_link_docs",
+      "credentials": {
+        "supabaseApi": {
+          "id": "YKLE3BWOKRZLmm95",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Chuyển dòng Supabase về đúng tên cột của Sheet cũ để các node phía sau giữ nguyên\nconst r = $input.item.json;\nreturn { json: {\n  ID: r.legacy_id ?? '',\n  'Bài toán': r.title ?? '',\n  URL: r.source_url ?? '',\n  'Link Testcase': r.testcase_url ?? '',\n  'Link tài liệu phân tích': r.analysis_doc_url ?? '',\n  'Trạng thái': r.status ?? '',\n  'Người làm': r.assignee ?? '',\n  problem_id: r.id ?? ''\n} };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        11040,
+        2928
+      ],
+      "id": "a9be0955-8f3f-4234-ab18-08eb321a1d19",
+      "name": "Upadate_link_docs"
+    },
+    {
+      "parameters": {
+        "content": "## Nguồn bài toán = Supabase (public.problems)\nCác node \"SB · ...\" đọc/ghi bảng problems. Mỗi node SB nối với 1 Code node mang TÊN CŨ, đổi cột về dạng Sheet (Bài toán, URL, Trạng thái...) nên các node phía sau và response webhook giữ nguyên.\nSheet tổng không còn được dùng. Chạy supabase_problems.sql trước.",
+        "height": 220,
+        "width": 440
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        4320,
+        2448
+      ],
+      "id": "9cb85b13-e1d4-4605-9abd-bf30b2607a6d",
+      "name": "Sticky Note Supabase"
+    }
+  ],
+  "pinData": {
+    "Webhook1": [
+      {
+        "json": {
+          "headers": {
+            "host": "localhost:1234",
+            "connection": "keep-alive",
+            "content-length": "222",
+            "sec-ch-ua-platform": "\"Windows\"",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+            "sec-ch-ua": "\"Google Chrome\";v=\"149\", \"Chromium\";v=\"149\", \"Not)A;Brand\";v=\"24\"",
+            "content-type": "application/json",
+            "sec-ch-ua-mobile": "?0",
+            "accept": "*/*",
+            "origin": "http://127.0.0.1:5500",
+            "sec-fetch-site": "cross-site",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-dest": "empty",
+            "referer": "http://127.0.0.1:5500/",
+            "accept-encoding": "gzip, deflate, br, zstd",
+            "accept-language": "en-GB,en-US;q=0.9,en;q=0.8,vi;q=0.7"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "oldBaiToan": "Thu phí xử lý giao dịch VDST",
+            "newBaiToan": "Thu phí xử lý giao dịch VDS",
+            "newUrl": "https://docs.google.com/document/d/1rgXilgp4kdRXCn0rIz-Rqr06AjWQgd9BuMcreT-G2Kc/edit?tab=t.0#heading=h.1t3h5sf"
+          },
+          "webhookUrl": "http://localhost:1234/webhook/sua-tai-lieu",
+          "executionMode": "production"
+        }
+      }
+    ],
+    "Webhook4": [
+      {
+        "json": {
+          "headers": {
+            "host": "vdtc-hungdv.tailfb2503.ts.net:8443",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0",
+            "accept": "*/*",
+            "accept-encoding": "gzip, deflate, br, zstd",
+            "accept-language": "en-US,en;q=0.9",
+            "origin": "http://127.0.0.1:5500",
+            "priority": "u=1, i",
+            "referer": "http://127.0.0.1:5500/",
+            "sec-ch-ua": "\"Not;A=Brand\";v=\"8\", \"Chromium\";v=\"150\", \"Microsoft Edge\";v=\"150\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"Windows\"",
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "cross-site",
+            "tailscale-headers-info": "https://tailscale.com/s/serve-headers",
+            "tailscale-user-login": "hungdowork28@gmail.com",
+            "tailscale-user-name": "Hung Do",
+            "tailscale-user-profile-pic": "https://lh3.googleusercontent.com/a/ACg8ocKCcLLjfEfW-EgPnDCgLAJm0bO3oGyo799eGfgl_rQ9psQ6Jg=s96-c",
+            "x-forwarded-for": "100.105.11.43",
+            "x-forwarded-host": "vdtc-hungdv.tailfb2503.ts.net:8443",
+            "x-forwarded-proto": "https"
+          },
+          "params": {},
+          "query": {
+            "t": "1784622755565"
+          },
+          "body": {},
+          "webhookUrl": "https://vdtc-hungdv.tailfb2503.ts.net/webhook/1981ca71-5359-43d7-94a4-aef5615653ea",
+          "executionMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "Chuyển giao bài toán": [
+      {
+        "json": {
+          "headers": {
+            "host": "vdtc-hungdv.tailfb2503.ts.net:8443",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0",
+            "content-length": "68",
+            "accept": "*/*",
+            "accept-encoding": "gzip, deflate, br, zstd",
+            "accept-language": "en-US,en;q=0.9",
+            "content-type": "application/json",
+            "origin": "http://127.0.0.1:5500",
+            "priority": "u=1, i",
+            "referer": "http://127.0.0.1:5500/",
+            "sec-ch-ua": "\"Not;A=Brand\";v=\"8\", \"Chromium\";v=\"150\", \"Microsoft Edge\";v=\"150\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"Windows\"",
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "cross-site",
+            "tailscale-headers-info": "https://tailscale.com/s/serve-headers",
+            "tailscale-user-login": "hungdowork28@gmail.com",
+            "tailscale-user-name": "Hung Do",
+            "tailscale-user-profile-pic": "https://lh3.googleusercontent.com/a/ACg8ocKCcLLjfEfW-EgPnDCgLAJm0bO3oGyo799eGfgl_rQ9psQ6Jg=s96-c",
+            "x-forwarded-for": "100.105.11.43",
+            "x-forwarded-host": "vdtc-hungdv.tailfb2503.ts.net:8443",
+            "x-forwarded-proto": "https"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "baiToan": "Bài toán HotFix_Dán thẻ",
+            "nguoiNhanMoi": "hungtest"
+          },
+          "webhookUrl": "https://vdtc-hungdv.tailfb2503.ts.net/webhook/chuyen-giao",
+          "executionMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "vdtc-hungdv.tailfb2503.ts.net:8443",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0",
+            "content-length": "1541422",
+            "accept": "*/*",
+            "accept-encoding": "gzip, deflate, br, zstd",
+            "accept-language": "en-US,en;q=0.9",
+            "content-type": "multipart/form-data; boundary=----WebKitFormBoundaryhA761mFKbkkV7Apt",
+            "origin": "http://127.0.0.1:5500",
+            "priority": "u=1, i",
+            "referer": "http://127.0.0.1:5500/",
+            "sec-ch-ua": "\"Not=A?Brand\";v=\"99\", \"Microsoft Edge\";v=\"151\", \"Chromium\";v=\"151\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"Windows\"",
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "cross-site",
+            "tailscale-headers-info": "https://tailscale.com/s/serve-headers",
+            "tailscale-user-login": "hungdowork28@gmail.com",
+            "tailscale-user-name": "Hung Do",
+            "tailscale-user-profile-pic": "https://lh3.googleusercontent.com/a/ACg8ocKCcLLjfEfW-EgPnDCgLAJm0bO3oGyo799eGfgl_rQ9psQ6Jg=s96-c",
+            "x-forwarded-for": "100.105.11.43",
+            "x-forwarded-host": "vdtc-hungdv.tailfb2503.ts.net:8443",
+            "x-forwarded-proto": "https"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "baiToan": "Nâng cấp Web Epass",
+            "mode": "import",
+            "username": "hung"
+          },
+          "webhookUrl": "https://vdtc-hungdv.tailfb2503.ts.net/webhook/7dea3b89-0dcf-4a98-b60b-191bdcb78e67",
+          "executionMode": "production"
+        },
+        "binary": {
+          "files": {
+            "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "fileExtension": "docx",
+            "data": "filesystem-v2",
+            "fileName": "ePass_SRS_Nâng cấp WebApp CPT_v1.2 (1).docx",
+            "id": "filesystem-v2:workflows/XbiRvlKmBlZmNQGz/executions/1513/binary_data/9908ee50-98d1-44b6-b162-3f2d254af6af",
+            "fileSize": "1.54 MB",
+            "bytes": 1540829
+          }
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "When Executed by Another Workflow": [
+      {
+        "json": {
+          "headers": {
+            "host": "vdtc-hungdv.tailfb2503.ts.net:8443",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
+            "content-length": "128",
+            "accept": "*/*",
+            "accept-encoding": "gzip, deflate, br, zstd",
+            "accept-language": "en-GB,en-US;q=0.9,en;q=0.8,vi;q=0.7",
+            "content-type": "application/json",
+            "origin": "https://quanlv.io.vn",
+            "priority": "u=1, i",
+            "referer": "https://quanlv.io.vn/",
+            "sec-ch-ua": "\"Chromium\";v=\"152\", \"Not?A_Brand\";v=\"24\", \"Google Chrome\";v=\"152\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"Windows\"",
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "cross-site",
+            "tailscale-headers-info": "https://tailscale.com/s/serve-headers",
+            "tailscale-user-login": "hungdowork28@gmail.com",
+            "tailscale-user-name": "Hung Do",
+            "tailscale-user-profile-pic": "https://lh3.googleusercontent.com/a/ACg8ocKCcLLjfEfW-EgPnDCgLAJm0bO3oGyo799eGfgl_rQ9psQ6Jg=s96-c",
+            "x-forwarded-for": "100.105.11.43",
+            "x-forwarded-host": "vdtc-hungdv.tailfb2503.ts.net:8443",
+            "x-forwarded-proto": "https"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "baiToan": "Bài toán HotFix_Dán thẻ",
+            "loaiChay": "single",
+            "requestId": "ac8cc592-ccf8-4760-9bd1-edf84510d485",
+            "promptAI2": ""
+          },
+          "webhookUrl": "https://vdtc-hungdv.tailfb2503.ts.net/webhook/luong-chuc-nang",
+          "executionMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook1": {
+      "main": [
+        [
+          {
+            "node": "SB · Get row(s) in sheet1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook2": {
+      "main": [
+        [
+          {
+            "node": "SB · Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "SB · Delete rows or columns from sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete rows or columns from sheet": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook3": {
+      "main": [
+        [
+          {
+            "node": "SB · Update row in sheet1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update row in sheet1": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lay_Tai_lieu_bai_toan": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook4": {
+      "main": [
+        [
+          {
+            "node": "SB · Lay_Tai_lieu_bai_toan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet1": {
+      "main": [
+        [
+          {
+            "node": "SB · Update row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Chuan_Hoa_Du_lieu_docx_xlxs,...",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "SB · Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Gom URL file upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet1": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gom URL file upload": {
+      "main": [
+        [
+          {
+            "node": "SB · Append row in sheet1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chuan_Hoa_Du_lieu_docx_xlxs,...": {
+      "main": [
+        [
+          {
+            "node": "Upload file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chuyển giao bài toán": {
+      "main": [
+        [
+          {
+            "node": "SB · Cập nhật bài toán cho user",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Google Gemini": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Save_DB",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Save_DB",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Format Markdown & Hash MD5": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload file": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Save_DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recursive Character Text Splitter": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Default Data Loader",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait1": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "xu_ly_boc_du_lieu_json": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Tách_link_tài_liệu",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crawl_tai_lieu docs": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Craw_Figma": {
+      "main": [
+        [
+          {
+            "node": "get_Text_figma",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Gom_tài_liệu",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tách_link_tài_liệu": {
+      "main": [
+        [
+          {
+            "node": "phân_luồng_tài_liệu",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "phân_luồng_tài_liệu": {
+      "main": [
+        [
+          {
+            "node": "Crawl_tai_lieu docs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [],
+        [
+          {
+            "node": "Lay_thong_tin_sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gom_tài_liệu": {
+      "main": [
+        [
+          {
+            "node": "AI_structured_requirement",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "AI_phan_tich_bai_toan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sheet_luu_thong_tin_TC": {
+      "main": [
+        [
+          {
+            "node": "SB · update_trang_thai_done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lay_thong_tin_sheet": {
+      "main": [
+        [
+          {
+            "node": "ghep_tung_tab_voi_id_bai_toan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "lay_thong_tin_tung_tab": {
+      "main": [
+        [
+          {
+            "node": "gop_thong_tin_thanh_text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "gop_thong_tin_thanh_text": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI_Phan_tich_Testcase",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI_Phan_tich_Testcase": {
+      "main": [
+        [
+          {
+            "node": "xu_ly_boc_du_lieu_json",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "day_du_lieu_vao_docs": {
+      "main": [
+        [
+          {
+            "node": "SB · Upadate_link_docs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI_phan_tich_bai_toan": {
+      "main": [
+        [
+          {
+            "node": "tao_file_docs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean_text": {
+      "main": [
+        [
+          {
+            "node": "day_du_lieu_vao_docs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ghep_tung_tab_voi_id_bai_toan": {
+      "main": [
+        [
+          {
+            "node": "lay_thong_tin_tung_tab",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Copy_File_TC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update_waiting": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update_trang_thai_done": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Copy_File_TC": {
+      "main": [
+        [
+          {
+            "node": "SB · Update_link_sheet_TC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update_link_sheet_TC": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lay_Tai_lieu_bai_toan1": {
+      "main": [
+        [
+          {
+            "node": "SB · update_waiting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "SB · Lay_Tai_lieu_bai_toan1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI_phan_tich_bai_toan",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "tao_file_docs": {
+      "main": [
+        [
+          {
+            "node": "Clean_text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI_structured_requirement": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Split_By_Feature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test_condition_generator": {
+      "main": [
+        [
+          {
+            "node": "Parse_conditions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI_structured_requirement",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model3": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Test_condition_generator",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split_test_conditions": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items1": {
+      "main": [
+        [
+          {
+            "node": "Group_By_Test_Suite",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait_Gemini",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse_conditions": {
+      "main": [
+        [
+          {
+            "node": "Split_test_conditions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait_Gemini": {
+      "main": [
+        [
+          {
+            "node": "AI_Phan_tich_Testcase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Group_By_Test_Suite": {
+      "main": [
+        [
+          {
+            "node": "Sheet_luu_thong_tin_TC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model4": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Coverage_Expansion",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Coverage_Expansion": {
+      "main": [
+        [
+          {
+            "node": "Parse_Coverage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse_Coverage": {
+      "main": [
+        [
+          {
+            "node": "Test_condition_generator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook5": {
+      "main": [
+        [
+          {
+            "node": "Get many rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split_By_Feature": {
+      "main": [
+        [
+          {
+            "node": "Coverage_Expansion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SB · Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SB · Append row in sheet1": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SB · Get row(s) in sheet1": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SB · Update row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Update row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SB · Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SB · Delete rows or columns from sheet": {
+      "main": [
+        [
+          {
+            "node": "Delete rows or columns from sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SB · Update row in sheet1": {
+      "main": [
+        [
+          {
+            "node": "Update row in sheet1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SB · Lay_Tai_lieu_bai_toan": {
+      "main": [
+        [
+          {
+            "node": "Lay_Tai_lieu_bai_toan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SB · Cập nhật bài toán cho user": {
+      "main": [
+        [
+          {
+            "node": "Cập nhật bài toán cho user",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SB · Lay_Tai_lieu_bai_toan1": {
+      "main": [
+        [
+          {
+            "node": "Lay_Tai_lieu_bai_toan1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SB · update_waiting": {
+      "main": [
+        [
+          {
+            "node": "update_waiting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SB · update_trang_thai_done": {
+      "main": [
+        [
+          {
+            "node": "update_trang_thai_done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SB · Update_link_sheet_TC": {
+      "main": [
+        [
+          {
+            "node": "Update_link_sheet_TC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SB · Upadate_link_docs": {
+      "main": [
+        [
+          {
+            "node": "Upadate_link_docs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "04c93400-7915-434b-b865-806fd8038e32",
+  "meta": {},
+  "id": "BfSOnBbXFxDG1KKa",
+  "tags": []
+}

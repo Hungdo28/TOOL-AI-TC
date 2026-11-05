@@ -1,0 +1,91 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "dd5a6384-e10a-4869-9763-6fdec761cd11",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -256,
+        -48
+      ],
+      "id": "d8a3ea96-c459-473d-8780-92ef42130d0e",
+      "name": "Webhook",
+      "webhookId": "dd5a6384-e10a-4869-9763-6fdec761cd11"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "You are a helpful assistant"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -48,
+        -160
+      ],
+      "id": "faf39045-6192-42c6-97e8-dffff797846a",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        -48,
+        208
+      ],
+      "id": "cc5da0e8-00f8-491e-8486-a5345d12ea59",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "LDrdUYhWPG5baB50",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "284a92e2-506a-49af-b12a-e53c21d5d40c",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "QlzuZF32yCL5Ol6L",
+  "tags": []
+}

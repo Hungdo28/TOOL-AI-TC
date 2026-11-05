@@ -1,0 +1,73 @@
+{
+  "name": "My workflow 3",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://viettelai.vn/model-as-a-service/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_AI_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"DeepSeek-V4-Flash-0731\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Bạn là Senior QA Engineer hỗ trợ thiết kế Test Case.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"={{ $json.chatInput || $json.data || 'Xin chào' }}\"\n    }\n  ],\n  \"temperature\": 0.2\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        368,
+        16
+      ],
+      "id": "db430972-93a5-498d-beac-f0c02438647c",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        96,
+        16
+      ],
+      "id": "8da865bf-e7f8-484c-ae84-7619344b76f7",
+      "name": "When chat message received",
+      "webhookId": "2539920f-0916-4e4e-ab5e-3d78816680ed"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "HTTP Request": {
+      "main": [
+        []
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "dc12d3d8-cd46-4af3-b166-bd7185966bf3",
+  "meta": {},
+  "id": "Fheotyipc0kk8cuN",
+  "tags": []
+}

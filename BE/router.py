@@ -5,8 +5,8 @@ from collections.abc import Callable
 from controllers.auth_controller import AuthController
 from controllers.health_controller import get_health
 from controllers.task_controller import TaskController
-from web.models import ApiResponse
 from services.task_service import ApiError
+from web.models import ApiResponse
 
 
 RouteHandler = Callable[[object], ApiResponse]
@@ -26,11 +26,12 @@ class Router:
             ("PATCH", "/api/tasks/assignee"): task_controller.transfer_task,
             ("POST", "/api/tasks/ai-callback"): task_controller.ai_callback,
             ("POST", "/api/tasks/approve-testcases"): task_controller.approve_testcases,
+            ("POST", "/api/tasks/run"): task_controller.run_ai,
+            ("POST", "/webhook/luong-chuc-nang"): task_controller.run_ai,
         }
         if auth_controller:
             self.routes[("POST", "/api/auth/token")] = auth_controller.get_token
             self.routes[("POST", "/api/auth/login")] = auth_controller.get_token
-
 
     def dispatch(self, method: str, request) -> ApiResponse:
         handler = self.routes.get((method.upper(), request.path))

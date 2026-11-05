@@ -1,0 +1,57 @@
+{
+  "name": "Error Flow",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        -224,
+        -48
+      ],
+      "id": "ea80f650-3c68-4d06-8ac9-8427e2332422",
+      "name": "Error Trigger"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": false,\n  \"error_code\": \"INTERNAL_SERVER_ERROR\",\n  \"message\": \"={{ $json.execution.error.message }}\",\n  \"node_failed\": \"={{ $json.execution.error.node.name }}\",\n  \"execution_id\": \"={{ $json.execution.id }}\"\n}",
+        "options": {
+          "responseCode": 500
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -16,
+        -48
+      ],
+      "id": "27ac09b2-604d-4065-bfa4-b17f0ea5273d",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "ebd1e1be-6021-44de-b799-aec89713937e",
+  "meta": {},
+  "id": "iJQiMGKtq2yl7CYM",
+  "tags": []
+}
