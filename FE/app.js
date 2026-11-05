@@ -960,23 +960,13 @@ function renderTable() {
                 </td>
 
                 <td class="px-4 py-5 align-top min-w-[220px] text-center">${makeLink(urlGoc, ten, 'source')}</td>
-                <td class="px-4 py-5 align-top min-w-[220px] text-center">
-                    <div class="flex flex-col items-center gap-2">
-                        ${makeLink(linkTC, ten, 'testcase')}
-                        <button onclick="openTestcaseReviewModalForTask('${escapeHtml(ten)}')"
-                            class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold text-blue-600 bg-blue-50/70 hover:bg-blue-100 hover:text-blue-700 transition-all border border-blue-200/50 shadow-xs cursor-pointer"
-                            title="Xem trước & Duyệt từng testcase của bài toán này">
-                            <i data-lucide="clipboard-check" class="w-3.5 h-3.5"></i> Duyệt testcase
-                        </button>
-                    </div>
-                </td>
+                <td class="px-4 py-5 align-top min-w-[220px] text-center">${makeLink(linkTC, ten, 'testcase')}</td>
                 <td class="px-4 py-5 align-top min-w-[220px] text-center">${makeLink(linkPT, ten, 'analysis')}</td>
 
                 <!-- CỘT THAO TÁC -->
                 <td class="px-4 py-5 align-top min-w-[170px] text-center">
                     <div class="flex items-center justify-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity duration-300">
                         <button onclick="downloadSingleTaskFiles(${originalIndex})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-emerald-50 text-slate-600 hover:text-emerald-600 rounded-lg transition-all shadow-sm" title="Tải tài liệu"><i data-lucide="download" class="w-4 h-4"></i></button>
-                        <button onclick="openTestcaseReviewModalForTask('${escapeHtml(ten)}')" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-blue-50 text-slate-600 hover:text-blue-600 rounded-lg transition-all shadow-sm" title="Xem trước & Duyệt testcase"><i data-lucide="clipboard-check" class="w-4 h-4 text-blue-600"></i></button>
                         <button onclick="runSingleTask(${originalIndex})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-blue-50 text-slate-600 hover:text-blue-600 rounded-lg transition-all shadow-sm" title="Chạy AI"><i data-lucide="play" class="w-4 h-4 fill-current"></i></button>
                         ${currentUser.role === 'admin' ? `
                         <button onclick="openTransferModal(${originalIndex})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-orange-50 text-slate-600 hover:text-orange-600 rounded-lg transition-all shadow-sm" title="Chuyển giao"><i data-lucide="send" class="w-4 h-4"></i></button>
