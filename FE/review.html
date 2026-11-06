@@ -536,8 +536,11 @@
             const select = document.getElementById('probSelect');
             select.innerHTML = '<option value="">Đang tải bài toán...</option>';
 
-            const urlProb = new URLSearchParams(location.search).get('problem_id') ||
-                            new URLSearchParams(location.search).get('task');
+            const searchParams = new URLSearchParams(location.search);
+            const urlProb = searchParams.get('problem_id') ||
+                            searchParams.get('task') ||
+                            searchParams.get('problem_title');
+            const urlTitle = searchParams.get('problem_title') || urlProb;
 
             try {
                 // Tải danh sách bài toán từ qa_memory
@@ -552,16 +555,16 @@
                     });
                 }
 
-                // Nếu URL có truyền problem_id mà chưa có trong DB, vẫn thêm vào dropdown
+                // Nếu URL có truyền problem_id / problem_title mà chưa có trong DB, vẫn thêm vào dropdown
                 if (urlProb && !probMap.has(urlProb)) {
-                    probMap.set(urlProb, urlProb);
+                    probMap.set(urlProb, urlTitle || urlProb);
                 }
 
                 select.innerHTML = '';
                 if (probMap.size === 0) {
                     const opt = document.createElement('option');
                     opt.value = urlProb || 'demo_problem';
-                    opt.textContent = urlProb || 'Bài toán mẫu (Demo)';
+                    opt.textContent = urlTitle || urlProb || 'Bài toán mẫu (Demo)';
                     select.appendChild(opt);
                 } else {
                     probMap.forEach((title, id) => {
@@ -584,7 +587,7 @@
                 select.innerHTML = '';
                 const fallbackOpt = document.createElement('option');
                 fallbackOpt.value = urlProb || 'current_task';
-                fallbackOpt.textContent = urlProb || 'Bài toán hiện tại';
+                fallbackOpt.textContent = urlTitle || urlProb || 'Bài toán hiện tại';
                 select.appendChild(fallbackOpt);
                 select.onchange = () => loadTestcases();
                 await loadTestcases();
@@ -615,6 +618,12 @@
                 if (!Array.isArray(data) || data.length === 0) {
                     rawRows = [];
                     choice = {};
+                    const searchParams = new URLSearchParams(location.search);
+                    const sheetUrl = searchParams.get('sheet_url');
+                    if (sheetUrl) {
+                        renderGoogleSheetView(sheetUrl, probTitle);
+                        return;
+                    }
                     showEmptyState(
                         true,
                         'Chưa có testcase nào trong Supabase',
@@ -1485,6 +1494,51 @@
                     </div>
                 `;
             }
+        function renderGoogleSheetView(sheetUrl, probTitle) {
+            showEmptyState(false);
+            const list = document.getElementById('testcaseList');
+            const previewUrl = sheetUrl.includes('docs.google.com/spreadsheets')
+                ? sheetUrl.replace(/\/edit([#?].*)?$/, '/preview?rm=minimal')
+                : sheetUrl;
+
+            list.innerHTML = `
+                <div class="space-y-4">
+                    <div class="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
+                        <div class="flex items-start gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                                <i data-lucide="table" class="w-5 h-5"></i>
+                            </div>
+                            <div>
+                                <h4 class="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                                    Xem trước Testcase trên Google Sheets
+                                    <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">Google Sheet</span>
+                                </h4>
+                                <p class="text-xs text-slate-600 mt-0.5">
+                                    Bài toán "${escapeHtml(probTitle)}" có file testcase Google Sheets liên kết bên dưới.
+                                </p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 shrink-0">
+                            <a href="${escapeHtml(sheetUrl)}" target="_blank" rel="noopener noreferrer"
+                                class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs">
+                                <i data-lucide="external-link" class="w-3.5 h-3.5"></i> Mở Google Sheet tab mới
+                            </a>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+                        <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-xs text-slate-600 font-semibold">
+                            <span class="flex items-center gap-1.5">
+                                <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-600"></i>
+                                Bảng tính Testcase (Google Sheets Preview)
+                            </span>
+                            <span class="text-[11px] text-slate-400">Tự động đồng bộ theo Google Docs</span>
+                        </div>
+                        <iframe src="${escapeHtml(previewUrl)}" class="w-full h-[650px] border-0" loading="lazy"></iframe>
+                    </div>
+                </div>
+            `;
+            if (window.lucide) window.lucide.createIcons();
+            updateCounters();
         }
 
         function showEmptyState(show, title = '', desc = '') {

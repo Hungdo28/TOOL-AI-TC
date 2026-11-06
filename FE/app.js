@@ -669,7 +669,10 @@ function startPollingIfNeeded(runOnce = false) {
             const resultMessages = [];
 
             if (newlyFinished.length > 0) {
-                const tasksNeedingReview = newlyFinished.filter(taskName => runContextByTask[taskName]?.requiresTestcaseReview);
+                const tasksNeedingReview = newlyFinished.filter(taskName => {
+                    const ctx = runContextByTask[taskName];
+                    return ctx ? ctx.requiresTestcaseReview !== false : true;
+                });
                 const tasksWithoutReview = newlyFinished.filter(taskName => !tasksNeedingReview.includes(taskName));
 
                 tasksNeedingReview.forEach(queueTestcaseReview);
@@ -912,15 +915,25 @@ function renderTable() {
             const urls = splitHttpLinks(linkStr);
 
             if (urls.length === 0) {
-                if (type === 'testcase' && trangThai === 'Chờ duyệt') {
-                    return '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">⏳ Chờ duyệt để tạo Sheet</span>';
+                if (type === 'testcase') {
+                    if (trangThai === 'Chờ duyệt') {
+                        return `<div class="flex flex-col gap-1.5 items-center">
+                            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">⏳ Chờ duyệt để tạo Sheet</span>
+                            <button onclick="openTestcaseReviewModalForTask('${escapeHtml(tenBaiToan)}')" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-all shadow-2xs cursor-pointer" title="Xem trước và duyệt testcase">
+                                <i data-lucide="clipboard-check" class="w-3.5 h-3.5 text-emerald-600"></i> Xem & Xác nhận TC
+                            </button>
+                        </div>`;
+                    }
+                    return `<button onclick="openTestcaseReviewModalForTask('${escapeHtml(tenBaiToan)}')" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 hover:border-blue-200 transition-all shadow-2xs cursor-pointer" title="Xem và duyệt testcase">
+                        <i data-lucide="clipboard-check" class="w-3.5 h-3.5 text-blue-600"></i> Xem & Xác nhận TC
+                    </button>`;
                 }
                 return '<span class="text-slate-400 italic">Trống</span>';
             }
 
             const shortTaskName = shortenText(tenBaiToan || 'Tài liệu', 26);
 
-            return `<div class="flex flex-col gap-2 items-center">` + urls.map((url, linkIndex) => {
+            const linksHtml = urls.map((url, linkIndex) => {
                 const cleanUrl = url.trim();
                 const icon = getLinkIcon(cleanUrl, type);
                 const prefix = getLinkPrefix(type, linkIndex + 1);
@@ -938,7 +951,15 @@ function renderTable() {
                                 <span class="truncate">${escapeHtml(label)}</span>
                             </a>
                         </div>`;
-            }).join('') + `</div>`;
+            }).join('');
+
+            const reviewBtnHtml = type === 'testcase'
+                ? `<button onclick="openTestcaseReviewModalForTask('${escapeHtml(tenBaiToan)}')" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 hover:border-emerald-300 transition-all shadow-2xs hover:shadow-xs cursor-pointer mt-1" title="Bấm để xem và duyệt xác nhận testcase">
+                    <i data-lucide="clipboard-check" class="w-3.5 h-3.5 text-emerald-600"></i> Xem & Xác nhận TC
+                   </button>`
+                : '';
+
+            return `<div class="flex flex-col gap-1 items-center">${linksHtml}${reviewBtnHtml}</div>`;
         };
 
         return `
@@ -989,8 +1010,9 @@ function renderTable() {
                 <td class="px-4 py-5 align-top min-w-[220px] text-center">${makeLink(linkPT, ten, 'analysis')}</td>
 
                 <!-- CỘT THAO TÁC -->
-                <td class="px-4 py-5 align-top min-w-[170px] text-center">
-                    <div class="flex items-center justify-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity duration-300">
+                <td class="px-4 py-5 align-top min-w-[190px] text-center">
+                    <div class="flex items-center justify-center gap-1.5 opacity-70 group-hover:opacity-100 transition-opacity duration-300">
+                        <button onclick="openTestcaseReviewModalForTask('${escapeHtml(ten)}')" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-emerald-50 text-slate-600 hover:text-emerald-600 rounded-lg transition-all shadow-sm" title="Xem & Xác nhận Testcase"><i data-lucide="clipboard-check" class="w-4 h-4 text-emerald-600"></i></button>
                         <button onclick="downloadSingleTaskFiles(${originalIndex})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-emerald-50 text-slate-600 hover:text-emerald-600 rounded-lg transition-all shadow-sm" title="Tải tài liệu"><i data-lucide="download" class="w-4 h-4"></i></button>
                         ${isActivelyProcessing ? `
                         <button onclick="openStopStreamModal('${escapeHtml(ten)}', '${escapeHtml(taskReqId)}')" class="w-8 h-8 flex items-center justify-center bg-red-50 border border-red-200 hover:bg-red-100 text-red-600 rounded-lg transition-all shadow-sm" title="Dừng luồng AI"><i data-lucide="square" class="w-4 h-4 fill-current"></i></button>
@@ -1445,12 +1467,16 @@ function clearTestcaseReviewSuggestions() {
 }
 
 function queueTestcaseReview(taskName) {
-    const row = dataRows.find(item => getColVal(item, 'Bài toán') === taskName);
-    const context = runContextByTask[taskName];
-    if (!context) return;
+    if (!taskName) return;
+    const cleanTaskName = String(taskName).trim();
+    if (activeTestcaseReview && activeTestcaseReview.taskName === cleanTaskName) return;
+    if (testcaseReviewQueue.some(item => item.taskName === cleanTaskName)) return;
+
+    const row = dataRows.find(item => getColVal(item, 'Bài toán') === taskName || getColVal(item, 'Bài toán') === cleanTaskName);
+    const context = runContextByTask[taskName] || runContextByTask[cleanTaskName] || {};
 
     testcaseReviewQueue.push({
-        taskName,
+        taskName: cleanTaskName,
         testcaseUrls: splitHttpLinks(getColVal(row, 'Link Testcase')),
         testcasePrompt: context.testcasePrompt || context.prompt2 || ''
     });
@@ -2219,7 +2245,10 @@ function openTestcaseReviewPage(taskName, probId = '') {
     if (!taskName) return;
     const cleanName = String(taskName || '').trim();
     const pid = probId || cleanName;
-    const url = `review.html?problem_id=${encodeURIComponent(pid)}&problem_title=${encodeURIComponent(cleanName)}&back=index.html`;
+    const row = dataRows.find(item => getColVal(item, 'Bài toán') === taskName || getColVal(item, 'Bài toán') === cleanName);
+    const sheetUrls = splitHttpLinks(getColVal(row, 'Link Testcase'));
+    const sheetParam = sheetUrls.length > 0 ? `&sheet_url=${encodeURIComponent(sheetUrls[0])}` : '';
+    const url = `review.html?problem_id=${encodeURIComponent(pid)}&problem_title=${encodeURIComponent(cleanName)}${sheetParam}&back=index.html`;
     window.open(url, '_blank');
 }
 
@@ -2413,7 +2442,7 @@ async function doRunSingle(tenBaiToan, testcasePrompt, mode) {
     startElapsedTimeUpdates();
     runContextByTask[tenBaiToan] = {
         testcasePrompt,
-        requiresTestcaseReview: false
+        requiresTestcaseReview: mode !== 'phan_tich'
     };
     persistProcessingState();
     renderTable();
@@ -2459,6 +2488,9 @@ async function doRunSingle(tenBaiToan, testcasePrompt, mode) {
             const tokenUsage = responseData.data?.token_usage || responseData.token_usage;
             const tokenMsg = tokenUsage?.total_tokens ? ` (${tokenUsage.total_tokens.toLocaleString()} tokens)` : '';
             showToast((responseData.message || 'Xử lý bài toán thành công.') + tokenMsg, 'success', 8000);
+            if (mode !== 'phan_tich') {
+                setTimeout(() => openTestcaseReviewModalForTask(tenBaiToan), 600);
+            }
         } else {
             processingTasks = processingTasks.filter(item => item !== tenBaiToan);
             delete taskStartTime[tenBaiToan];
@@ -2510,7 +2542,7 @@ async function doRunMultiple(selectedTasks, testcasePrompt) {
         taskExecutionInfo[taskName] = { requestId, startedAt: new Date(startedAt).toISOString() };
         runContextByTask[taskName] = {
             testcasePrompt,
-            requiresTestcaseReview: false
+            requiresTestcaseReview: true
         };
     });
     persistProcessingState();
