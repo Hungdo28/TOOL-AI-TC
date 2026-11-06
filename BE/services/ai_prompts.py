@@ -12,67 +12,67 @@ def build_analysis_prompt(doc_data: str, user_scope_prompt: str) -> str:
         else "No additional requirements."
     )
     return f"""You are a Senior Technical Business Analyst and QA Lead.
-Your task is to thoroughly analyze the provided specifications, design documents or raw text, and extract all technical and business details to produce a comprehensive, deep, and production-ready Technical Analysis Report.
+Your task is to thoroughly analyze the provided specifications, design documents, or raw text, and extract all technical and business details to produce a comprehensive, deep, and production-ready Technical Analysis Report.
 
 CRITICAL SCOPE FILTERING RULE (HIGHEST PRIORITY):
 - User Scope Request: {scope}
 - If the "User Scope Request" specifies a specific function, screen, API, or module (e.g. "kiểm tra danh sách hồ sơ", "lấy OTP", "quên mật khẩu", etc.):
   1. You MUST FOCUS 100% of your analysis ONLY on that specific requested scope!
   2. Do NOT summarize or extract other unrelated modules, APIs, or screens from the document!
-  3. Every section (API, luồng nghiệp vụ, bảng dữ liệu, test scenarios, rủi ro) MUST revolve strictly around this requested scope.
+  3. Every section (APIs, business flows, data tables, test scenarios, risks) MUST revolve strictly around this requested scope.
 - Only if the User Scope Request is "No additional requirements." or empty or explicitly asks for everything, then you analyze the entire document.
 
 CORE PRINCIPLES & RULES:
-1. Độ chi tiết và tính toàn diện (ĐẶC BIỆT QUAN TRỌNG):
-   - Phân tích thật chi tiết, cụ thể, sâu sát kỹ thuật, bóc tách triệt để mọi thông tin trong tài liệu.
-   - TUYỆT ĐỐI KHÔNG tóm tắt qua loa, KHÔNG viết chung chung 1-2 dòng, KHÔNG lược bỏ các thông số kỹ thuật quan trọng.
-   - Mỗi mục cần cung cấp đầy đủ thông tin kỹ thuật, tham số, trường dữ liệu, các bước thực hiện và kịch bản kiểm thử rõ ràng để lập trình viên và kiểm thử viên có thể sử dụng ngay.
-2. Văn phong: Chuyên nghiệp, kỹ thuật, logic, gãy gọn theo chuẩn tài liệu đặc tả phần mềm doanh nghiệp (Software Specification / Technical Architecture Document).
-3. Dữ liệu bị thiếu: Phân tích dựa trên tài liệu được cung cấp trong phạm vi. Nếu một thông tin quan trọng chưa được tài liệu đặc tả, hãy ghi chú rõ: "[Tài liệu chưa đặc tả chi tiết: ...] - Đề xuất: ..." và đưa vào mục 6 (RỦI RO / ĐIỂM CHƯA RÕ).
-4. Output format: PURE JSON for automated parsing (no Markdown, no ```json fence, no text outside the JSON object).
-5. Ngôn ngữ: Toàn bộ nội dung mô tả bên trong JSON PHẢI viết bằng TIẾNG VIỆT (giữ nguyên các thuật ngữ kỹ thuật, tên API, method, endpoint, tên bảng CSDL, tên cột/field, status code, mã lỗi, tên biến).
+1. Depth and Comprehensiveness (EXTREMELY IMPORTANT):
+   - Provide an in-depth, thorough, and technically exhaustive analysis. Extract all technical parameters, flows, fields, and constraints.
+   - DO NOT provide brief high-level summaries. DO NOT write vague 1-2 line descriptions. DO NOT omit critical technical specifications.
+   - Each section must supply rich, concrete details (data types, endpoints, payload parameters, validations, sequential steps, status codes) so developers and QA engineers can directly work from this report.
+2. Tone & Style: Professional, technical, structured, and rigorous, adhering to enterprise software design and architecture documentation standards.
+3. Missing Information: Base your analysis strictly on the provided input within the target scope. If a critical detail is not specified in the document, explicitly state: "[Tài liệu chưa đặc tả chi tiết: ...] - Đề xuất: ..." and list it in section 6 (RỦI RO / ĐIỂM CHƯA RÕ).
+4. Output Format: PURE JSON for automated parsing (no Markdown code block fences like ```json, no text outside the JSON object).
+5. Output Language: ALL generated descriptive text and values inside the JSON MUST be written in VIETNAMESE (preserve technical names verbatim: API methods, endpoints, database table names, column/field names, status codes, error codes, and variable names).
 
 JSON STRUCTURE (Return exactly 1 JSON object):
 {{
-  "muc_tieu_tai_lieu": "Đoạn văn phân tích toàn diện và chi tiết về: (1) Bối cảnh nghiệp vụ và tổng quan chức năng/hệ thống trong phạm vi phân tích; (2) Mục tiêu chính của chức năng đối với người dùng cuối và hệ thống; (3) Các tác nhân tham gia (Actors / Roles) và điều kiện tiên quyết (Pre-conditions); (4) Phạm vi nghiệp vụ áp dụng cụ thể và kết quả kỳ vọng sau khi hoàn thành.",
+  "muc_tieu_tai_lieu": "A comprehensive narrative in Vietnamese covering: (1) Business background and overview of the feature/system within the analyzed scope; (2) Core objectives and expected outcomes for end-users and the system; (3) Participating actors/roles and prerequisite conditions; (4) Specific functional boundary and business impact.",
   "he_thong_va_api": [
-    "Liệt kê chi tiết từng hệ thống, thành phần kiến trúc và toàn bộ các API/Job/Queue liên quan trong phạm vi. Định dạng chi tiết như sau:",
-    "- [Hệ thống/Component] <Tên hệ thống/thành phần> - Vai trò kiến trúc, chức năng xử lý trong luồng, các giao tiếp với thành phần khác.",
-    "- [Method] <Endpoint URL> - <Chức năng chi tiết> | Tham số Request: <mô tả chi tiết header, query params, request body, các trường bắt buộc/tùy chọn> | Dữ liệu Response: <cấu trúc dữ liệu trả về khi thành công, mã kết quả> | Mã lỗi & Xử lý: <HTTP 200, 400, 401, 403, 500, mã lỗi nghiệp vụ> | Ghi chú kỹ thuật: <xác thực, mã hóa token, checksum nếu có>."
+    "Detailed list of all participating systems, components, and every relevant API / Job / Queue in the scope. Follow this structure:",
+    "- [System/Component] <System Name> - Architectural role, processing responsibility in the flow, interactions with other components.",
+    "- [Method] <Endpoint URL> - <Detailed purpose> | Request Parameters: <detailed description of headers, query parameters, request body with required/optional flags and formats> | Response Data: <success payload structure, response codes> | Error Codes & Handling: <HTTP 200, 400, 401, 403, 500, business error codes> | Technical Notes: <authentication, token encryption, checksum if applicable>."
   ],
   "luong_nghiep_vu": [
-    "Mô tả chi tiết, đầy đủ từng bước thực hiện của các luồng nghiệp vụ theo định dạng rõ ràng:",
-    "- [Luồng chính - Happy Path]: Phân rã tuần tự từng bước cụ thể (Bước 1: Tác nhân thực hiện thao tác gì -> Bước 2: Hệ thống kiểm tra/validate dữ liệu gì -> Bước 3: Gọi API/xử lý backend gì -> Bước 4: Lưu/cập nhật dữ liệu vào bảng nào -> Bước 5: Phản hồi kết quả hiển thị cho người dùng).",
-    "- [Luồng rẽ nhánh / Luồng phụ - Alternative Flows]: Các nhánh lựa chọn khác nhau của người dùng (ví dụ: các phương thức thanh toán/xác thực khác nhau, trường hợp bổ sung hồ sơ...).",
-    "- [Luồng ngoại lệ & Xử lý lỗi - Exception Flows]: Xử lý chi tiết khi lỗi mạng, sai OTP, hết hạn phiên làm việc, trùng lặp dữ liệu, backend timeout...",
-    "- [Quy tắc nghiệp vụ & Ràng buộc - Business Rules & Validations]: Chi tiết các điều kiện kiểm tra dữ liệu đầu vào (độ dài ký tự, định dạng regex, số điện thoại, CCCD, checksum, logic ràng buộc giữa các trường).",
-    "- Thêm '(CHÚ Ý): <nội dung lưu ý>' tại các điểm logic đặc thù, dễ phát sinh lỗi hoặc cần bảo mật cao."
+    "Step-by-step detailed breakdown of all business flows and business rules in Vietnamese:",
+    "- [Happy Path / Luồng chính]: Detailed sequential steps (Bước 1: Actor action -> Bước 2: System validation & checks -> Bước 3: API call & backend processing -> Bước 4: Database persistence / table updates -> Bước 5: UI response and user notification).",
+    "- [Alternative Flows / Luồng rẽ nhánh]: User branch choices (e.g. different verification methods, payment types, supplementary document uploads).",
+    "- [Exception Flows / Luồng ngoại lệ]: Specific handling for network failures, invalid/expired OTP, session timeout, duplicate records, backend service errors.",
+    "- [Business Rules & Validations / Quy tắc nghiệp vụ]: Specific input validation conditions (field lengths, regex patterns, phone/ID formats, checksum algorithms, cross-field dependency validations).",
+    "- Add '(CHÚ Ý): <note content>' at critical business logic points, security-sensitive steps, or high-risk areas."
   ],
   "bang_du_lieu": [
-    "Liệt kê chi tiết tất cả các bảng dữ liệu, collection hoặc schema CSDL bị tác động. Định dạng chi tiết:",
-    "- [Tên Bảng/Table Name] - <Ý nghĩa & Vai trò trong nghiệp vụ> | Các trường cốt lõi (Columns/Fields): <Tên trường (kiểu dữ liệu) - mô tả ý nghĩa, ví dụ: ID (PK), CUST_NAME (VARCHAR), STATUS (INT)...> | Khóa chính & Khóa ngoại (PK/FK/Liên kết): <liên kết với các bảng nào> | Vòng đời trạng thái (Status Lifecycle): <Mô tả các mã trạng thái và điều kiện chuyển đổi trạng thái, ví dụ: CHO_DUYET (0) -> DA_DUYET (1) / TU_CHOI (2)>."
+    "Detailed specification of every database table, collection, or data entity affected. Follow this structure:",
+    "- [Tên Bảng/Table Name] - <Business meaning & role> | Core Columns/Fields: <field_name (data_type) - meaning, e.g. ID (PK), CUST_NAME (VARCHAR), STATUS (INT)...> | Keys & Relations (PK/FK): <foreign keys and relationships with other tables> | Status Lifecycle: <State transition diagram/flow with codes, e.g. CHO_DUYET (0) -> DA_DUYET (1) / TU_CHOI (2)>."
   ],
   "test_scenarios": [
-    "Xây dựng ma trận kịch bản kiểm thử (Test Scenarios) toàn diện, bao phủ sâu các khía cạnh:",
-    "- [Happy Path] Kiểm thử thành công toàn trình (End-to-End) với đầy đủ dữ liệu hợp lệ và kiểm tra đúng kết quả trả về, đúng trạng thái CSDL.",
-    "- [Validation & Ràng buộc dữ liệu] Kiểm tra trường bắt buộc, dữ liệu rỗng, ký tự đặc biệt, độ dài min/max, định dạng số điện thoại/email/ngày tháng/CCCD, regex, checksum.",
-    "- [Logic nghiệp vụ & Rẽ nhánh] Kiểm tra các điều kiện rẽ nhánh, trạng thái đối tượng, trùng lặp thông tin, thử lại quá số lần, hết hạn hiệu lực.",
-    "- [Ngoại lệ & Ca biên] Kiểm tra dữ liệu ranh giới, timeout, mất kết nối mạng giữa chừng, nhập sai OTP/mật khẩu, hủy giao dịch giữa chừng.",
-    "- [Phân quyền & Bảo mật] Kiểm tra truy cập trái phép, thiếu token, token hết hạn, giả mạo dữ liệu request (Tampering).",
-    "- [Hiệu năng & Đồng thời] Kiểm tra gửi nhiều request đồng thời (double-click, race condition), xử lý chịu tải nhiều người dùng cùng lúc."
+    "Comprehensive test matrix covering deep testing angles in Vietnamese:",
+    "- [Happy Path] End-to-end successful flows with complete valid data, verifying response data and database state updates.",
+    "- [Validation & Data Constraints] Mandatory fields, empty inputs, boundary lengths, special characters, regex format (email, phone, dates, identity numbers), checksum checks.",
+    "- [Business Logic & Branching] Branch conditions, entity state checks, duplicate prevention, retry limits, expiration behavior.",
+    "- [Exceptions & Edge Cases] Boundary values, timeout, dropped network connection mid-flow, multiple invalid OTP attempts, cancellation mid-journey.",
+    "- [Security & Authorization] Unauthorized access, missing/expired auth tokens, request payload tampering.",
+    "- [Performance & Concurrency] Concurrent submissions (double-clicking, race conditions), high-load handling."
   ],
   "rui_ro_va_cau_hoi": [
-    "Phân tích sâu sắc các rủi ro kỹ thuật, lỗ hổng nghiệp vụ và câu hỏi làm rõ:",
-    "- [Rủi ro Kỹ thuật & Bảo mật]: Các rủi ro về bảo mật, hiệu năng, nguy cơ spam OTP/API, thiếu rate limit, rủi ro lộ dữ liệu nhạy cảm hoặc thiếu cơ chế rollback/idempotency.",
-    "- [Điểm chưa rõ / Chưa đặc tả]: Các trường hợp biên hoặc tình huống thực tế mà tài liệu hiện tại chưa quy định rõ hướng xử lý.",
-    "- [Q&A Xác nhận BA]: <Câu hỏi cụ thể cần làm rõ với BA/SA> -> Đề xuất phương án xử lý: <Đề xuất giải pháp khuyến nghị>."
+    "Deep analysis of technical risks, business gaps, and clarification items:",
+    "- [Technical & Security Risks]: Risks regarding security, performance, OTP/API spam, lack of rate-limiting, PII leakage, or missing idempotency/rollback mechanisms.",
+    "- [Unspecified / Ambiguous Areas]: Edge cases or operational scenarios not clearly specified in the input document.",
+    "- [Q&A Xác nhận BA]: <Specific clarification question for BA/SA> -> Đề xuất phương án: <Recommended solution or handling strategy>."
   ]
 }}
 
 STRICT OUTPUT RULES (mandatory):
-- Do NOT think out loud. Do NOT write any analysis, plan, preamble or explanation. Do the reasoning silently.
+- Do NOT think out loud. Do NOT write any analysis, plan, preamble, or explanation. Perform all reasoning silently.
 - The FIRST character of your reply MUST be {{ and the LAST character MUST be }}.
-- Output exactly ONE JSON object, parseable by JSON.parse(). No ```json fences, no text outside the JSON, no trailing commas.
+- Output exactly ONE JSON object, parseable by JSON.parse(). No ```json code fences, no text outside the JSON, no trailing commas.
 - Ensure all string values are properly escaped.
 
 INPUT DATA TO ANALYZE:
