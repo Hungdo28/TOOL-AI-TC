@@ -522,6 +522,8 @@ class AiPipelineService:
                             fname = str(f["feature_name"]).strip()
                             if fname not in known_feature_names:
                                 known_feature_names.append(fname)
+            except TaskCancelledError:
+                raise
             except Exception as e:
                 warnings.append(f"Chunk 1 lỗi: {e}")
 
@@ -531,6 +533,8 @@ class AiPipelineService:
             def run_rem(c: dict[str, Any]) -> str | None:
                 try:
                     return call_chunk(c, known_feature_names)
+                except TaskCancelledError:
+                    raise
                 except Exception as e:
                     LOGGER.warning("Chunk %d lỗi: %s", c["chunk_index"], e)
                     return None

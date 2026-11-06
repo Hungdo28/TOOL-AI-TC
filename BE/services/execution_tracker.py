@@ -97,18 +97,12 @@ class ExecutionTracker:
             raw_names = [payload["baiToan"]]
 
         if not isinstance(raw_names, list) or not raw_names:
-            raise ApiError(400, "taskNames phải là danh sách bài toán không rỗng")
+            return
 
-        request_id = str(payload.get("requestId") or "").strip()
         with self._lock:
             for name in raw_names:
                 key = _normalized(name)
-                execution = self._running_tasks.get(key)
-                if execution:
-                    if not request_id or execution.get("requestId") == request_id:
-                        self._running_tasks.pop(key, None)
-                else:
-                    self._running_tasks.pop(key, None)
+                self._running_tasks.pop(key, None)
 
     def clear_execution(self, task_name: str) -> None:
         """Xóa một bài toán khỏi danh sách đang chạy."""

@@ -252,6 +252,8 @@ let toastTimer = null;
 
 // Bien luu trang thai task can dung (dung cho stop modal)
 let stopStreamContext = null; // { taskName, requestId }
+const userStoppedTasks = new Set();
+const taskAbortControllers = {};
 
 function getExecutionStorageKey() {
     return `autotc:processing:${currentUser.username || 'anonymous'}`;
@@ -515,7 +517,16 @@ function syncRunningTasksFromServer(rows) {
         const taskName = getColVal(row, 'Bài toán');
         const execution = row._execution;
         const startedAt = Date.parse(execution?.startedAt || '');
+        const status = String(getColVal(row, 'Trạng thái') || '').toLowerCase().trim();
+        const isActivelyRunning = status === 'waiting' || status === 'đang chạy' || status === 'đang xử lý';
+
         if (!taskName || !execution?.requestId || !Number.isFinite(startedAt)) return;
+
+        // Nếu người dùng đã chủ động dừng bài toán này ở FE, tuyệt đối không hồi sinh lại
+        if (userStoppedTasks.has(taskName)) return;
+
+        // Chỉ coi là task đang chạy nếu trạng thái thực sự là đang chạy
+        if (!isActivelyRunning) return;
 
         activeServerTasks.add(taskName);
         if (!processingTasks.includes(taskName)) processingTasks.push(taskName);
@@ -528,15 +539,19 @@ function syncRunningTasksFromServer(rows) {
     });
 
     processingTasks = processingTasks.filter(taskName => {
+        if (userStoppedTasks.has(taskName)) {
+            delete taskStartTime[taskName];
+            delete taskExecutionInfo[taskName];
+            delete runContextByTask[taskName];
+            return false;
+        }
+
         const row = rows.find(item => getColVal(item, 'Bài toán') === taskName);
-        const status = String(getColVal(row, 'Trạng thái') || '').toLowerCase();
+        const status = String(getColVal(row, 'Trạng thái') || '').toLowerCase().trim();
         const isTerminal = status === 'đã xong' || status.includes('lỗi') || status.includes('thất bại') || status.includes('error');
-        // Với task do chính phiên này khởi chạy, polling cần nhìn thấy trạng thái
-        // hoàn tất trước để mở popup review testcase. Chỉ tự dọn task đồng bộ từ
-        // phiên khác (không có run context) tại đây.
-        const shouldKeep = activeServerTasks.has(taskName)
-            || !isTerminal
-            || Boolean(runContextByTask[taskName]);
+        const isActivelyRunning = status === 'waiting' || status === 'đang chạy' || status === 'đang xử lý';
+
+        const shouldKeep = (activeServerTasks.has(taskName) || isActivelyRunning || Boolean(runContextByTask[taskName])) && !isTerminal;
         if (!shouldKeep) {
             delete taskStartTime[taskName];
             delete taskExecutionInfo[taskName];
@@ -549,6 +564,8 @@ function syncRunningTasksFromServer(rows) {
         persistProcessingState();
         startElapsedTimeUpdates();
         startPollingIfNeeded();
+    } else {
+        persistProcessingState();
     }
 }
 
@@ -730,6 +747,14 @@ function splitHttpLinks(value) {
 async function fetchWithTimeout(url, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    if (options.signal) {
+        if (options.signal.aborted) {
+            controller.abort();
+        } else {
+            options.signal.addEventListener('abort', () => controller.abort(), { once: true });
+        }
+    }
 
     try {
         return await fetch(url, { ...options, signal: controller.signal });
@@ -2377,6 +2402,10 @@ async function doRunSingle(tenBaiToan, testcasePrompt, mode) {
         return;
     }
 
+    userStoppedTasks.delete(tenBaiToan);
+    const abortCtrl = new AbortController();
+    taskAbortControllers[tenBaiToan] = abortCtrl;
+
     const requestId = createRequestId();
     taskStartTime[tenBaiToan] = Date.now();
     processingTasks.push(tenBaiToan);
@@ -2403,7 +2432,8 @@ async function doRunSingle(tenBaiToan, testcasePrompt, mode) {
         const responsePromise = fetchWithTimeout(URL_POST_RUN, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify(payload),
+            signal: abortCtrl.signal
         }, RUN_REQUEST_TIMEOUT_MS);
         startPollingIfNeeded();
         document.getElementById('loadingOverlay').classList.add('hidden');
@@ -2411,7 +2441,7 @@ async function doRunSingle(tenBaiToan, testcasePrompt, mode) {
         const responseData = await readApiResponse(res);
         const responseFailed = !res.ok || responseData.data?.success === false;
 
-        if (responseData.data?.cancelled || responseData.cancelled) {
+        if (responseData.data?.cancelled || responseData.cancelled || userStoppedTasks.has(tenBaiToan)) {
             processingTasks = processingTasks.filter(item => item !== tenBaiToan);
             delete taskStartTime[tenBaiToan];
             delete taskExecutionInfo[tenBaiToan];
@@ -2437,12 +2467,22 @@ async function doRunSingle(tenBaiToan, testcasePrompt, mode) {
             showRunError(responseData.message || 'n8n từ chối yêu cầu chạy. Vui lòng kiểm tra lại dữ liệu.');
         }
     } catch (err) {
+        if (userStoppedTasks.has(tenBaiToan) || err?.name === 'AbortError') {
+            processingTasks = processingTasks.filter(item => item !== tenBaiToan);
+            delete taskStartTime[tenBaiToan];
+            delete taskExecutionInfo[tenBaiToan];
+            delete runContextByTask[tenBaiToan];
+            persistProcessingState();
+            renderTable();
+            return;
+        }
         // Request có thể đã tới n8n dù trình duyệt không nhận được response.
         // Giữ trạng thái để tránh người dùng vô tình chạy trùng.
         persistProcessingState();
         startPollingIfNeeded();
         showToast('Chưa nhận được phản hồi từ n8n. Hệ thống vẫn theo dõi task để tránh chạy trùng.', 'warning', 10000);
     } finally {
+        delete taskAbortControllers[tenBaiToan];
         document.getElementById('loadingOverlay').classList.add('hidden');
     }
 }
@@ -2454,6 +2494,10 @@ async function doRunMultiple(selectedTasks, testcasePrompt) {
         alert('⚠️ Không có bài toán hợp lệ để chạy.');
         return;
     }
+
+    selectedTasks.forEach(t => userStoppedTasks.delete(t));
+    const abortCtrl = new AbortController();
+    selectedTasks.forEach(t => { taskAbortControllers[t] = abortCtrl; });
 
     const requestId = createRequestId();
     const startedAt = Date.now();
@@ -2483,7 +2527,8 @@ async function doRunMultiple(selectedTasks, testcasePrompt) {
         const responsePromise = fetchWithTimeout(URL_POST_RUN, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify(payload),
+            signal: abortCtrl.signal
         }, RUN_REQUEST_TIMEOUT_MS);
         startPollingIfNeeded();
         document.getElementById('loadingOverlay').classList.add('hidden');
@@ -2491,7 +2536,8 @@ async function doRunMultiple(selectedTasks, testcasePrompt) {
         const responseData = await readApiResponse(res);
         const responseFailed = !res.ok || responseData.data?.success === false;
 
-        if (responseData.data?.cancelled || responseData.cancelled) {
+        const hasCancelled = responseData.data?.cancelled || responseData.cancelled || selectedTasks.some(t => userStoppedTasks.has(t));
+        if (hasCancelled) {
             processingTasks = processingTasks.filter(item => !selectedTasks.includes(item));
             selectedTasks.forEach(taskName => delete taskStartTime[taskName]);
             selectedTasks.forEach(taskName => delete taskExecutionInfo[taskName]);
@@ -2518,10 +2564,21 @@ async function doRunMultiple(selectedTasks, testcasePrompt) {
             showRunError(responseData.message || 'n8n từ chối yêu cầu chạy nhiều bài. Vui lòng kiểm tra lại dữ liệu.');
         }
     } catch (err) {
+        const anyStopped = selectedTasks.some(t => userStoppedTasks.has(t));
+        if (anyStopped || err?.name === 'AbortError') {
+            processingTasks = processingTasks.filter(item => !selectedTasks.includes(item));
+            selectedTasks.forEach(taskName => delete taskStartTime[taskName]);
+            selectedTasks.forEach(taskName => delete taskExecutionInfo[taskName]);
+            selectedTasks.forEach(taskName => delete runContextByTask[taskName]);
+            persistProcessingState();
+            renderTable();
+            return;
+        }
         persistProcessingState();
         startPollingIfNeeded();
         showToast('Chưa nhận được phản hồi từ n8n. Hệ thống vẫn theo dõi các task để tránh chạy trùng.', 'warning', 10000);
     } finally {
+        selectedTasks.forEach(t => delete taskAbortControllers[t]);
         document.getElementById('loadingOverlay').classList.add('hidden');
     }
 }
@@ -2767,6 +2824,17 @@ window.confirmStopStream = async function () {
 
     if (!taskName) return;
 
+    // Đánh dấu người dùng đã chủ động dừng
+    userStoppedTasks.add(taskName);
+
+    // Hủy bỏ request fetch nếu đang gửi / chờ phản hồi
+    if (taskAbortControllers[taskName]) {
+        try {
+            taskAbortControllers[taskName].abort();
+        } catch (_) {}
+        delete taskAbortControllers[taskName];
+    }
+
     // Dọn trạng thái FE trước để giao diện phản hồi ngay lập tức
     processingTasks = processingTasks.filter(t => t !== taskName);
     delete taskStartTime[taskName];
@@ -2817,6 +2885,16 @@ window.stopAllRunningTasks = async function () {
     }
 
     const tasksToStop = [...processingTasks];
+    tasksToStop.forEach(t => {
+        userStoppedTasks.add(t);
+        if (taskAbortControllers[t]) {
+            try {
+                taskAbortControllers[t].abort();
+            } catch (_) {}
+            delete taskAbortControllers[t];
+        }
+    });
+
     processingTasks = [];
     taskStartTime = {};
     taskExecutionInfo = {};

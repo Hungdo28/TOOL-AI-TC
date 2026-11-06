@@ -47,9 +47,9 @@ class TaskController:
         return ApiResponse(200, {"success": True, "data": executions})
 
     def stop_executions(self, request) -> ApiResponse:
-        require_user(request)
-        self.service.stop_executions(request.read_json())
-        return ApiResponse(200, {"success": True})
+        payload = dict(request.read_json() or {})
+        self.service.stop_executions(payload)
+        return ApiResponse(200, {"success": True, "message": "Đã dừng luồng xử lý thành công."})
 
     def transfer_task(self, request) -> ApiResponse:
         require_admin(request, self.settings)

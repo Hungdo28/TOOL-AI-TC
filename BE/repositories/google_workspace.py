@@ -37,26 +37,67 @@ def _normalized(value: Any) -> str:
 class GoogleWorkspace:
     def __init__(self, settings: Settings):
         self.settings = settings
-        scopes = [SHEETS_SCOPE, DRIVE_SCOPE, DOCS_SCOPE]
-        if settings.credentials_json:
-            credential_type = settings.credentials_json.get("type")
-            if credential_type == "service_account":
-                credentials = service_account.Credentials.from_service_account_info(
-                    settings.credentials_json, scopes=scopes
-                )
-            elif credential_type == "authorized_user":
-                credentials = UserCredentials.from_authorized_user_info(
-                    settings.credentials_json, scopes=scopes
-                )
-            else:
-                raise ValueError("JSON credential Google có type không được hỗ trợ")
-        else:
-            credentials, _ = load_credentials_from_file(settings.credentials_file, scopes=scopes)
-
-        self.sheets = build("sheets", "v4", credentials=credentials, cache_discovery=False)
-        self.drive = build("drive", "v3", credentials=credentials, cache_discovery=False)
-        self.docs = build("docs", "v1", credentials=credentials, cache_discovery=False)
+        self._scopes = [SHEETS_SCOPE, DRIVE_SCOPE, DOCS_SCOPE]
+        self._thread_local = threading.local()
         self._mutation_lock = threading.RLock()
+        # Kiểm tra credential hợp lệ ngay lúc khởi tạo
+        self._load_credentials()
+
+    def _load_credentials(self):
+        if self.settings.credentials_json:
+            credential_type = self.settings.credentials_json.get("type")
+            if credential_type == "service_account":
+                return service_account.Credentials.from_service_account_info(
+                    self.settings.credentials_json, scopes=self._scopes
+                )
+            if credential_type == "authorized_user":
+                return UserCredentials.from_authorized_user_info(
+                    self.settings.credentials_json, scopes=self._scopes
+                )
+            raise ValueError("JSON credential Google có type không được hỗ trợ")
+        credentials, _ = load_credentials_from_file(
+            self.settings.credentials_file, scopes=self._scopes
+        )
+        return credentials
+
+    @property
+    def sheets(self):
+        client = getattr(self._thread_local, "sheets", None)
+        if client is None:
+            client = build(
+                "sheets",
+                "v4",
+                credentials=self._load_credentials(),
+                cache_discovery=False,
+            )
+            self._thread_local.sheets = client
+        return client
+
+    @property
+    def drive(self):
+        client = getattr(self._thread_local, "drive", None)
+        if client is None:
+            client = build(
+                "drive",
+                "v3",
+                credentials=self._load_credentials(),
+                cache_discovery=False,
+            )
+            self._thread_local.drive = client
+        return client
+
+    @property
+    def docs(self):
+        client = getattr(self._thread_local, "docs", None)
+        if client is None:
+            client = build(
+                "docs",
+                "v1",
+                credentials=self._load_credentials(),
+                cache_discovery=False,
+            )
+            self._thread_local.docs = client
+        return client
 
     @property
     def _range(self) -> str:

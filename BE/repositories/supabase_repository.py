@@ -54,25 +54,30 @@ class SupabaseRepository:
     ) -> Any:
         url = f"{self.supabase_url}/rest/v1/{endpoint}"
         body_bytes = json.dumps(data).encode("utf-8") if data is not None else None
-        req = urllib.request.Request(
-            url,
-            data=body_bytes,
-            headers=self._headers(prefer),
-            method=method,
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                resp_bytes = resp.read()
-                if resp_bytes:
-                    return json.loads(resp_bytes.decode("utf-8"))
-                return None
-        except urllib.error.HTTPError as e:
-            error_body = e.read().decode("utf-8", errors="replace")
-            LOGGER.error("Supabase API error %s on %s %s: %s", e.code, method, endpoint, error_body)
-            raise RuntimeError(f"Supabase lỗi ({e.code}): {error_body}") from e
-        except Exception as e:
-            LOGGER.error("Lỗi kết nối Supabase %s %s: %s", method, endpoint, e)
-            raise RuntimeError(f"Không thể kết nối Supabase: {e}") from e
+        last_err: Exception | None = None
+        for attempt in range(3):
+            req = urllib.request.Request(
+                url,
+                data=body_bytes,
+                headers=self._headers(prefer),
+                method=method,
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=20) as resp:
+                    resp_bytes = resp.read()
+                    if resp_bytes:
+                        return json.loads(resp_bytes.decode("utf-8"))
+                    return None
+            except urllib.error.HTTPError as e:
+                error_body = e.read().decode("utf-8", errors="replace")
+                LOGGER.error("Supabase API error %s on %s %s: %s", e.code, method, endpoint, error_body)
+                raise RuntimeError(f"Supabase lỗi ({e.code}): {error_body}") from e
+            except Exception as e:
+                last_err = e
+                if attempt < 2:
+                    continue
+        LOGGER.error("Lỗi kết nối Supabase %s %s: %s", method, endpoint, last_err)
+        raise RuntimeError(f"Không thể kết nối Supabase: {last_err}") from last_err
 
     @staticmethod
     def _to_task_dict(row: dict[str, Any]) -> dict[str, Any]:
