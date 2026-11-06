@@ -152,7 +152,11 @@ class DocumentCrawler:
         if not self.gw or not getattr(self.gw, "sheets", None):
             raise RuntimeError("Chưa khởi tạo Google Sheets client trong GoogleWorkspace.")
 
-        meta = self.gw.sheets.spreadsheets().get(spreadsheetId=sheet_id).execute()
+        # Chỉ lấy danh sách title các tab (dùng fields để tránh tải cả megabyte metadata thừa)
+        meta = self.gw.sheets.spreadsheets().get(
+            spreadsheetId=sheet_id,
+            fields="sheets.properties.title",
+        ).execute()
         sheets = meta.get("sheets") or []
         titles = [
             s.get("properties", {}).get("title")
@@ -162,12 +166,18 @@ class DocumentCrawler:
         if not titles:
             return ""
 
-        # Lấy dữ liệu tất cả các tab trong 1 lần gọi batchGet duy nhất
-        ranges = [f"'{t.replace(chr(39), chr(39)*2)}'!A1:Z500" for t in titles]
+        # Lấy dữ liệu nhanh qua batchGet, giới hạn A1:P200 cho tối đa 12 tab quan trọng nhất
+        selected_titles = titles[:12]
+        ranges = [f"'{t.replace(chr(39), chr(39)*2)}'!A1:P200" for t in selected_titles]
         batch_res = (
             self.gw.sheets.spreadsheets()
             .values()
-            .batchGet(spreadsheetId=sheet_id, ranges=ranges, valueRenderOption="FORMATTED_VALUE")
+            .batchGet(
+                spreadsheetId=sheet_id,
+                ranges=ranges,
+                valueRenderOption="FORMATTED_VALUE",
+                fields="valueRanges(range,values)",
+            )
             .execute()
         )
         value_ranges = batch_res.get("valueRanges") or []

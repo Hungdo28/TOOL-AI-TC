@@ -32,9 +32,9 @@ class TaskCancelledError(Exception):
     """Ngoại lệ khi tiến trình xử lý bài toán bị người dùng yêu cầu dừng."""
     pass
 
-CHUNK_CHARS = 5000
-MAX_REQ_PER_FEATURE_CHUNK = 6
-CONDITIONS_PER_BATCH = 4
+CHUNK_CHARS = 16000
+MAX_REQ_PER_FEATURE_CHUNK = 8
+CONDITIONS_PER_BATCH = 6
 DOC_SEP = "--- TÀI LIỆU TIẾP THEO ---"
 
 _STARTS_OK_RE = re.compile(r"^(Kiểm tra|Xác minh|Validate)\b", re.IGNORECASE)
@@ -232,17 +232,22 @@ class AiPipelineService:
 
         try:
             self.check_cancelled(title)
-            # 2. Crawl toàn bộ tài liệu (Docs, Sheets, Figma) song song
-            doc_text = self.crawler.crawl_all(raw_urls)
+            # 2. Kiểm tra bộ nhớ đệm (Cache) để đọc ngay lập tức (0s) nếu tài liệu đã crawl trước đó
+            cached_doc = self.memory.get_crawled_document(problem_id, raw_urls)
+            if cached_doc:
+                doc_text = cached_doc
+                LOGGER.info("[%s] Sử dụng nội dung tài liệu từ bộ nhớ đệm (Cache Hit - 0s).", title)
+            else:
+                # Crawl toàn bộ tài liệu (Docs, Sheets, Figma) song song
+                doc_text = self.crawler.crawl_all(raw_urls)
+                # Lưu tài liệu đã crawl vào bảng problem_documents để tái sử dụng
+                self.memory.save_crawled_document(
+                    problem_id=problem_id,
+                    problem_title=title,
+                    source_urls=raw_urls,
+                    content=doc_text,
+                )
             self.check_cancelled(title)
-
-            # 3. Lưu tài liệu đã crawl vào bảng problem_documents (bất đồng bộ / không chặn lỗi)
-            self.memory.save_crawled_document(
-                problem_id=problem_id,
-                problem_title=title,
-                source_urls=raw_urls,
-                content=doc_text,
-            )
 
             run_analysis = mode in ("single", "multiple", "phan_tich")
             run_testcase = mode in ("single", "multiple", "testcase")

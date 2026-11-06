@@ -35,6 +35,25 @@ class MemoryService:
     def __init__(self, supabase_repo: Any):
         self.sb = supabase_repo
 
+    def get_crawled_document(self, problem_id: str, source_urls: str) -> str | None:
+        """Lấy tài liệu đã crawl gần nhất từ Supabase nếu danh sách link URL không thay đổi."""
+        if not problem_id or not hasattr(self.sb, "_request"):
+            return None
+        try:
+            pid = urllib.parse.quote(str(problem_id))
+            endpoint = f"problem_documents?problem_id=eq.{pid}&select=content,source_urls&order=crawled_at.desc&limit=1"
+            rows = self.sb._request(endpoint, method="GET")
+            if isinstance(rows, list) and rows:
+                cached_row = rows[0]
+                cached_urls = str(cached_row.get("source_urls") or "").strip()
+                cached_content = str(cached_row.get("content") or "").strip()
+                if cached_urls == source_urls.strip() and cached_content:
+                    LOGGER.info("[%s] Đã tái sử dụng tài liệu crawl từ bộ nhớ đệm (Cache Hit - 0s).", problem_id)
+                    return cached_content
+        except Exception as e:
+            LOGGER.debug("Không thể lấy cache problem_documents: %s", e)
+        return None
+
     def save_crawled_document(
         self,
         *,
