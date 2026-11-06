@@ -4,6 +4,7 @@ import json
 import logging
 import math
 import re
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
@@ -15,7 +16,7 @@ from services.ai_prompts import (
     build_requirement_extraction_prompt,
     build_testcase_generator_prompt,
 )
-from services.common import ApiError
+from services.common import ApiError, _normalized
 from services.doc_crawler import DocumentCrawler
 from services.json_parser import (
     parse_analysis_report,
@@ -25,6 +26,11 @@ from services.json_parser import (
 from services.memory_service import MemoryService
 
 LOGGER = logging.getLogger("autotc-backend")
+
+
+class TaskCancelledError(Exception):
+    """Ngoại lệ khi tiến trình xử lý bài toán bị người dùng yêu cầu dừng."""
+    pass
 
 CHUNK_CHARS = 5000
 MAX_REQ_PER_FEATURE_CHUNK = 6
@@ -83,6 +89,24 @@ class AiPipelineService:
         self.ai = AiClient(settings)
         self.memory = MemoryService(workspace)
         self.crawler = DocumentCrawler(getattr(workspace, "_google_workspace", None), settings)
+        self._cancelled_tasks: set[str] = set()
+        self._cancel_lock = threading.RLock()
+
+    def cancel_task(self, task_name: str) -> None:
+        """Đánh dấu dừng luồng bài toán."""
+        with self._cancel_lock:
+            self._cancelled_tasks.add(_normalized(task_name))
+        LOGGER.info("Đã đánh dấu dừng luồng bài toán: [%s]", task_name)
+
+    def is_cancelled(self, task_name: str) -> bool:
+        """Kiểm tra xem bài toán đã bị yêu cầu dừng hay chưa."""
+        with self._cancel_lock:
+            return _normalized(task_name) in self._cancelled_tasks
+
+    def check_cancelled(self, task_name: str) -> None:
+        """Ném TaskCancelledError nếu bài toán đã bị dừng."""
+        if self.is_cancelled(task_name):
+            raise TaskCancelledError(f"Bài toán [{task_name}] đã bị dừng theo yêu cầu của người dùng.")
 
     def run_From_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Điểm vào chính tương thích 100% với payload từ FE (doRunSingle, doRunMultiple, review.html)."""
@@ -163,7 +187,17 @@ class AiPipelineService:
         with ThreadPoolExecutor(max_workers=max_task_workers) as pool:
             results = list(pool.map(run_one_safe, task_names))
 
-        failed = [r for r in results if not r.get("success")]
+        cancelled = [r for r in results if r.get("cancelled")]
+        failed = [r for r in results if not r.get("success") and not r.get("cancelled")]
+
+        if cancelled and not failed and not [r for r in results if r.get("success")]:
+            return {
+                "success": True,
+                "cancelled": True,
+                "message": f"Đã dừng xử lý {len(cancelled)} bài toán theo yêu cầu.",
+                "data": results[0] if len(results) == 1 else results,
+            }
+
         if failed and len(failed) == len(results):
             first_err = failed[0].get("error") or "Lỗi xử lý bài toán"
             raise ApiError(500, f"Xử lý thất bại: {first_err}")
@@ -193,11 +227,14 @@ class AiPipelineService:
         LOGGER.info("Bắt đầu xử lý bài toán [%s] (id=%s, mode=%s)", title, problem_id, mode)
 
         # 1. Cập nhật trạng thái Waiting theo đúng khóa chính (UUID)
+        self.check_cancelled(title)
         self.workspace.update_task(problem_id, {"Trạng thái": "Waiting"})
 
         try:
+            self.check_cancelled(title)
             # 2. Crawl toàn bộ tài liệu (Docs, Sheets, Figma) song song
             doc_text = self.crawler.crawl_all(raw_urls)
+            self.check_cancelled(title)
 
             # 3. Lưu tài liệu đã crawl vào bảng problem_documents (bất đồng bộ / không chặn lỗi)
             self.memory.save_crawled_document(
@@ -239,6 +276,7 @@ class AiPipelineService:
                 if fut_testcase:
                     testcase_url, testcase_count = fut_testcase.result()
 
+            self.check_cancelled(title)
             # 4. Cập nhật trạng thái hoàn tất ("Đã xong")
             changes: dict[str, Any] = {"Trạng thái": "Đã xong"}
             if analysis_doc_url:
@@ -264,7 +302,33 @@ class AiPipelineService:
                 "task": updated_task,
             }
 
+        except TaskCancelledError:
+            LOGGER.info("Bài toán [%s] đã dừng thành công theo yêu cầu của người dùng.", title)
+            try:
+                self.workspace.update_task(problem_id, {"Trạng thái": "Chưa làm"})
+            except Exception:
+                pass
+            return {
+                "success": False,
+                "cancelled": True,
+                "baiToan": title,
+                "problem_id": problem_id,
+                "message": "Đã dừng luồng xử lý theo yêu cầu của người dùng.",
+            }
         except Exception as err:
+            if self.is_cancelled(title):
+                LOGGER.info("Bài toán [%s] kết thúc do đã bị hủy bởi người dùng.", title)
+                try:
+                    self.workspace.update_task(problem_id, {"Trạng thái": "Chưa làm"})
+                except Exception:
+                    pass
+                return {
+                    "success": False,
+                    "cancelled": True,
+                    "baiToan": title,
+                    "problem_id": problem_id,
+                    "message": "Đã dừng luồng xử lý theo yêu cầu của người dùng.",
+                }
             LOGGER.exception("Lỗi khi xử lý bài toán [%s]: %s", title, err)
             try:
                 self.workspace.update_task(problem_id, {"Trạng thái": "Chưa làm"})
@@ -276,6 +340,10 @@ class AiPipelineService:
                 "problem_id": problem_id,
                 "error": str(err),
             }
+        finally:
+            with self._cancel_lock:
+                self._cancelled_tasks.discard(_normalized(title))
+                self._cancelled_tasks.discard(_normalized(task_name))
 
     # =========================================================================
     # NHÁNH 1: PHÂN TÍCH BÀI TOÁN & XUẤT GOOGLE DOCS
@@ -287,10 +355,13 @@ class AiPipelineService:
         doc_text: str,
         user_prompt: str,
     ) -> str:
+        self.check_cancelled(title)
         prompt = build_analysis_prompt(doc_text, user_prompt)
         raw_ai = self.ai.complete(prompt, max_tokens=8000, temperature=0.2)
+        self.check_cancelled(title)
         final_text = parse_analysis_report(raw_ai)
 
+        self.check_cancelled(title)
         doc_url = self.workspace.create_analysis_doc(title, final_text)
         self.workspace.update_task(problem_id, {"Link tài liệu phân tích": doc_url})
         self.memory.save_analysis(
@@ -312,11 +383,13 @@ class AiPipelineService:
         user_prompt: str,
         tc_prefix: str,
     ) -> tuple[str, int]:
+        self.check_cancelled(title)
         # Bước 2.1: Chia tài liệu thành các chunk <= 5000 ký tự
         doc_chunks = self._chunk_document(title, doc_text)
         LOGGER.info("[%s] Đã chia tài liệu thành %d chunk.", title, len(doc_chunks))
 
         # Bước 2.2: Gọi AI_structured_requirement và truyền previous_feature_names chuẩn xác
+        self.check_cancelled(title)
         structured_reqs = self._extract_structured_requirements(title, doc_chunks, user_prompt)
         LOGGER.info(
             "[%s] Đã trích xuất %d features, %d requirements.",
@@ -326,22 +399,27 @@ class AiPipelineService:
         )
 
         # Bước 2.3: Chia theo Feature (Split_By_Feature) + gắn bộ nhớ qa_memory (Mem_Search + Mem_Format)
+        self.check_cancelled(title)
         feature_chunks = self._split_by_feature(structured_reqs)
         approved_mem = self.memory.fetch_approved_testcases(problem_id)
         enriched_chunks = self.memory.build_memory_text_for_chunks(feature_chunks, approved_mem)
 
         # Bước 2.4: Sinh Test Conditions song song (Test_condition_generator + Parse_conditions)
-        all_conditions, cond_map = self._generate_test_conditions(enriched_chunks, user_prompt)
+        self.check_cancelled(title)
+        all_conditions, cond_map = self._generate_test_conditions(enriched_chunks, user_prompt, title=title)
         LOGGER.info("[%s] Đã sinh tổng cộng %d test conditions.", title, len(all_conditions))
 
         # Bước 2.5: Chia batch 4 conditions và gọi AI_Phan_tich_Testcase song song (kèm retry riêng nếu thiếu)
-        raw_tc_rows = self._generate_testcases(all_conditions, cond_map, user_prompt)
+        self.check_cancelled(title)
+        raw_tc_rows = self._generate_testcases(all_conditions, cond_map, user_prompt, title=title)
 
         # Bước 2.6: Gom theo Test Suite, khử trùng lặp, đánh mã [TC]_1..N
+        self.check_cancelled(title)
         sheet_rows = self._group_by_test_suite(raw_tc_rows, tc_prefix)
         tc_only_count = sum(1 for r in sheet_rows if r.get("row_type") == "testcase")
 
         # Bước 2.7: Tạo file Google Sheet Testcase & ghi toàn bộ dòng trong 1 batch
+        self.check_cancelled(title)
         tc_url = self.workspace.create_testcase_sheet(title, sheet_rows)
         self.workspace.update_task(problem_id, {"Link Testcase": tc_url})
         return tc_url, tc_only_count
@@ -412,6 +490,7 @@ class AiPipelineService:
         known_feature_names: list[str] = []
 
         def call_chunk(chunk: dict[str, Any], prev_names: list[str]) -> str:
+            self.check_cancelled(title)
             prompt = build_requirement_extraction_prompt(
                 task_name=title,
                 chunk_data=chunk["data"],
@@ -421,7 +500,9 @@ class AiPipelineService:
                 previous_feature_names=prev_names,
                 user_prompt=user_prompt,
             )
-            return self.ai.complete(prompt, max_tokens=6000, temperature=0.1)
+            res = self.ai.complete(prompt, max_tokens=6000, temperature=0.1)
+            self.check_cancelled(title)
+            return res
 
         # Tối ưu: chạy chunk 1 trước để lấy danh sách tên Feature chuẩn truyền cho các chunk sau
         raw_outputs: list[str | None] = [None] * len(doc_chunks)
@@ -795,11 +876,19 @@ class AiPipelineService:
         self,
         enriched_chunks: list[dict[str, Any]],
         user_prompt: str,
+        title: str = "",
     ) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
         def call_cond_ai(chunk: dict[str, Any]) -> str | None:
+            if title:
+                self.check_cancelled(title)
             try:
                 prompt = build_condition_generator_prompt(chunk, user_prompt)
-                return self.ai.complete(prompt, max_tokens=8000, temperature=0.2)
+                res = self.ai.complete(prompt, max_tokens=8000, temperature=0.2)
+                if title:
+                    self.check_cancelled(title)
+                return res
+            except TaskCancelledError:
+                raise
             except Exception as e:
                 LOGGER.warning("Test_condition_generator lỗi ở chunk %s: %s", chunk.get("chunk_id"), e)
                 return None
@@ -949,6 +1038,7 @@ class AiPipelineService:
         all_conditions: list[dict[str, Any]],
         cond_map: dict[str, dict[str, Any]],
         user_prompt: str,
+        title: str = "",
     ) -> list[dict[str, Any]]:
         batches = [
             all_conditions[i : i + CONDITIONS_PER_BATCH]
@@ -956,10 +1046,16 @@ class AiPipelineService:
         ]
 
         def run_batch(batch: list[dict[str, Any]]) -> list[dict[str, Any]]:
+            if title:
+                self.check_cancelled(title)
             prompt = build_testcase_generator_prompt(batch, user_prompt)
             raw = ""
             try:
                 raw = self.ai.complete(prompt, max_tokens=8000, temperature=0.2)
+                if title:
+                    self.check_cancelled(title)
+            except TaskCancelledError:
+                raise
             except Exception as e:
                 LOGGER.warning("AI_Phan_tich_Testcase lỗi ở batch: %s", e)
 

@@ -91,15 +91,23 @@ class ExecutionTracker:
     def stop_executions(self, payload: dict[str, Any]) -> None:
         """Dừng tính giờ cho danh sách bài toán."""
         raw_names = payload.get("taskNames")
+        if not raw_names and payload.get("taskName"):
+            raw_names = [payload["taskName"]]
+        elif not raw_names and payload.get("baiToan"):
+            raw_names = [payload["baiToan"]]
+
         if not isinstance(raw_names, list) or not raw_names:
             raise ApiError(400, "taskNames phải là danh sách bài toán không rỗng")
 
-        request_id = required_text(payload, "requestId", 150)
+        request_id = str(payload.get("requestId") or "").strip()
         with self._lock:
             for name in raw_names:
                 key = _normalized(name)
                 execution = self._running_tasks.get(key)
-                if execution and execution.get("requestId") == request_id:
+                if execution:
+                    if not request_id or execution.get("requestId") == request_id:
+                        self._running_tasks.pop(key, None)
+                else:
                     self._running_tasks.pop(key, None)
 
     def clear_execution(self, task_name: str) -> None:

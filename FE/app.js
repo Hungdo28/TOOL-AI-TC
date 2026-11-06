@@ -967,7 +967,11 @@ function renderTable() {
                 <td class="px-4 py-5 align-top min-w-[170px] text-center">
                     <div class="flex items-center justify-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity duration-300">
                         <button onclick="downloadSingleTaskFiles(${originalIndex})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-emerald-50 text-slate-600 hover:text-emerald-600 rounded-lg transition-all shadow-sm" title="Tải tài liệu"><i data-lucide="download" class="w-4 h-4"></i></button>
+                        ${isActivelyProcessing ? `
+                        <button onclick="openStopStreamModal('${escapeHtml(ten)}', '${escapeHtml(taskReqId)}')" class="w-8 h-8 flex items-center justify-center bg-red-50 border border-red-200 hover:bg-red-100 text-red-600 rounded-lg transition-all shadow-sm" title="Dừng luồng AI"><i data-lucide="square" class="w-4 h-4 fill-current"></i></button>
+                        ` : `
                         <button onclick="runSingleTask(${originalIndex})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-blue-50 text-slate-600 hover:text-blue-600 rounded-lg transition-all shadow-sm" title="Chạy AI"><i data-lucide="play" class="w-4 h-4 fill-current"></i></button>
+                        `}
                         ${currentUser.role === 'admin' ? `
                         <button onclick="openTransferModal(${originalIndex})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-orange-50 text-slate-600 hover:text-orange-600 rounded-lg transition-all shadow-sm" title="Chuyển giao"><i data-lucide="send" class="w-4 h-4"></i></button>
                         <button onclick="editDocument(${originalIndex})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-900 rounded-lg transition-all shadow-sm" title="Sửa"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
@@ -984,6 +988,11 @@ function renderTable() {
         lucide.createIcons();
     }
     updateRunningTaskTimers();
+
+    const btnStopRunning = document.getElementById('btnStopRunning');
+    if (btnStopRunning) {
+        btnStopRunning.classList.toggle('hidden', processingTasks.length === 0);
+    }
 }
 
 // 2. TÌM KIẾM BÀI TOÁN
@@ -2402,6 +2411,18 @@ async function doRunSingle(tenBaiToan, testcasePrompt, mode) {
         const responseData = await readApiResponse(res);
         const responseFailed = !res.ok || responseData.data?.success === false;
 
+        if (responseData.data?.cancelled || responseData.cancelled) {
+            processingTasks = processingTasks.filter(item => item !== tenBaiToan);
+            delete taskStartTime[tenBaiToan];
+            delete taskExecutionInfo[tenBaiToan];
+            delete runContextByTask[tenBaiToan];
+            persistProcessingState();
+            renderTable();
+            showToast(responseData.message || `Đã dừng bài toán "${tenBaiToan}".`, 'info');
+            loadData();
+            return;
+        }
+
         if (!responseFailed) {
             await syncExecutionMetadataFromResponse(res, [tenBaiToan]);
             await startPollingIfNeeded(true);
@@ -2469,6 +2490,18 @@ async function doRunMultiple(selectedTasks, testcasePrompt) {
         const res = await responsePromise;
         const responseData = await readApiResponse(res);
         const responseFailed = !res.ok || responseData.data?.success === false;
+
+        if (responseData.data?.cancelled || responseData.cancelled) {
+            processingTasks = processingTasks.filter(item => !selectedTasks.includes(item));
+            selectedTasks.forEach(taskName => delete taskStartTime[taskName]);
+            selectedTasks.forEach(taskName => delete taskExecutionInfo[taskName]);
+            selectedTasks.forEach(taskName => delete runContextByTask[taskName]);
+            persistProcessingState();
+            renderTable();
+            showToast(responseData.message || 'Đã dừng các bài toán theo yêu cầu.', 'info');
+            loadData();
+            return;
+        }
 
         if (!responseFailed) {
             await syncExecutionMetadataFromResponse(res, selectedTasks);
@@ -2729,12 +2762,12 @@ window.closeStopStreamModal = function () {
 
 window.confirmStopStream = async function () {
     if (!stopStreamContext) return;
-    const { taskName } = stopStreamContext;
+    const { taskName, requestId } = stopStreamContext;
     closeStopStreamModal();
 
     if (!taskName) return;
 
-    // Don trang thai FE
+    // Dọn trạng thái FE trước để giao diện phản hồi ngay lập tức
     processingTasks = processingTasks.filter(t => t !== taskName);
     delete taskStartTime[taskName];
     delete taskExecutionInfo[taskName];
@@ -2743,6 +2776,77 @@ window.confirmStopStream = async function () {
     persistProcessingState();
     renderTable();
 
-    showToast(`Đã dừng theo dõi bài toán "${taskName}".`, 'info', 5000);
+    try {
+        await ensureAuthToken();
+        const headers = getBackendHeaders(true);
+        const resp = await fetch(`${BACKEND_API_BASE}/tasks/stop`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+                taskNames: [taskName],
+                requestId: requestId || ''
+            })
+        });
+
+        if (resp.ok) {
+            showToast(`Đã dừng luồng xử lý bài toán "${taskName}".`, 'info', 5000);
+            setTimeout(loadData, 1000);
+        } else {
+            const data = await resp.json().catch(() => ({}));
+            showToast(data.message || `Lỗi khi dừng bài toán "${taskName}" trên máy chủ.`, 'warning', 6000);
+            loadData();
+        }
+    } catch (err) {
+        console.error('Lỗi khi dừng luồng bài toán:', err);
+        showToast(`Không thể kết nối đến máy chủ để dừng bài toán "${taskName}".`, 'error', 6000);
+        loadData();
+    }
+};
+
+/**
+ * Dừng toàn bộ các bài toán đang chạy.
+ */
+window.stopAllRunningTasks = async function () {
+    if (processingTasks.length === 0) {
+        showToast('Hiện không có bài toán nào đang chạy.', 'info');
+        return;
+    }
+
+    if (!confirm(`Bạn có chắc chắn muốn dừng toàn bộ ${processingTasks.length} bài toán đang chạy?`)) {
+        return;
+    }
+
+    const tasksToStop = [...processingTasks];
+    processingTasks = [];
+    taskStartTime = {};
+    taskExecutionInfo = {};
+    runContextByTask = {};
+
+    persistProcessingState();
+    renderTable();
+
+    try {
+        await ensureAuthToken();
+        const headers = getBackendHeaders(true);
+        const resp = await fetch(`${BACKEND_API_BASE}/tasks/stop`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+                taskNames: tasksToStop
+            })
+        });
+
+        if (resp.ok) {
+            showToast(`Đã gửi lệnh dừng ${tasksToStop.length} bài toán thành công.`, 'info', 5000);
+            setTimeout(loadData, 1000);
+        } else {
+            showToast('Lỗi khi gửi yêu cầu dừng tới máy chủ.', 'warning', 6000);
+            loadData();
+        }
+    } catch (err) {
+        console.error('Lỗi khi dừng toàn bộ bài toán:', err);
+        showToast('Không thể kết nối tới máy chủ để dừng các bài toán.', 'error', 6000);
+        loadData();
+    }
 };
 

@@ -23,6 +23,8 @@ class Router:
             ("PATCH", "/api/tasks/status"): task_controller.update_status,
             ("POST", "/api/tasks/executions"): task_controller.start_executions,
             ("DELETE", "/api/tasks/executions"): task_controller.stop_executions,
+            ("POST", "/api/tasks/stop"): task_controller.stop_executions,
+            ("POST", "/api/tasks/executions/stop"): task_controller.stop_executions,
             ("PATCH", "/api/tasks/assignee"): task_controller.transfer_task,
             ("POST", "/api/tasks/ai-callback"): task_controller.ai_callback,
             ("POST", "/api/tasks/approve-testcases"): task_controller.approve_testcases,

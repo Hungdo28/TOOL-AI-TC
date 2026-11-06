@@ -70,7 +70,40 @@ class TaskService:
         return self.tracker.start_executions(payload, existing_names)
 
     def stop_executions(self, payload: dict[str, Any]) -> None:
-        self.tracker.stop_executions(payload)
+        raw_names = payload.get("taskNames")
+        if not raw_names and payload.get("taskName"):
+            raw_names = [payload["taskName"]]
+        elif not raw_names and payload.get("baiToan"):
+            raw_names = [payload["baiToan"]]
+
+        if not isinstance(raw_names, list) or not raw_names:
+            raise ApiError(400, "taskNames phải là danh sách bài toán không rỗng")
+
+        names = [str(n).strip() for n in raw_names if str(n).strip()]
+
+        # 1. Dừng tính giờ trên execution tracker
+        try:
+            self.tracker.stop_executions(payload)
+        except Exception:
+            for name in names:
+                self.tracker.clear_execution(name)
+
+        # 2. Hủy luồng trong AI Pipeline nếu đang chạy
+        if self.pipeline:
+            for name in names:
+                self.pipeline.cancel_task(name)
+
+        # 3. Đưa trạng thái bài toán về 'Chưa làm' nếu đang ở Waiting
+        for name in names:
+            try:
+                task = self.workspace.find_task(name)
+                if task:
+                    task_id = str(task.get("id") or task.get("problem_id") or name)
+                    curr_status = str(task.get("Trạng thái") or "")
+                    if curr_status.lower() in ("waiting", "đang chạy", "đang xử lý", "đang xử lý ai..."):
+                        self.workspace.update_task(task_id, {"Trạng thái": "Chưa làm"})
+            except Exception:
+                pass
 
     def add_task(self, payload: dict[str, Any], files: list[UploadedFile]) -> dict[str, Any]:
         return TaskCrudService.add_task(
