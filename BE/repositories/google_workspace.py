@@ -321,21 +321,45 @@ class GoogleWorkspace:
 
             if analysis_text and analysis_text.strip():
                 try:
+                    # Lấy độ dài hiện tại của template để chèn vào sau trang bìa (không chèn ở index 1 làm đảo ngược trang bìa xuống cuối)
+                    doc_obj = self.docs.documents().get(documentId=doc_id).execute()
+                    body_content = doc_obj.get("body", {}).get("content", [])
+                    end_index = body_content[-1].get("endIndex", 1) - 1 if body_content else 1
+
+                    text_to_insert = "\n\n" + analysis_text.strip() + "\n"
+                    insert_pos = max(1, end_index)
+
+                    requests = [
+                        {
+                            "insertText": {
+                                "location": {"index": insert_pos},
+                                "text": text_to_insert,
+                            }
+                        },
+                        {
+                            # Đảm bảo nội dung phân tích được căn lề trái (START), không bị thừa hưởng căn giữa của trang bìa
+                            "updateParagraphStyle": {
+                                "range": {
+                                    "startIndex": insert_pos,
+                                    "endIndex": insert_pos + len(text_to_insert),
+                                },
+                                "paragraphStyle": {
+                                    "alignment": "START",
+                                    "lineSpacing": 115,
+                                    "spaceAbove": {"magnitude": 4, "unit": "PT"},
+                                    "spaceBelow": {"magnitude": 4, "unit": "PT"},
+                                },
+                                "fields": "alignment,lineSpacing,spaceAbove,spaceBelow",
+                            }
+                        },
+                    ]
+
                     self.docs.documents().batchUpdate(
                         documentId=doc_id,
-                        body={
-                            "requests": [
-                                {
-                                    "insertText": {
-                                        "location": {"index": 1},
-                                        "text": analysis_text.strip() + "\n\n",
-                                    }
-                                }
-                            ]
-                        },
+                        body={"requests": requests},
                     ).execute()
-                except Exception:
-                    pass
+                except Exception as e:
+                    LOGGER.warning("Lỗi ghi nội dung vào Google Doc phân tích: %s", e)
 
             return copied.get("webViewLink") or f"https://docs.google.com/document/d/{doc_id}/edit"
 
