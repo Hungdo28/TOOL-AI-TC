@@ -6,12 +6,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-def load_dotenv(path: Path) -> None:
+def load_dotenv(path: Path | str) -> None:
     """Nạp file .env nhỏ gọn mà không cần thêm thư viện python-dotenv."""
-    if not path.exists():
+    path_obj = Path(path)
+    if not path_obj.exists():
         return
 
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
+    for raw_line in path_obj.read_text(encoding="utf-8").splitlines():
         line = raw_line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
