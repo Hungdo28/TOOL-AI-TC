@@ -2456,7 +2456,9 @@ async function doRunSingle(tenBaiToan, testcasePrompt, mode) {
         if (!responseFailed) {
             await syncExecutionMetadataFromResponse(res, [tenBaiToan]);
             await startPollingIfNeeded(true);
-            showToast(responseData.message || 'Xử lý bài toán thành công.', 'success');
+            const tokenUsage = responseData.data?.token_usage || responseData.token_usage;
+            const tokenMsg = tokenUsage?.total_tokens ? ` (${tokenUsage.total_tokens.toLocaleString()} tokens)` : '';
+            showToast((responseData.message || 'Xử lý bài toán thành công.') + tokenMsg, 'success', 8000);
         } else {
             processingTasks = processingTasks.filter(item => item !== tenBaiToan);
             delete taskStartTime[tenBaiToan];

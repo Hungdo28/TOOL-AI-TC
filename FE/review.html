@@ -1276,7 +1276,10 @@
                     throw new Error(errData.message || `Lỗi máy chủ (${resp.status})`);
                 }
 
-                showToast(`Đã sinh lại testcase theo góp ý cho bài toán "${taskName}"!`, 'success');
+                const resData = await resp.json().catch(() => ({}));
+                const tokenUsage = resData.data?.token_usage || resData.token_usage;
+                const tokenMsg = tokenUsage?.total_tokens ? ` (${tokenUsage.total_tokens.toLocaleString()} tokens)` : '';
+                showToast(`Đã sinh lại testcase theo góp ý cho bài toán "${taskName}"!${tokenMsg}`, 'success', 8000);
 
                 // 5. Tự động nạp lại testcase mới vào bảng
                 await loadTestcases();

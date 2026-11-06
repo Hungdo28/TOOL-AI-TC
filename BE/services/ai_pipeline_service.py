@@ -225,6 +225,7 @@ class AiPipelineService:
         raw_urls = str(task.get("URL") or "")
 
         LOGGER.info("Bắt đầu xử lý bài toán [%s] (id=%s, mode=%s)", title, problem_id, mode)
+        self.ai.reset_task_usage(title)
 
         # 1. Cập nhật trạng thái Waiting theo đúng khóa chính (UUID)
         self.check_cancelled(title)
@@ -290,10 +291,14 @@ class AiPipelineService:
                 changes["Link Testcase"] = testcase_url
 
             updated_task = self.workspace.update_task(problem_id, changes)
+            task_usage = self.ai.get_task_usage(title)
             LOGGER.info(
-                "Hoàn tất bài toán [%s]: %d testcases, Sheet=%s, Doc=%s",
+                "🏁 Hoàn tất bài toán [%s]: %d testcases | Token: %s (In: %s, Out: %s) | Sheet=%s | Doc=%s",
                 title,
                 testcase_count,
+                f"{task_usage.get('total_tokens', 0):,}",
+                f"{task_usage.get('input_tokens', 0):,}",
+                f"{task_usage.get('output_tokens', 0):,}",
                 testcase_url,
                 analysis_doc_url,
             )
@@ -304,6 +309,7 @@ class AiPipelineService:
                 "testcase_count": testcase_count,
                 "testcase_url": testcase_url,
                 "analysis_doc_url": analysis_doc_url,
+                "token_usage": task_usage,
                 "task": updated_task,
             }
 
@@ -362,7 +368,7 @@ class AiPipelineService:
     ) -> str:
         self.check_cancelled(title)
         prompt = build_analysis_prompt(doc_text, user_prompt)
-        raw_ai = self.ai.complete(prompt, max_tokens=8000, temperature=0.2)
+        raw_ai = self.ai.complete(prompt, max_tokens=8000, temperature=0.2, task_name=title)
         self.check_cancelled(title)
         final_text = parse_analysis_report(raw_ai)
 
@@ -516,7 +522,7 @@ class AiPipelineService:
                 previous_feature_names=prev_names,
                 user_prompt=user_prompt,
             )
-            res = self.ai.complete(prompt, max_tokens=6000, temperature=0.1)
+            res = self.ai.complete(prompt, max_tokens=6000, temperature=0.1, task_name=title)
             self.check_cancelled(title)
             return res
 
@@ -903,7 +909,7 @@ class AiPipelineService:
                 self.check_cancelled(title)
             try:
                 prompt = build_condition_generator_prompt(chunk, user_prompt)
-                res = self.ai.complete(prompt, max_tokens=8000, temperature=0.2)
+                res = self.ai.complete(prompt, max_tokens=8000, temperature=0.2, task_name=title)
                 if title:
                     self.check_cancelled(title)
                 return res
@@ -1071,7 +1077,7 @@ class AiPipelineService:
             prompt = build_testcase_generator_prompt(batch, user_prompt)
             raw = ""
             try:
-                raw = self.ai.complete(prompt, max_tokens=8000, temperature=0.2)
+                raw = self.ai.complete(prompt, max_tokens=8000, temperature=0.2, task_name=title)
                 if title:
                     self.check_cancelled(title)
             except TaskCancelledError:
@@ -1101,7 +1107,7 @@ class AiPipelineService:
             if missing_conds and len(missing_conds) < len(batch):
                 try:
                     retry_prompt = build_testcase_generator_prompt(missing_conds, user_prompt)
-                    retry_raw = self.ai.complete(retry_prompt, max_tokens=6000, temperature=0.2)
+                    retry_raw = self.ai.complete(retry_prompt, max_tokens=6000, temperature=0.2, task_name=title)
                     retry_parsed = parse_loose(retry_raw, "results")
                     if retry_parsed and isinstance(retry_parsed["data"].get("results"), list):
                         for r in retry_parsed["data"]["results"]:
