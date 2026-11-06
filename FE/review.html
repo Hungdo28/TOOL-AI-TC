@@ -194,6 +194,10 @@
                     <span id="sortOrderLabel">Thứ tự: Tăng dần</span>
                 </button>
 
+                <button type="button" onclick="openRevisionModal()" class="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl text-xs font-bold transition-all shadow-xs hover:shadow" title="Chưa ưng ý? Yêu cầu AI điều chỉnh và chạy lại testcase">
+                    <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> Chưa ưng ý? Chạy lại AI
+                </button>
+
                 <button type="button" id="btnToggleAll" onclick="toggleExpandAll()" class="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-all" title="Mở rộng / Thu gọn tất cả">
                     <i data-lucide="chevrons-up-down" class="w-4 h-4"></i>
                 </button>
@@ -239,6 +243,10 @@
                 <button type="button" onclick="exportSelectedJson()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 shadow-xs" title="Tải về file JSON các testcase đã chọn">
                     <i data-lucide="download" class="w-4 h-4"></i> Xuất JSON
                 </button>
+                <button type="button" onclick="openRevisionModal()" class="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs sm:text-sm font-bold transition-all shadow-md shadow-amber-500/20 flex items-center justify-center gap-1.5" title="Yêu cầu AI viết lại hoặc bổ sung testcase theo ý bạn">
+                    <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                    <span>Chưa ưng ý? Chạy lại</span>
+                </button>
                 <button type="button" id="btnSave" onclick="saveReviewResults()" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs sm:text-sm font-bold transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2">
                     <i data-lucide="check" class="w-4 h-4"></i>
                     <span id="btnSaveLabel">Duyệt & Xuất vào Sheet</span>
@@ -246,6 +254,143 @@
             </div>
         </div>
     </footer>
+
+    <!-- MODAL HỎI LẠI KHI CÒN TESTCASE BỊ BỎ -->
+    <div id="askRerunModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-opacity">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 border border-slate-100 flex flex-col gap-4 transform transition-transform">
+            <div class="flex items-start gap-3.5">
+                <div class="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                    <i data-lucide="help-circle" class="w-6 h-6"></i>
+                </div>
+                <div class="flex-1">
+                    <h3 class="text-base sm:text-lg font-bold text-slate-900">Bạn có muốn AI chạy lại không?</h3>
+                    <p class="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">
+                        Bạn đang có <strong id="askRerunRejectedCount" class="text-rose-600 font-bold">0</strong> testcase bị đánh dấu <strong class="text-rose-600">"Đã bỏ"</strong> vì chưa ưng ý.
+                    </p>
+                    <p class="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">
+                        Bạn có muốn gửi góp ý để AI <strong class="text-amber-700">bổ sung & hoàn thiện lại các kịch bản này</strong> trước khi xuất ra Google Sheet không?
+                    </p>
+                </div>
+            </div>
+
+            <div class="bg-amber-50/70 border border-amber-200/60 rounded-2xl p-3.5 text-xs text-amber-800 space-y-1">
+                <div class="flex items-center gap-1.5 font-semibold">
+                    <i data-lucide="sparkles" class="w-4 h-4 text-amber-600"></i> Lợi ích khi chạy lại:
+                </div>
+                <p class="text-slate-600">AI sẽ giữ nguyên các testcase bạn đã <strong>"Đã giữ"</strong>, và chỉ tập trung viết lại / bổ sung thêm các kịch bản bạn yêu cầu.</p>
+            </div>
+
+            <div class="flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5 pt-2">
+                <button type="button" onclick="confirmProceedExport()" class="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs sm:text-sm font-semibold transition">
+                    Vẫn tiếp tục Xuất Sheet
+                </button>
+                <button type="button" onclick="confirmGoToRevision()" class="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-xs sm:text-sm font-bold transition shadow-md shadow-amber-500/20 flex items-center justify-center gap-1.5">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i> Góp ý & Chạy lại AI
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL GÓP Ý & YÊU CẦU AI CHẠY LẠI TESTCASE -->
+    <div id="revisionModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-5 transition-opacity">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[92vh] flex flex-col border border-slate-100 overflow-hidden transform transition-transform">
+            
+            <!-- Header -->
+            <div class="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-amber-50/80 via-orange-50/50 to-white flex items-center justify-between gap-3 shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex items-center justify-center shadow-md shadow-amber-500/20 shrink-0">
+                        <i data-lucide="sparkles" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-extrabold text-slate-900 text-base sm:text-lg">Góp ý & Yêu cầu AI Chạy lại</h3>
+                        <p class="text-xs text-slate-500 mt-0.5">Bài toán: <strong id="revTaskName" class="text-slate-800 font-bold">—</strong></p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeRevisionModal()" class="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Body (scrollable) -->
+            <div class="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1 custom-scrollbar">
+                
+                <!-- Context card -->
+                <div class="grid grid-cols-3 gap-2 p-3 bg-slate-50 rounded-2xl border border-slate-200/80 text-center">
+                    <div class="p-2 rounded-xl bg-white border border-emerald-100 shadow-2xs">
+                        <div class="text-[11px] font-semibold text-slate-500">Đã chọn Giữ</div>
+                        <div id="revStatApproved" class="text-base sm:text-lg font-extrabold text-emerald-600">0</div>
+                    </div>
+                    <div class="p-2 rounded-xl bg-white border border-rose-100 shadow-2xs">
+                        <div class="text-[11px] font-semibold text-slate-500">Đã chọn Bỏ</div>
+                        <div id="revStatRejected" class="text-base sm:text-lg font-extrabold text-rose-600">0</div>
+                    </div>
+                    <div class="p-2 rounded-xl bg-white border border-slate-100 shadow-2xs">
+                        <div class="text-[11px] font-semibold text-slate-500">Chưa duyệt</div>
+                        <div id="revStatPending" class="text-base sm:text-lg font-extrabold text-slate-700">0</div>
+                    </div>
+                </div>
+
+                <!-- Quick Suggestions -->
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                            <i data-lucide="lightbulb" class="w-3.5 h-3.5 text-amber-500"></i> Gợi ý yêu cầu nhanh (Bấm để thêm)
+                        </span>
+                        <button type="button" onclick="clearRevisionFeedback()" class="text-[11px] font-semibold text-slate-400 hover:text-rose-600 transition">Xóa nội dung</button>
+                    </div>
+                    <div class="flex flex-wrap gap-1.5" id="revisionSuggestions">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+
+                <!-- Feedback Textarea -->
+                <div class="space-y-1.5">
+                    <label for="revisionFeedbackText" class="block text-xs font-bold text-slate-700 uppercase tracking-wide">
+                        Nội dung yêu cầu AI điều chỉnh / bổ sung:
+                    </label>
+                    <textarea id="revisionFeedbackText" rows="4" class="w-full px-4 py-3 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-amber-400 rounded-2xl text-xs sm:text-sm focus:ring-2 focus:ring-amber-500/20 outline-none transition custom-scrollbar resize-y" placeholder="Nhập các điểm bạn chưa ưng ý (Ví dụ: Thêm các ca kiểm tra biên, bổ sung testcase khi mất kết nối mạng, làm rõ dữ liệu đầu vào...)"></textarea>
+                </div>
+
+                <!-- Advanced Options -->
+                <div class="bg-amber-50/50 border border-amber-200/50 rounded-2xl p-3.5 space-y-2 text-xs">
+                    <label class="flex items-center gap-2 cursor-pointer font-medium text-slate-700">
+                        <input type="checkbox" id="chkKeepApproved" checked class="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500">
+                        <span>Bảo lưu các testcase đã chọn <strong>"Đã giữ"</strong> (không bị xóa / sinh đè)</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer font-medium text-slate-700">
+                        <input type="checkbox" id="chkSendRejected" checked class="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500">
+                        <span>Gửi danh sách testcase <strong>"Đã bỏ"</strong> cho AI làm căn cứ viết lại / tránh lặp lại</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between gap-3 shrink-0">
+                <button type="button" onclick="closeRevisionModal()" class="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-white text-slate-600 text-xs sm:text-sm font-semibold transition">
+                    Hủy bỏ
+                </button>
+                <button type="button" id="btnExecuteRerun" onclick="executeRerunTestcase()" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-xs sm:text-sm font-bold transition shadow-md shadow-amber-500/20 flex items-center gap-2">
+                    <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                    <span id="btnExecuteRerunLabel">Gửi góp ý & Chạy lại AI</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PROGRESS OVERLAY KHI ĐANG CHẠY LẠI AI -->
+    <div id="rerunProgressOverlay" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[60] flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full text-center space-y-4 border border-slate-100 animate-in fade-in zoom-in duration-200">
+            <div class="w-16 h-16 mx-auto rounded-3xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100 shadow-sm">
+                <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
+            </div>
+            <h4 class="text-base font-extrabold text-slate-900" id="rerunProgressTitle">AI đang xử lý yêu cầu...</h4>
+            <p class="text-xs sm:text-sm text-slate-500" id="rerunProgressDesc">Đang phân tích tài liệu và viết lại testcase theo góp ý của bạn.</p>
+            <div class="inline-flex items-center gap-2 px-3.5 py-1.5 bg-slate-100 rounded-full text-xs font-mono font-bold text-slate-700">
+                <i data-lucide="clock" class="w-3.5 h-3.5 text-amber-600"></i>
+                <span id="rerunProgressTimer">00:00</span>
+            </div>
+        </div>
+    </div>
 
     <!-- TOAST NOTIFICATION -->
     <div id="toast" class="fixed top-5 right-5 z-50 transform -translate-y-12 opacity-0 pointer-events-none transition-all duration-300 flex items-center gap-2 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold text-white">
@@ -938,6 +1083,239 @@
             }
         }
 
+        // ================= HỎI LẠI & YÊU CẦU AI CHẠY LẠI TESTCASE =================
+        let bypassRerunAsk = false;
+        let rerunTimerInterval = null;
+
+        const REVISION_SUGGESTIONS = [
+            '📌 Bổ sung các ca kiểm thử giá trị biên (Boundary Value Analysis)',
+            '🔒 Thêm testcase kiểm tra bảo mật (SQL Injection, XSS, phân quyền)',
+            '📝 Chi tiết hóa các bước thực hiện và dữ liệu mẫu cụ thể',
+            '🎯 Làm rõ kết quả mong muốn ở cả UI, API Network và Database',
+            '⚡ Bổ sung kịch bản mất mạng, timeout, dữ liệu trả về rỗng',
+            '✂️ Rút gọn testcase trùng lặp, tập trung vào nghiệp vụ cốt lõi',
+            '🏢 Bổ sung kiểm tra định dạng MST, CCCD, Email, SĐT hợp lệ và không hợp lệ',
+            '⚠️ Bổ sung kiểm tra thông báo lỗi khi bỏ trống trường bắt buộc'
+        ];
+
+        function getSelectedTaskName() {
+            const sel = document.getElementById('probSelect');
+            let name = (sel?.selectedOptions?.[0]?.textContent || '').replace(/\s*\(\d+\s*TC\)\s*$/, '').trim();
+            if (!name) {
+                name = new URLSearchParams(location.search).get('problem_title') ||
+                       new URLSearchParams(location.search).get('problem_id') ||
+                       rawRows[0]?.problem_title || '';
+            }
+            return name;
+        }
+
+        function openRevisionModal() {
+            const taskName = getSelectedTaskName();
+            const nameEl = document.getElementById('revTaskName');
+            if (nameEl) nameEl.textContent = taskName || '(Chưa chọn bài toán)';
+
+            // Cập nhật thống kê
+            const approvedCount = rawRows.filter(r => (choice[r.id] || 'pending') === 'approved').length;
+            const rejectedCount = rawRows.filter(r => (choice[r.id] || 'pending') === 'rejected').length;
+            const pendingCount = rawRows.filter(r => (choice[r.id] || 'pending') === 'pending').length;
+
+            const elApp = document.getElementById('revStatApproved');
+            const elRej = document.getElementById('revStatRejected');
+            const elPen = document.getElementById('revStatPending');
+            if (elApp) elApp.textContent = approvedCount;
+            if (elRej) elRej.textContent = rejectedCount;
+            if (elPen) elPen.textContent = pendingCount;
+
+            // Render gợi ý
+            renderRevisionSuggestions();
+
+            const modal = document.getElementById('revisionModal');
+            if (modal) {
+                modal.classList.remove('hidden');
+                if (window.lucide) window.lucide.createIcons();
+            }
+        }
+
+        function closeRevisionModal() {
+            const modal = document.getElementById('revisionModal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function renderRevisionSuggestions() {
+            const container = document.getElementById('revisionSuggestions');
+            if (!container) return;
+            container.innerHTML = REVISION_SUGGESTIONS.map(sug => `
+                <button type="button" onclick="addRevisionSuggestion('${escapeHtml(sug)}')"
+                    class="px-2.5 py-1 bg-white hover:bg-amber-50 hover:border-amber-300 border border-slate-200 text-slate-700 hover:text-amber-800 rounded-lg text-xs font-medium transition text-left shadow-2xs">
+                    + ${escapeHtml(sug)}
+                </button>
+            `).join('');
+        }
+
+        function addRevisionSuggestion(text) {
+            const textarea = document.getElementById('revisionFeedbackText');
+            if (!textarea) return;
+            const cur = textarea.value.trim();
+            const cleanText = text.replace(/^[^\w\s\u00C0-\u024F\u1E00-\u1EFF]+/g, '').trim();
+            if (cur) {
+                textarea.value = cur + '\n- ' + cleanText;
+            } else {
+                textarea.value = '- ' + cleanText;
+            }
+            textarea.focus();
+        }
+
+        function clearRevisionFeedback() {
+            const textarea = document.getElementById('revisionFeedbackText');
+            if (textarea) textarea.value = '';
+        }
+
+        function confirmProceedExport() {
+            const askModal = document.getElementById('askRerunModal');
+            if (askModal) askModal.classList.add('hidden');
+            bypassRerunAsk = true;
+            saveReviewResults();
+        }
+
+        function confirmGoToRevision() {
+            const askModal = document.getElementById('askRerunModal');
+            if (askModal) askModal.classList.add('hidden');
+            openRevisionModal();
+        }
+
+        async function executeRerunTestcase() {
+            const taskName = getSelectedTaskName();
+            if (!taskName) {
+                showToast('Chưa xác định được bài toán để chạy lại!', 'error');
+                return;
+            }
+
+            const feedbackInput = document.getElementById('revisionFeedbackText');
+            const additionalPrompt = feedbackInput ? feedbackInput.value.trim() : '';
+
+            const keepApproved = document.getElementById('chkKeepApproved')?.checked ?? true;
+            const sendRejected = document.getElementById('chkSendRejected')?.checked ?? true;
+
+            const approvedRows = rawRows.filter(r => (choice[r.id] || 'pending') === 'approved');
+            const rejectedRows = rawRows.filter(r => (choice[r.id] || 'pending') === 'rejected');
+
+            const rejectedList = sendRejected
+                ? rejectedRows.map(r => `- [${r.test_suite || 'General'}] ${r.content?.id || 'TC'}: ${r.content?.muc_dich || ''}`)
+                : [];
+            const approvedList = keepApproved
+                ? approvedRows.map(r => `- [${r.test_suite || 'General'}] ${r.content?.id || 'TC'}: ${r.content?.muc_dich || ''}`)
+                : [];
+
+            closeRevisionModal();
+            showRerunProgress(true, taskName);
+
+            try {
+                // 1. Lưu các testcase đã chọn "Đã giữ" vào Supabase
+                if (!isMockMode && rawRows.length > 0) {
+                    if (keepApproved && approvedRows.length > 0) {
+                        const approvedIds = approvedRows.map(r => r.id);
+                        await api(`qa_memory?id=in.(${approvedIds.join(',')})`, {
+                            method: 'PATCH',
+                            headers: { Prefer: 'return=minimal' },
+                            body: JSON.stringify({
+                                review_status: 'approved',
+                                approved: true,
+                                reviewed_at: new Date().toISOString()
+                            })
+                        }).catch(() => {});
+                    }
+
+                    // 2. Dọn các testcase cũ bị bỏ / chưa duyệt để lượt sinh mới thế chỗ
+                    const removeIds = rawRows
+                        .filter(r => (choice[r.id] || 'pending') !== 'approved')
+                        .map(r => r.id);
+                    if (removeIds.length > 0) {
+                        await api(`qa_memory?id=in.(${removeIds.join(',')})`, {
+                            method: 'DELETE',
+                            headers: { Prefer: 'return=minimal' }
+                        }).catch(() => {});
+                    }
+                }
+
+                // 3. Xây dựng prompt điều chỉnh gửi AI
+                const revisedPrompt = [
+                    rejectedList.length > 0 ? `DANH SÁCH TESTCASE BỊ LOẠI BỎ / CẦN VIẾT LẠI:\n${rejectedList.slice(0, 40).join('\n')}` : '',
+                    approvedList.length > 0 ? `DANH SÁCH TESTCASE ĐÃ ĐẠT (GIỮ NGUYÊN PHẠM VI NÀY):\n${approvedList.slice(0, 40).join('\n')}` : '',
+                    'YÊU CẦU ĐIỀU CHỈNH BẮT BUỘC TỪ NGƯỜI DUYỆT (QA):',
+                    additionalPrompt || 'Hãy tối ưu lại toàn bộ testcase, bổ sung các ca kiểm thử còn thiếu và nâng cao chất lượng kịch bản.',
+                    'Các yêu cầu điều chỉnh trên là BẮT BUỘC. Hãy tập trung đúng phạm vi chức năng được yêu cầu, bổ sung các kịch bản còn thiếu, cập nhật các bước kiểm thử và kết quả mong muốn có thể kiểm chứng được.'
+                ].filter(Boolean).join('\n\n');
+
+                if (isMockMode) {
+                    await new Promise(r => setTimeout(r, 2000));
+                    showToast('Chế độ Demo: Đã kích hoạt sinh lại testcase giả lập!', 'success');
+                    loadMockTestcases();
+                    return;
+                }
+
+                // 4. Gửi request sang Backend AI API
+                const apiBase = (window.AUTO_TC_API_BASE || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:8088/api' : 'https://tool-ai-tc.onrender.com/api')).replace(/\/$/, '');
+                
+                const sel = document.getElementById('probSelect');
+                const probId = sel?.value || '';
+
+                const resp = await fetch(`${apiBase}/tasks/run`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        baiToan: taskName,
+                        problem_id: probId,
+                        loaiChay: 'testcase',
+                        requestId: `rerun-${Date.now()}`,
+                        promptAI: revisedPrompt
+                    })
+                });
+
+                if (!resp.ok) {
+                    const errData = await resp.json().catch(() => ({}));
+                    throw new Error(errData.message || `Lỗi máy chủ (${resp.status})`);
+                }
+
+                showToast(`Đã sinh lại testcase theo góp ý cho bài toán "${taskName}"!`, 'success');
+
+                // 5. Tự động nạp lại testcase mới vào bảng
+                await loadTestcases();
+                setFilter('all');
+            } catch (err) {
+                console.error('Lỗi khi chạy lại AI:', err);
+                showToast(`Chạy lại thất bại: ${err.message}`, 'error');
+            } finally {
+                showRerunProgress(false);
+            }
+        }
+
+        function showRerunProgress(show, taskName = '') {
+            const overlay = document.getElementById('rerunProgressOverlay');
+            const timerEl = document.getElementById('rerunProgressTimer');
+            const descEl = document.getElementById('rerunProgressDesc');
+
+            if (show) {
+                if (overlay) overlay.classList.remove('hidden');
+                if (descEl) descEl.textContent = `Đang phân tích tài liệu bài toán "${taskName}" và tạo lại các kịch bản kiểm thử theo yêu cầu của bạn.`;
+                let sec = 0;
+                if (timerEl) timerEl.textContent = '00:00';
+                if (rerunTimerInterval) clearInterval(rerunTimerInterval);
+                rerunTimerInterval = setInterval(() => {
+                    sec++;
+                    const m = String(Math.floor(sec / 60)).padStart(2, '0');
+                    const s = String(sec % 60).padStart(2, '0');
+                    if (timerEl) timerEl.textContent = `${m}:${s}`;
+                }, 1000);
+                if (window.lucide) window.lucide.createIcons();
+            } else {
+                if (overlay) overlay.classList.add('hidden');
+                if (rerunTimerInterval) {
+                    clearInterval(rerunTimerInterval);
+                    rerunTimerInterval = null;
+                }
+            }
+        }
+
         // ================= LƯU KẾT QUẢ DUYỆT =================
         async function saveReviewResults() {
             if (isMockMode) {
@@ -947,6 +1325,20 @@
                 showToast('Chế độ Demo: Đã lưu kết quả duyệt vào bộ nhớ tạm thời!', 'success');
                 return;
             }
+
+            // HỎI LẠI: Nếu có testcase bị đánh dấu "Đã bỏ" và chưa được hỏi xác nhận
+            const rejectedRows = rawRows.filter(r => (choice[r.id] || 'pending') === 'rejected');
+            if (rejectedRows.length > 0 && !bypassRerunAsk) {
+                const askModal = document.getElementById('askRerunModal');
+                const cntEl = document.getElementById('askRerunRejectedCount');
+                if (cntEl) cntEl.textContent = rejectedRows.length;
+                if (askModal) {
+                    askModal.classList.remove('hidden');
+                    if (window.lucide) window.lucide.createIcons();
+                    return;
+                }
+            }
+            bypassRerunAsk = false;
 
             const btnSave = document.getElementById('btnSave');
             const label = document.getElementById('btnSaveLabel');

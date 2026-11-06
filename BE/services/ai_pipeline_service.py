@@ -427,6 +427,17 @@ class AiPipelineService:
         self.check_cancelled(title)
         tc_url = self.workspace.create_testcase_sheet(title, sheet_rows)
         self.workspace.update_task(problem_id, {"Link Testcase": tc_url})
+
+        # Bước 2.8: Lưu toàn bộ testcase vào qa_memory để phục vụ màn hình Review & Chạy lại
+        try:
+            self.memory.save_testcases(
+                problem_id=problem_id,
+                problem_title=title,
+                sheet_rows=sheet_rows,
+            )
+        except Exception as e:
+            LOGGER.warning("[%s] Lưu qa_memory thất bại: %s", title, e)
+
         return tc_url, tc_only_count
 
     @staticmethod

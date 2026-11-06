@@ -112,6 +112,48 @@ class MemoryService:
         except Exception as e:
             LOGGER.warning("Lưu qa_memory (analysis) thất bại (bỏ qua): %s", e)
 
+    def save_testcases(
+        self,
+        *,
+        problem_id: str,
+        problem_title: str,
+        sheet_rows: list[dict[str, Any]],
+    ) -> None:
+        if not problem_id or not sheet_rows:
+            return
+        try:
+            records = []
+            for r in sheet_rows:
+                if r.get("row_type") != "testcase":
+                    continue
+                content = {
+                    "id": r.get("id") or "",
+                    "muc_dich": r.get("muc_dich") or "",
+                    "cac_buoc": r.get("cac_buoc") or "",
+                    "ket_qua_mong_muon": r.get("ket_qua_mong_muon") or "",
+                    "ghi_chu": r.get("ghi_chu") or "",
+                }
+                hash_input = f"{r.get('test_suite', '')}|{content['id']}|{content['muc_dich']}"
+                records.append({
+                    "kind": "testcase",
+                    "problem_id": str(problem_id),
+                    "problem_title": str(problem_title).strip(),
+                    "test_suite": r.get("test_suite") or "General",
+                    "content": content,
+                    "review_status": "pending",
+                    "approved": False,
+                    "content_hash": content_hash(hash_input),
+                })
+            if records:
+                self.sb._request(
+                    "qa_memory?on_conflict=kind,problem_id,content_hash",
+                    method="POST",
+                    data=records,
+                    prefer="resolution=merge-duplicates,return=minimal",
+                )
+        except Exception as e:
+            LOGGER.warning("Lưu qa_memory (testcases) thất bại (bỏ qua): %s", e)
+
     def fetch_approved_testcases(self, exclude_problem_id: str) -> list[dict[str, Any]]:
         try:
             pid = urllib.parse.quote(str(exclude_problem_id or "none"))
