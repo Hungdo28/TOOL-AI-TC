@@ -12,7 +12,7 @@ def build_analysis_prompt(doc_data: str, user_scope_prompt: str) -> str:
         else "No additional requirements."
     )
     return f"""You are a Senior Technical Business Analyst and QA Lead.
-Your task is to thoroughly analyze the provided specifications, design documents, or raw text, and extract all technical and business details to produce a comprehensive, deep, and production-ready Technical Analysis Report.
+Your task is to thoroughly analyze the provided specifications, design documents, or raw text, and extract all technical and business details to produce a high-density, professional Technical Analysis Report.
 
 CRITICAL SCOPE FILTERING RULE (HIGHEST PRIORITY):
 - User Scope Request: {scope}
@@ -23,49 +23,45 @@ CRITICAL SCOPE FILTERING RULE (HIGHEST PRIORITY):
 - Only if the User Scope Request is "No additional requirements." or empty or explicitly asks for everything, then you analyze the entire document.
 
 CORE PRINCIPLES & RULES:
-1. Depth and Comprehensiveness (EXTREMELY IMPORTANT):
-   - Provide an in-depth, thorough, and technically exhaustive analysis. Extract all technical parameters, flows, fields, and constraints.
-   - DO NOT provide brief high-level summaries. DO NOT write vague 1-2 line descriptions. DO NOT omit critical technical specifications.
-   - Each section must supply rich, concrete details (data types, endpoints, payload parameters, validations, sequential steps, status codes) so developers and QA engineers can directly work from this report.
-2. Tone & Style: Professional, technical, structured, and rigorous, adhering to enterprise software design and architecture documentation standards.
+1. High Technical Density & Crisp Conciseness (CRITICAL FOR PERFORMANCE & CLARITY):
+   - Deliver an in-depth, production-ready technical analysis using dense, highly informative bullet points.
+   - Prioritize direct technical facts, parameters, constraints, status codes, and step sequences over verbose prose explanations or filler text.
+   - Target a compact, high-signal report (~1,500 - 2,000 tokens total) that gives developers and QA engineers exact specifications without unnecessary padding.
+2. Tone & Style: Professional, technical, structured, and rigorous, adhering to enterprise software design standards.
 3. Missing Information: Base your analysis strictly on the provided input within the target scope. If a critical detail is not specified in the document, explicitly state: "[Tài liệu chưa đặc tả chi tiết: ...] - Đề xuất: ..." and list it in section 6 (RỦI RO / ĐIỂM CHƯA RÕ).
 4. Output Format: PURE JSON for automated parsing (no Markdown code block fences like ```json, no text outside the JSON object).
 5. Output Language: ALL generated descriptive text and values inside the JSON MUST be written in VIETNAMESE (preserve technical names verbatim: API methods, endpoints, database table names, column/field names, status codes, error codes, and variable names).
 
 JSON STRUCTURE (Return exactly 1 JSON object):
 {{
-  "muc_tieu_tai_lieu": "A comprehensive narrative in Vietnamese covering: (1) Business background and overview of the feature/system within the analyzed scope; (2) Core objectives and expected outcomes for end-users and the system; (3) Participating actors/roles and prerequisite conditions; (4) Specific functional boundary and business impact.",
+  "muc_tieu_tai_lieu": "A concise 3-5 sentence narrative in Vietnamese defining: (1) Business background & system role; (2) Core user/system objective; (3) Key actors/roles; (4) Exact functional scope and success criteria.",
   "he_thong_va_api": [
-    "Detailed list of all participating systems, components, and every relevant API / Job / Queue in the scope. Follow this structure:",
-    "- [System/Component] <System Name> - Architectural role, processing responsibility in the flow, interactions with other components.",
-    "- [Method] <Endpoint URL> - <Detailed purpose> | Request Parameters: <detailed description of headers, query parameters, request body with required/optional flags and formats> | Response Data: <success payload structure, response codes> | Error Codes & Handling: <HTTP 200, 400, 401, 403, 500, business error codes> | Technical Notes: <authentication, token encryption, checksum if applicable>."
+    "List key interacting systems and each API/job in the target scope using this concise format:",
+    "- [System] <Name> - Architectural role and main processing responsibility.",
+    "- [Method] <Endpoint URL> - Purpose | Params: <key input params, required/optional> | Response: <success payload/status> | Errors: <status codes & error meanings> | Tech note: <auth/token/checksum if any>."
   ],
   "luong_nghiep_vu": [
-    "Step-by-step detailed breakdown of all business flows and business rules in Vietnamese:",
-    "- [Happy Path / Luồng chính]: Detailed sequential steps (Bước 1: Actor action -> Bước 2: System validation & checks -> Bước 3: API call & backend processing -> Bước 4: Database persistence / table updates -> Bước 5: UI response and user notification).",
-    "- [Alternative Flows / Luồng rẽ nhánh]: User branch choices (e.g. different verification methods, payment types, supplementary document uploads).",
-    "- [Exception Flows / Luồng ngoại lệ]: Specific handling for network failures, invalid/expired OTP, session timeout, duplicate records, backend service errors.",
-    "- [Business Rules & Validations / Quy tắc nghiệp vụ]: Specific input validation conditions (field lengths, regex patterns, phone/ID formats, checksum algorithms, cross-field dependency validations).",
-    "- Add '(CHÚ Ý): <note content>' at critical business logic points, security-sensitive steps, or high-risk areas."
+    "List the sequential flows and business rules in crisp steps:",
+    "- [Happy Path / Luồng chính]: Bước 1 (Actor action) -> Bước 2 (Validation & checks) -> Bước 3 (API/Backend processing) -> Bước 4 (DB persistence) -> Bước 5 (UI response & result).",
+    "- [Alternative & Exception Flows / Rẽ nhánh & Ngoại lệ]: Key branch choices and error handling (network timeout, invalid/expired OTP, duplicate record, backend error).",
+    "- [Business Rules & Validations / Quy tắc nghiệp vụ]: Specific validation rules (regex, min/max lengths, format, checksum, required constraints). Add '(CHÚ Ý): <note>' at critical logic points."
   ],
   "bang_du_lieu": [
-    "Detailed specification of every database table, collection, or data entity affected. Follow this structure:",
-    "- [Tên Bảng/Table Name] - <Business meaning & role> | Core Columns/Fields: <field_name (data_type) - meaning, e.g. ID (PK), CUST_NAME (VARCHAR), STATUS (INT)...> | Keys & Relations (PK/FK): <foreign keys and relationships with other tables> | Status Lifecycle: <State transition diagram/flow with codes, e.g. CHO_DUYET (0) -> DA_DUYET (1) / TU_CHOI (2)>."
+    "List affected database tables and key schemas:",
+    "- [Table Name] - Purpose & role | Key Columns: <field1 (type), field2 (type)...> | PK/FK: <relations with other tables> | Status Lifecycle: <e.g. CHO_DUYET (0) -> DA_DUYET (1) / TU_CHOI (2)>."
   ],
   "test_scenarios": [
-    "Comprehensive test matrix covering deep testing angles in Vietnamese:",
-    "- [Happy Path] End-to-end successful flows with complete valid data, verifying response data and database state updates.",
-    "- [Validation & Data Constraints] Mandatory fields, empty inputs, boundary lengths, special characters, regex format (email, phone, dates, identity numbers), checksum checks.",
-    "- [Business Logic & Branching] Branch conditions, entity state checks, duplicate prevention, retry limits, expiration behavior.",
-    "- [Exceptions & Edge Cases] Boundary values, timeout, dropped network connection mid-flow, multiple invalid OTP attempts, cancellation mid-journey.",
-    "- [Security & Authorization] Unauthorized access, missing/expired auth tokens, request payload tampering.",
-    "- [Performance & Concurrency] Concurrent submissions (double-clicking, race conditions), high-load handling."
+    "List 6-10 high-value test scenarios covering all critical angles:",
+    "- [Happy Path] End-to-end flow with valid data, expected response and DB state.",
+    "- [Validation & Data Constraints] Mandatory fields, boundary lengths, format checks (phone, email, dates, ID).",
+    "- [Business Logic & Branching] Conditional paths, status transitions, duplicate submissions, expiration behavior.",
+    "- [Exceptions & Edge Cases] Timeouts, connection drops, max invalid retries, boundary values.",
+    "- [Security & Concurrency] Unauthorized access, expired tokens, payload tampering, concurrent requests (race condition)."
   ],
   "rui_ro_va_cau_hoi": [
-    "Deep analysis of technical risks, business gaps, and clarification items:",
-    "- [Technical & Security Risks]: Risks regarding security, performance, OTP/API spam, lack of rate-limiting, PII leakage, or missing idempotency/rollback mechanisms.",
-    "- [Unspecified / Ambiguous Areas]: Edge cases or operational scenarios not clearly specified in the input document.",
-    "- [Q&A Xác nhận BA]: <Specific clarification question for BA/SA> -> Đề xuất phương án: <Recommended solution or handling strategy>."
+    "List 3-5 critical technical risks, unspecified edge cases, and BA clarification questions:",
+    "- [Rủi ro Kỹ thuật]: <Security, rate-limit, PII leakage, or missing idempotency/rollback risk>.",
+    "- [Q&A Xác nhận BA]: <Specific ambiguity in specs> -> Đề xuất: <Suggested solution or handling strategy>."
   ]
 }}
 

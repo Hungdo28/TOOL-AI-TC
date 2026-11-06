@@ -386,7 +386,7 @@ class AiPipelineService:
     ) -> str:
         self.check_cancelled(title)
         prompt = build_analysis_prompt(doc_text, user_prompt)
-        raw_ai = self.ai.complete(prompt, max_tokens=8000, temperature=0.2, task_name=title)
+        raw_ai = self.ai.complete(prompt, max_tokens=4000, temperature=0.2, task_name=title)
         self.check_cancelled(title)
         final_text = parse_analysis_report(raw_ai)
 
