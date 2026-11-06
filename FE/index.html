@@ -56,12 +56,7 @@
                     </div>
                 </div>
 
-                <div class="flex flex-wrap gap-2.5 w-full md:w-auto">
-                    <a href="review.html" target="_blank"
-                        class="flex-1 md:flex-none px-4 py-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 rounded-lg text-sm font-semibold transition-all shadow-sm flex items-center justify-center gap-2"
-                        title="Mở toàn màn hình trang Duyệt & Xác nhận Testcase">
-                        <i data-lucide="clipboard-check" class="w-4 h-4 text-emerald-600"></i> Màn hình Duyệt Testcase
-                    </a>
+                <div class="flex gap-3 w-full md:w-auto">
                     <button onclick="refreshDataManually()"
                         class="flex-1 md:flex-none px-4 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded-lg text-sm font-semibold transition-all shadow-sm flex items-center justify-center gap-2">
                         <i data-lucide="refresh-cw" class="w-4 h-4"></i> Làm mới
@@ -327,30 +322,22 @@
                 <!-- Links Row -->
                 <div id="testcaseReviewLinks" class="flex flex-wrap items-center gap-2"></div>
 
-                <!-- Filter & Bulk Actions Bar -->
+                <!-- Master Selection & Search Bar -->
                 <div
                     class="bg-white p-3 rounded-xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-                    <!-- Filter Tabs -->
-                    <div class="flex flex-wrap items-center gap-1" id="modalFilterTabs">
-                        <button type="button" onclick="setModalFilter('all')" data-modal-filter="all"
-                            class="modal-tab px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-slate-900 text-white shadow-xs">
-                            Tất cả (<span id="modalTabAllCount">0</span>)
-                        </button>
-                        <button type="button" onclick="setModalFilter('pending')" data-modal-filter="pending"
-                            class="modal-tab px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-slate-100 text-slate-600 hover:bg-slate-200">
-                            Chưa duyệt (<span id="modalTabPendingCount">0</span>)
-                        </button>
-                        <button type="button" onclick="setModalFilter('approved')" data-modal-filter="approved"
-                            class="modal-tab px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-slate-100 text-slate-600 hover:bg-slate-200">
-                            Đã giữ (<span id="modalTabApprovedCount">0</span>)
-                        </button>
-                        <button type="button" onclick="setModalFilter('rejected')" data-modal-filter="rejected"
-                            class="modal-tab px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-slate-100 text-slate-600 hover:bg-slate-200">
-                            Đã bỏ (<span id="modalTabRejectedCount">0</span>)
-                        </button>
+                    <!-- Left: Checkbox tích chọn tất cả -->
+                    <div class="flex items-center gap-3">
+                        <label class="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200 rounded-lg text-xs font-bold text-emerald-900 cursor-pointer transition-all select-none">
+                            <input type="checkbox" id="modalSelectAllKeep" onchange="toggleModalSelectAllKeep(this.checked)" checked
+                                class="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer">
+                            <span>Tích chọn tất cả để giữ</span>
+                        </label>
+                        <span class="text-xs text-slate-500 font-semibold hidden sm:inline">
+                            (Đã chọn: <strong id="modalKeepCount" class="text-emerald-700">0</strong>/<span id="modalTotalCount">0</span> testcase)
+                        </span>
                     </div>
 
-                    <!-- Search & Bulk Buttons -->
+                    <!-- Right: Search & Sort -->
                     <div class="flex items-center gap-2">
                         <div class="relative flex-1 sm:w-48">
                             <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5"></i>
@@ -358,16 +345,6 @@
                                 placeholder="Tìm testcase..."
                                 class="w-full pl-8 pr-3 py-1.5 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 outline-none transition">
                         </div>
-                        <button type="button" onclick="bulkSetModalStatus('approved')"
-                            class="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shrink-0"
-                            title="Giữ tất cả testcase đang hiện">
-                            <i data-lucide="check" class="w-3.5 h-3.5"></i> Giữ tất cả
-                        </button>
-                        <button type="button" onclick="bulkSetModalStatus('rejected')"
-                            class="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shrink-0"
-                            title="Bỏ tất cả testcase đang hiện">
-                            <i data-lucide="x" class="w-3.5 h-3.5"></i> Bỏ tất cả
-                        </button>
                         <button type="button" id="btnModalSortOrder" onclick="toggleModalSortOrder()"
                             class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shrink-0"
                             title="Đổi thứ tự sắp xếp (Tăng dần / Giảm dần)">
@@ -445,8 +422,6 @@
                 </div>
             </div>
         </div>
-    </div>
-    </div>
     </div>
 
     <!-- MODAL CHUYỂN GIAO BÀI TOÁN -->

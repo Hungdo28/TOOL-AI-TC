@@ -277,10 +277,11 @@ class AiPipelineService:
                     else None
                 )
 
+                tc_sheet_rows: list[dict[str, Any]] = []
                 if fut_analysis:
                     analysis_doc_url = fut_analysis.result()
                 if fut_testcase:
-                    testcase_url, testcase_count = fut_testcase.result()
+                    testcase_url, testcase_count, tc_sheet_rows = fut_testcase.result()
 
             self.check_cancelled(title)
             # 4. Cập nhật trạng thái hoàn tất ("Đã xong")
@@ -308,6 +309,23 @@ class AiPipelineService:
                 "problem_id": problem_id,
                 "testcase_count": testcase_count,
                 "testcase_url": testcase_url,
+                "testcases": [
+                    {
+                        "id": r.get("id") or f"TC_{idx + 1:02d}",
+                        "test_suite": r.get("test_suite") or "Chung",
+                        "review_status": "approved",
+                        "approved": True,
+                        "content": {
+                            "id": r.get("id") or f"TC_{idx + 1:02d}",
+                            "muc_dich": r.get("muc_dich") or "",
+                            "cac_buoc": r.get("cac_buoc") or "",
+                            "ket_qua_mong_muon": r.get("ket_qua_mong_muon") or "",
+                            "ghi_chu": r.get("ghi_chu") or "",
+                        }
+                    }
+                    for idx, r in enumerate(tc_sheet_rows or [])
+                    if r.get("row_type") == "testcase"
+                ],
                 "analysis_doc_url": analysis_doc_url,
                 "token_usage": task_usage,
                 "task": updated_task,
@@ -393,7 +411,7 @@ class AiPipelineService:
         doc_text: str,
         user_prompt: str,
         tc_prefix: str,
-    ) -> tuple[str, int]:
+    ) -> tuple[str, int, list[dict[str, Any]]]:
         self.check_cancelled(title)
         # Bước 2.1: Chia tài liệu thành các chunk <= 5000 ký tự
         doc_chunks = self._chunk_document(title, doc_text)
@@ -444,7 +462,7 @@ class AiPipelineService:
         except Exception as e:
             LOGGER.warning("[%s] Lưu qa_memory thất bại: %s", title, e)
 
-        return tc_url, tc_only_count
+        return tc_url, tc_only_count, sheet_rows
 
     @staticmethod
     def _chunk_document(title: str, doc_text: str) -> list[dict[str, Any]]:

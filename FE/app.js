@@ -915,18 +915,8 @@ function renderTable() {
             const urls = splitHttpLinks(linkStr);
 
             if (urls.length === 0) {
-                if (type === 'testcase') {
-                    if (trangThai === 'Chờ duyệt') {
-                        return `<div class="flex flex-col gap-1.5 items-center">
-                            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">⏳ Chờ duyệt để tạo Sheet</span>
-                            <button onclick="openTestcaseReviewModalForTask('${escapeHtml(tenBaiToan)}')" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-all shadow-2xs cursor-pointer" title="Xem trước và duyệt testcase">
-                                <i data-lucide="clipboard-check" class="w-3.5 h-3.5 text-emerald-600"></i> Xem & Xác nhận TC
-                            </button>
-                        </div>`;
-                    }
-                    return `<button onclick="openTestcaseReviewModalForTask('${escapeHtml(tenBaiToan)}')" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 hover:border-blue-200 transition-all shadow-2xs cursor-pointer" title="Xem và duyệt testcase">
-                        <i data-lucide="clipboard-check" class="w-3.5 h-3.5 text-blue-600"></i> Xem & Xác nhận TC
-                    </button>`;
+                if (type === 'testcase' && trangThai === 'Chờ duyệt') {
+                    return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">⏳ Chờ duyệt</span>`;
                 }
                 return '<span class="text-slate-400 italic">Trống</span>';
             }
@@ -953,13 +943,7 @@ function renderTable() {
                         </div>`;
             }).join('');
 
-            const reviewBtnHtml = type === 'testcase'
-                ? `<button onclick="openTestcaseReviewModalForTask('${escapeHtml(tenBaiToan)}')" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 hover:border-emerald-300 transition-all shadow-2xs hover:shadow-xs cursor-pointer mt-1" title="Bấm để xem và duyệt xác nhận testcase">
-                    <i data-lucide="clipboard-check" class="w-3.5 h-3.5 text-emerald-600"></i> Xem & Xác nhận TC
-                   </button>`
-                : '';
-
-            return `<div class="flex flex-col gap-1 items-center">${linksHtml}${reviewBtnHtml}</div>`;
+            return `<div class="flex flex-col gap-2 items-center">${linksHtml}</div>`;
         };
 
         return `
@@ -1010,9 +994,8 @@ function renderTable() {
                 <td class="px-4 py-5 align-top min-w-[220px] text-center">${makeLink(linkPT, ten, 'analysis')}</td>
 
                 <!-- CỘT THAO TÁC -->
-                <td class="px-4 py-5 align-top min-w-[190px] text-center">
-                    <div class="flex items-center justify-center gap-1.5 opacity-70 group-hover:opacity-100 transition-opacity duration-300">
-                        <button onclick="openTestcaseReviewModalForTask('${escapeHtml(ten)}')" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-emerald-50 text-slate-600 hover:text-emerald-600 rounded-lg transition-all shadow-sm" title="Xem & Xác nhận Testcase"><i data-lucide="clipboard-check" class="w-4 h-4 text-emerald-600"></i></button>
+                <td class="px-4 py-5 align-top min-w-[170px] text-center">
+                    <div class="flex items-center justify-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity duration-300">
                         <button onclick="downloadSingleTaskFiles(${originalIndex})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-emerald-50 text-slate-600 hover:text-emerald-600 rounded-lg transition-all shadow-sm" title="Tải tài liệu"><i data-lucide="download" class="w-4 h-4"></i></button>
                         ${isActivelyProcessing ? `
                         <button onclick="openStopStreamModal('${escapeHtml(ten)}', '${escapeHtml(taskReqId)}')" class="w-8 h-8 flex items-center justify-center bg-red-50 border border-red-200 hover:bg-red-100 text-red-600 rounded-lg transition-all shadow-sm" title="Dừng luồng AI"><i data-lucide="square" class="w-4 h-4 fill-current"></i></button>
@@ -1466,7 +1449,7 @@ function clearTestcaseReviewSuggestions() {
     renderTestcaseReviewSuggestions();
 }
 
-function queueTestcaseReview(taskName) {
+function queueTestcaseReview(taskName, preloadedRows = null) {
     if (!taskName) return;
     const cleanTaskName = String(taskName).trim();
     if (activeTestcaseReview && activeTestcaseReview.taskName === cleanTaskName) return;
@@ -1477,8 +1460,10 @@ function queueTestcaseReview(taskName) {
 
     testcaseReviewQueue.push({
         taskName: cleanTaskName,
+        probId: (row && (row.id || row.problem_id)) || '',
         testcaseUrls: splitHttpLinks(getColVal(row, 'Link Testcase')),
-        testcasePrompt: context.testcasePrompt || context.prompt2 || ''
+        testcasePrompt: context.testcasePrompt || context.prompt2 || '',
+        preloadedRows: preloadedRows || context.preloadedRows || null
     });
     openNextTestcaseReview();
 }
@@ -1506,36 +1491,50 @@ function toggleModalSortOrder() {
 }
 window.toggleModalSortOrder = toggleModalSortOrder;
 
+function toggleModalTestcaseKeep(id, isChecked) {
+    modalChoice[id] = isChecked ? 'approved' : 'rejected';
+    renderModalTestcaseCards();
+    updateModalCounters();
+}
+window.toggleModalTestcaseKeep = toggleModalTestcaseKeep;
+
+function toggleModalSelectAllKeep(isChecked) {
+    const targetStatus = isChecked ? 'approved' : 'rejected';
+    modalTestcaseRows.forEach(r => {
+        modalChoice[r.id] = targetStatus;
+    });
+    renderModalTestcaseCards();
+    updateModalCounters();
+}
+window.toggleModalSelectAllKeep = toggleModalSelectAllKeep;
+
 function openNextTestcaseReview() {
     if (activeTestcaseReview || testcaseReviewQueue.length === 0) return;
 
     activeTestcaseReview = testcaseReviewQueue.shift();
-    openTestcaseReviewModalForTask(activeTestcaseReview.taskName);
+    openTestcaseReviewModalForTask(activeTestcaseReview.taskName, activeTestcaseReview.probId, activeTestcaseReview.preloadedRows);
 }
 
-function openTestcaseReviewModalForTask(taskName) {
+function openTestcaseReviewModalForTask(taskName, probId = '', preloadedRows = null) {
     if (!taskName) return;
 
     const cleanTaskName = String(taskName).trim();
     const row = dataRows.find(item => getColVal(item, 'Bài toán') === taskName || getColVal(item, 'Bài toán') === cleanTaskName);
     const context = runContextByTask[taskName] || runContextByTask[cleanTaskName] || {};
-    const probId = (row && (row.id || row.problem_id)) || '';
+    const pid = probId || (row && (row.id || row.problem_id)) || '';
 
     activeTestcaseReview = {
         taskName: cleanTaskName,
-        probId: probId,
+        probId: pid,
         testcaseUrls: splitHttpLinks(getColVal(row, 'Link Testcase')),
-        testcasePrompt: context.testcasePrompt || context.prompt2 || ''
+        testcasePrompt: context.testcasePrompt || context.prompt2 || '',
+        preloadedRows: preloadedRows
     };
 
     // Cập nhật tiêu đề phụ phù hợp với ngữ cảnh
     const subtitleEl = document.getElementById('testcaseReviewModalSubtitle');
     if (subtitleEl) {
-        if (context.requiresTestcaseReview) {
-            subtitleEl.innerHTML = `AI vừa hoàn tất sinh testcase cho bài toán: <strong id="testcaseReviewTaskName" class="text-slate-900 font-bold">${escapeHtml(cleanTaskName)}</strong>.`;
-        } else {
-            subtitleEl.innerHTML = `Xem trước & Duyệt testcase cho bài toán: <strong id="testcaseReviewTaskName" class="text-slate-900 font-bold">${escapeHtml(cleanTaskName)}</strong>.`;
-        }
+        subtitleEl.innerHTML = `AI vừa hoàn tất sinh testcase cho bài toán: <strong id="testcaseReviewTaskName" class="text-slate-900 font-bold">${escapeHtml(cleanTaskName)}</strong>. Tích chọn các testcase bạn muốn giữ:`;
     } else {
         const nameEl = document.getElementById('testcaseReviewTaskName');
         if (nameEl) nameEl.textContent = cleanTaskName;
@@ -1568,7 +1567,7 @@ function openTestcaseReviewModalForTask(taskName) {
     if (revEl) revEl.classList.add('hidden');
 
     document.getElementById('testcaseReviewModal').classList.remove('hidden');
-    loadModalTestcases(cleanTaskName, probId);
+    loadModalTestcases(cleanTaskName, pid, preloadedRows);
 
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
@@ -1655,9 +1654,26 @@ function updateModalCountersForSheet(sheetCount) {
     }
 }
 
-async function loadModalTestcases(taskName, probId = '') {
+async function loadModalTestcases(taskName, probId = '', preloadedRows = null) {
     const container = document.getElementById('modalTestcaseList');
     if (!container) return;
+
+    currentModalFilter = 'all';
+    modalSearchQuery = '';
+    const searchInput = document.getElementById('modalSearchInput');
+    if (searchInput) searchInput.value = '';
+
+    if (Array.isArray(preloadedRows) && preloadedRows.length > 0) {
+        isModalMockMode = false;
+        modalTestcaseRows = preloadedRows.map(normalizeModalTestcaseRow).sort((a, b) => compareTestcaseOrder(a, b, modalSortAsc));
+        modalChoice = {};
+        modalTestcaseRows.forEach(r => {
+            modalChoice[r.id] = 'approved';
+        });
+        renderModalTestcaseCards();
+        updateModalCounters();
+        return;
+    }
 
     container.innerHTML = `
         <div class="py-10 text-center space-y-2 bg-white rounded-xl border border-slate-200">
@@ -1665,11 +1681,6 @@ async function loadModalTestcases(taskName, probId = '') {
             <p class="text-xs font-semibold text-slate-500">Đang tải testcase...</p>
         </div>
     `;
-
-    currentModalFilter = 'all';
-    modalSearchQuery = '';
-    const searchInput = document.getElementById('modalSearchInput');
-    if (searchInput) searchInput.value = '';
 
     try {
         const cleanName = String(taskName || '').trim();
@@ -1695,58 +1706,22 @@ async function loadModalTestcases(taskName, probId = '') {
 
         isModalMockMode = false;
 
-        if (!Array.isArray(data) || data.length === 0) {
-            modalTestcaseRows = [];
+        if (Array.isArray(data) && data.length > 0) {
+            modalTestcaseRows = data.map(normalizeModalTestcaseRow).sort((a, b) => compareTestcaseOrder(a, b, modalSortAsc));
             modalChoice = {};
+            modalTestcaseRows.forEach(r => {
+                modalChoice[r.id] = (r.review_status === 'rejected' || r.approved === false) ? 'rejected' : 'approved';
+            });
 
-            // Nếu bài toán có link Google Sheet testcase, hiển thị preview Google Sheet
-            const sheetUrls = (activeTestcaseReview && activeTestcaseReview.testcaseUrls) || [];
-            if (sheetUrls.length > 0) {
-                renderModalGoogleSheetPreview(sheetUrls);
-                updateModalCountersForSheet(sheetUrls.length);
-                return;
-            }
-
-            // Nếu hoàn toàn chưa có testcase ở cả Supabase lẫn Google Sheet
-            container.innerHTML = `
-                <div class="p-8 text-center space-y-3 bg-white rounded-2xl border border-slate-200">
-                    <div class="w-12 h-12 bg-slate-100 text-slate-400 rounded-2xl mx-auto flex items-center justify-center">
-                        <i data-lucide="inbox" class="w-6 h-6"></i>
-                    </div>
-                    <p class="text-sm font-bold text-slate-800">Chưa có testcase cho bài toán này</p>
-                    <p class="text-xs text-slate-500 max-w-md mx-auto">Bài toán này chưa có link Google Sheets và chưa được nạp testcase vào hệ thống. Bạn có thể bấm nạp dữ liệu mẫu bên dưới để trải nghiệm duyệt testcase.</p>
-                    <button type="button" onclick="loadModalMockTestcases()"
-                        class="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-semibold transition-all inline-flex items-center gap-1.5 shadow-xs">
-                        <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> Nạp testcase mẫu để thử duyệt
-                    </button>
-                </div>
-            `;
-            if (typeof lucide !== 'undefined') lucide.createIcons();
+            renderModalTestcaseCards();
             updateModalCounters();
             return;
         }
 
-        modalTestcaseRows = data.map(normalizeModalTestcaseRow).sort((a, b) => compareTestcaseOrder(a, b, modalSortAsc));
-        modalChoice = {};
-        modalTestcaseRows.forEach(r => {
-            modalChoice[r.id] = r.review_status || (r.approved === true ? 'approved' : (r.approved === false ? 'rejected' : 'pending'));
-        });
-
-        renderModalTestcaseCards();
-        updateModalCounters();
+        loadModalMockTestcases();
     } catch (err) {
         console.error('Lỗi khi tải testcase cho modal:', err);
-        const errMsg = err && err.message ? err.message : String(err);
-        container.innerHTML = `
-            <div class="p-6 text-center space-y-2 bg-white rounded-2xl border border-slate-200">
-                <p class="text-xs text-red-500 font-semibold">Lỗi khi tải testcase: ${escapeHtml(errMsg)}</p>
-                <button type="button" onclick="loadModalMockTestcases()"
-                    class="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-semibold transition-all inline-flex items-center gap-1">
-                    <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> Nạp testcase mẫu để duyệt thử
-                </button>
-            </div>
-        `;
-        if (typeof lucide !== 'undefined') lucide.createIcons();
+        loadModalMockTestcases();
     }
 }
 
@@ -1906,42 +1881,43 @@ function renderModalTestcaseCards() {
 
 function createModalCard(r) {
     const c = r.content || {};
-    const st = modalChoice[r.id] || 'pending';
+    const isApproved = modalChoice[r.id] !== 'rejected';
     const card = document.createElement('div');
     card.id = `modal_tc_${r.id}`;
 
-    let borderClass = 'border-l-slate-300 bg-white';
-    if (st === 'approved') borderClass = 'border-l-emerald-500 bg-emerald-50/25';
-    if (st === 'rejected') borderClass = 'border-l-rose-500 bg-rose-50/20 opacity-80';
+    let borderClass = isApproved
+        ? 'border-emerald-400 bg-emerald-50/25 shadow-xs'
+        : 'border-slate-200 bg-slate-50/60 opacity-60';
 
-    card.className = `rounded-xl border border-slate-200 border-l-4 p-3 transition-all ${borderClass} shadow-xs`;
+    card.className = `rounded-xl border-2 p-3 transition-all ${borderClass}`;
 
-    const codeBadge = c.id ? `<span class="font-mono text-[11px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 shrink-0">${escapeHtml(c.id)}</span>` : '';
+    const codeBadge = c.id ? `<span class="font-mono text-[11px] font-bold px-2 py-0.5 rounded ${isApproved ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-slate-200 text-slate-600'} shrink-0">${escapeHtml(c.id)}</span>` : '';
     const purposeText = c.muc_dich ? escapeHtml(c.muc_dich) : '<span class="italic text-slate-400">Không có mục đích</span>';
 
     card.innerHTML = `
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-            <div class="flex items-start sm:items-center gap-2 flex-1 min-w-0 cursor-pointer select-none" onclick="toggleModalCardDetail('${r.id}')">
-                <button type="button" class="p-0.5 text-slate-400 hover:text-slate-600 rounded shrink-0">
-                    <i data-lucide="${r._open ? 'chevron-up' : 'chevron-down'}" class="w-3.5 h-3.5"></i>
-                </button>
-                ${codeBadge}
-                <div class="text-xs sm:text-sm font-bold text-slate-800 truncate flex-1" title="${escapeHtml(c.muc_dich || '')}">
-                    ${purposeText}
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="flex items-start sm:items-center gap-3 flex-1 min-w-0">
+                <!-- Checkbox tích chọn giữ testcase -->
+                <label class="flex items-center gap-2 cursor-pointer select-none shrink-0" onclick="event.stopPropagation()">
+                    <input type="checkbox" id="chk_keep_${r.id}" ${isApproved ? 'checked' : ''} onchange="toggleModalTestcaseKeep('${r.id}', this.checked)"
+                        class="w-5 h-5 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer transition-all">
+                </label>
+
+                <div class="flex items-center gap-2 flex-1 min-w-0 cursor-pointer select-none" onclick="toggleModalCardDetail('${r.id}')">
+                    <button type="button" class="p-0.5 text-slate-400 hover:text-slate-600 rounded shrink-0">
+                        <i data-lucide="${r._open ? 'chevron-up' : 'chevron-down'}" class="w-3.5 h-3.5"></i>
+                    </button>
+                    ${codeBadge}
+                    <div class="text-xs sm:text-sm font-bold ${isApproved ? 'text-slate-800' : 'text-slate-500 line-through'} truncate flex-1" title="${escapeHtml(c.muc_dich || '')}">
+                        ${purposeText}
+                    </div>
                 </div>
             </div>
 
-            <div class="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
-                <div class="inline-flex rounded-lg bg-slate-100 p-0.5 border border-slate-200 shadow-xs">
-                    <button type="button" onclick="setModalChoice('${r.id}', 'approved')"
-                        class="px-2.5 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1 ${st === 'approved' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-emerald-700 hover:bg-white'}">
-                        <i data-lucide="check" class="w-3 h-3"></i> Giữ
-                    </button>
-                    <button type="button" onclick="setModalChoice('${r.id}', 'rejected')"
-                        class="px-2.5 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1 ${st === 'rejected' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-600 hover:text-rose-700 hover:bg-white'}">
-                        <i data-lucide="x" class="w-3 h-3"></i> Bỏ
-                    </button>
-                </div>
+            <div class="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold ${isApproved ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-slate-100 text-slate-500 border border-slate-200'}">
+                    ${isApproved ? '<i data-lucide="check" class="w-3 h-3 text-emerald-600"></i> Giữ testcase' : '<i data-lucide="x" class="w-3 h-3 text-slate-400"></i> Bỏ qua'}
+                </span>
             </div>
         </div>
 
@@ -2014,37 +1990,34 @@ function handleModalSearch(val) {
 
 function updateModalCounters() {
     const total = modalTestcaseRows.length;
-    let approved = 0, rejected = 0, pending = 0;
-    modalTestcaseRows.forEach(r => {
-        const st = modalChoice[r.id] || 'pending';
-        if (st === 'approved') approved++;
-        else if (st === 'rejected') rejected++;
-        else pending++;
-    });
+    const approved = modalTestcaseRows.filter(r => modalChoice[r.id] !== 'rejected').length;
+    const rejected = total - approved;
 
     const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
     setEl('modalStatTotal', total);
     setEl('modalStatApproved', approved);
     setEl('modalStatRejected', rejected);
 
-    setEl('modalTabAllCount', total);
-    setEl('modalTabPendingCount', pending);
-    setEl('modalTabApprovedCount', approved);
-    setEl('modalTabRejectedCount', rejected);
+    setEl('modalKeepCount', approved);
+    setEl('modalTotalCount', total);
 
-    const unsaved = modalTestcaseRows.filter(r => (modalChoice[r.id] || 'pending') !== (r.review_status || 'pending')).length;
+    const masterChk = document.getElementById('modalSelectAllKeep');
+    if (masterChk) {
+        masterChk.checked = total > 0 && approved === total;
+        masterChk.indeterminate = approved > 0 && approved < total;
+    }
+
     const dot = document.getElementById('modalSaveNoticeDot');
     const noticeText = document.getElementById('modalSaveNoticeText');
     if (dot && noticeText) {
-        if (unsaved > 0) {
-            dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse';
-            noticeText.textContent = `Bạn đã chọn giữ ${approved} và bỏ ${rejected} testcase (${unsaved} thay đổi chưa lưu).`;
-            noticeText.className = 'text-amber-700 font-bold';
-        } else {
-            dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
-            noticeText.textContent = `Hiện có: ${approved} Đã giữ, ${rejected} Đã bỏ, ${pending} Chưa duyệt.`;
-            noticeText.className = 'text-slate-600';
-        }
+        dot.className = `w-2.5 h-2.5 rounded-full ${approved > 0 ? 'bg-emerald-500' : 'bg-amber-500'}`;
+        noticeText.textContent = `Đã tích chọn giữ ${approved}/${total} testcase. Bấm nút Xác nhận để lưu vào Sheet.`;
+        noticeText.className = 'text-slate-700 font-medium';
+    }
+
+    const btnLabel = document.getElementById('btnSaveApproveLabel');
+    if (btnLabel) {
+        btnLabel.textContent = `Xác nhận & Giữ ${approved} testcase`;
     }
 }
 
@@ -2489,7 +2462,8 @@ async function doRunSingle(tenBaiToan, testcasePrompt, mode) {
             const tokenMsg = tokenUsage?.total_tokens ? ` (${tokenUsage.total_tokens.toLocaleString()} tokens)` : '';
             showToast((responseData.message || 'Xử lý bài toán thành công.') + tokenMsg, 'success', 8000);
             if (mode !== 'phan_tich') {
-                setTimeout(() => openTestcaseReviewModalForTask(tenBaiToan), 600);
+                const tcList = responseData.data?.testcases || responseData.testcases || [];
+                queueTestcaseReview(tenBaiToan, tcList);
             }
         } else {
             processingTasks = processingTasks.filter(item => item !== tenBaiToan);
@@ -2588,6 +2562,14 @@ async function doRunMultiple(selectedTasks, testcasePrompt) {
             await startPollingIfNeeded(true);
             showToast(responseData.message || `Đã xử lý thành công ${selectedTasks.length} bài toán.`, 'success');
             document.getElementById('selectAll').checked = false;
+
+            const rawData = responseData.data || responseData.results || [];
+            const taskResults = Array.isArray(rawData) ? rawData : (rawData ? [rawData] : []);
+            selectedTasks.forEach(taskName => {
+                const tObj = taskResults.find(r => r && (r.baiToan === taskName || r.title === taskName));
+                const tcList = tObj?.testcases || [];
+                queueTestcaseReview(taskName, tcList);
+            });
         } else {
             processingTasks = processingTasks.filter(item => !selectedTasks.includes(item));
             selectedTasks.forEach(taskName => delete taskStartTime[taskName]);
