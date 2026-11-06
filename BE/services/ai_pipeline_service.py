@@ -1306,11 +1306,10 @@ class AiPipelineService:
                 }
             )
             for tc in g["list"]:
-                tc_no += 1
                 result.append(
                     {
                         "row_type": "testcase",
-                        "id": f"[{prefix}]_{tc_no}",
+                        "id": "",
                         "test_suite": suite,
                         "muc_dich": tc.get("muc_dich") or "",
                         "cac_buoc": tc.get("cac_buoc") or "",

@@ -105,7 +105,7 @@ class TestAiPipelineLogic(unittest.TestCase):
         self.assertEqual(len(grouped), 2)  # 1 dòng suite + 1 dòng testcase
         self.assertEqual(grouped[0]["row_type"], "suite")
         self.assertEqual(grouped[1]["row_type"], "testcase")
-        self.assertEqual(grouped[1]["id"], "[TC]_1")
+        self.assertEqual(grouped[1]["id"], "")
 
     def test_memory_matching(self):
         chunks = [

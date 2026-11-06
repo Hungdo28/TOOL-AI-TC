@@ -369,15 +369,9 @@ class GoogleWorkspace:
 
             if testcases and isinstance(testcases, list):
                 rows = []
-                tc_no = 0
                 for tc in testcases:
                     row_type = str(tc.get("row_type") or "").strip()
-                    tc_id = str(tc.get("id") or tc.get("ID") or "").strip()
-                    if row_type == "suite":
-                        tc_id = ""
-                    elif not tc_id:
-                        tc_no += 1
-                        tc_id = f"[TC]_{tc_no}"
+                    tc_id = ""  # Bỏ phần tự sinh TC id, để trống cột ID
                     muc_dich = str(
                         tc.get("muc_dich") or tc.get("Mục đích kiểm thử ") or tc.get("test_suite") or ""
                     ).strip()

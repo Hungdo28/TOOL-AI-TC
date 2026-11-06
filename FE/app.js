@@ -2044,7 +2044,7 @@ function buildApprovedSheetRows(rows) {
             const c = r.content || {};
             out.push({
                 row_type: 'testcase',
-                id: `[TC]_${++tcNo}`,
+                id: '',
                 test_suite: suite,
                 muc_dich: c.muc_dich || '',
                 cac_buoc: c.cac_buoc || '',
