@@ -156,6 +156,11 @@ class AiPipelineService:
         if not task_names:
             raise ApiError(400, "Không có bài toán nào được chọn để chạy.")
 
+        # Xóa cờ dừng cũ của các bài toán chuẩn bị chạy mới
+        with self._cancel_lock:
+            for t_name in task_names:
+                self._cancelled_tasks.discard(_normalized(t_name))
+
         # Đăng ký bộ đếm giờ trên ExecutionTracker (nếu chưa có)
         if self.tracker:
             existing_names = {
@@ -179,6 +184,22 @@ class AiPipelineService:
                     mode=mode,
                     tc_prefix=prefix,
                 )
+            except TaskCancelledError as err:
+                LOGGER.info("Bài toán [%s] dừng do yêu cầu hủy: %s", task_name, err)
+                return {
+                    "success": False,
+                    "cancelled": True,
+                    "baiToan": task_name,
+                    "message": str(err),
+                }
+            except Exception as err:
+                LOGGER.exception("Lỗi không mong muốn khi xử lý bài toán [%s]: %s", task_name, err)
+                return {
+                    "success": False,
+                    "cancelled": False,
+                    "baiToan": task_name,
+                    "error": str(err),
+                }
             finally:
                 if self.tracker:
                     self.tracker.clear_execution(task_name)
@@ -227,11 +248,11 @@ class AiPipelineService:
         LOGGER.info("Bắt đầu xử lý bài toán [%s] (id=%s, mode=%s)", title, problem_id, mode)
         self.ai.reset_task_usage(title)
 
-        # 1. Cập nhật trạng thái Waiting theo đúng khóa chính (UUID)
-        self.check_cancelled(title)
-        self.workspace.update_task(problem_id, {"Trạng thái": "Waiting"})
-
         try:
+            # 1. Cập nhật trạng thái Waiting theo đúng khóa chính (UUID)
+            self.check_cancelled(title)
+            self.workspace.update_task(problem_id, {"Trạng thái": "Waiting"})
+
             self.check_cancelled(title)
             # 2. Kiểm tra bộ nhớ đệm (Cache) để đọc ngay lập tức (0s) nếu tài liệu đã crawl trước đó
             cached_doc = self.memory.get_crawled_document(problem_id, raw_urls)
