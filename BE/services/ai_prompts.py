@@ -12,7 +12,7 @@ def build_analysis_prompt(doc_data: str, user_scope_prompt: str) -> str:
         else "No additional requirements."
     )
     return f"""You are a Senior Technical Business Analyst and QA Lead.
-Your task is to analyze the provided specifications, design documents or raw text, and extract information to produce a Technical Analysis Report.
+Your task is to thoroughly analyze the provided specifications, design documents or raw text, and extract all technical and business details to produce a comprehensive, deep, and production-ready Technical Analysis Report.
 
 CRITICAL SCOPE FILTERING RULE (HIGHEST PRIORITY):
 - User Scope Request: {scope}
@@ -22,30 +22,50 @@ CRITICAL SCOPE FILTERING RULE (HIGHEST PRIORITY):
   3. Every section (API, luồng nghiệp vụ, bảng dữ liệu, test scenarios, rủi ro) MUST revolve strictly around this requested scope.
 - Only if the User Scope Request is "No additional requirements." or empty or explicitly asks for everything, then you analyze the entire document.
 
-RULES:
-1. Tone: professional, objective, concise, technically direct.
-2. Missing data: base your analysis ONLY on the provided input within the target scope. If a detail is missing, write: "Tài liệu hiện tại chưa đặc tả phần này."
-3. Output format: PURE JSON for automated parsing (no Markdown, no ```json fence, no text outside the JSON object).
-4. Language: ALL generated text and values inside the JSON MUST be written in Vietnamese (keep technical names such as APIs, tables, columns, statuses unchanged).
-5. Brevity: Limit each array to a maximum of 7-10 crucial bullet points for the targeted scope.
+CORE PRINCIPLES & RULES:
+1. Độ chi tiết và tính toàn diện (ĐẶC BIỆT QUAN TRỌNG):
+   - Phân tích thật chi tiết, cụ thể, sâu sát kỹ thuật, bóc tách triệt để mọi thông tin trong tài liệu.
+   - TUYỆT ĐỐI KHÔNG tóm tắt qua loa, KHÔNG viết chung chung 1-2 dòng, KHÔNG lược bỏ các thông số kỹ thuật quan trọng.
+   - Mỗi mục cần cung cấp đầy đủ thông tin kỹ thuật, tham số, trường dữ liệu, các bước thực hiện và kịch bản kiểm thử rõ ràng để lập trình viên và kiểm thử viên có thể sử dụng ngay.
+2. Văn phong: Chuyên nghiệp, kỹ thuật, logic, gãy gọn theo chuẩn tài liệu đặc tả phần mềm doanh nghiệp (Software Specification / Technical Architecture Document).
+3. Dữ liệu bị thiếu: Phân tích dựa trên tài liệu được cung cấp trong phạm vi. Nếu một thông tin quan trọng chưa được tài liệu đặc tả, hãy ghi chú rõ: "[Tài liệu chưa đặc tả chi tiết: ...] - Đề xuất: ..." và đưa vào mục 6 (RỦI RO / ĐIỂM CHƯA RÕ).
+4. Output format: PURE JSON for automated parsing (no Markdown, no ```json fence, no text outside the JSON object).
+5. Ngôn ngữ: Toàn bộ nội dung mô tả bên trong JSON PHẢI viết bằng TIẾNG VIỆT (giữ nguyên các thuật ngữ kỹ thuật, tên API, method, endpoint, tên bảng CSDL, tên cột/field, status code, mã lỗi, tên biến).
 
 JSON STRUCTURE (Return exactly 1 JSON object):
 {{
-  "muc_tieu_tai_lieu": "1-2 sentences summarizing the specific scope requested by the user.",
+  "muc_tieu_tai_lieu": "Đoạn văn phân tích toàn diện và chi tiết về: (1) Bối cảnh nghiệp vụ và tổng quan chức năng/hệ thống trong phạm vi phân tích; (2) Mục tiêu chính của chức năng đối với người dùng cuối và hệ thống; (3) Các tác nhân tham gia (Actors / Roles) và điều kiện tiên quyết (Pre-conditions); (4) Phạm vi nghiệp vụ áp dụng cụ thể và kết quả kỳ vọng sau khi hoàn thành.",
   "he_thong_va_api": [
-    "List interacting systems/components/APIs belonging ONLY to the requested scope. Format: [Method/Type] [Endpoint/Job name] - Purpose."
+    "Liệt kê chi tiết từng hệ thống, thành phần kiến trúc và toàn bộ các API/Job/Queue liên quan trong phạm vi. Định dạng chi tiết như sau:",
+    "- [Hệ thống/Component] <Tên hệ thống/thành phần> - Vai trò kiến trúc, chức năng xử lý trong luồng, các giao tiếp với thành phần khác.",
+    "- [Method] <Endpoint URL> - <Chức năng chi tiết> | Tham số Request: <mô tả chi tiết header, query params, request body, các trường bắt buộc/tùy chọn> | Dữ liệu Response: <cấu trúc dữ liệu trả về khi thành công, mã kết quả> | Mã lỗi & Xử lý: <HTTP 200, 400, 401, 403, 500, mã lỗi nghiệp vụ> | Ghi chú kỹ thuật: <xác thực, mã hóa token, checksum nếu có>."
   ],
   "luong_nghiep_vu": [
-    "High-level flows of the requested scope only. Format: [Flow Name]: Actor -> Action -> Data impact. Add '(CHÚ Ý)' at critical logic points."
+    "Mô tả chi tiết, đầy đủ từng bước thực hiện của các luồng nghiệp vụ theo định dạng rõ ràng:",
+    "- [Luồng chính - Happy Path]: Phân rã tuần tự từng bước cụ thể (Bước 1: Tác nhân thực hiện thao tác gì -> Bước 2: Hệ thống kiểm tra/validate dữ liệu gì -> Bước 3: Gọi API/xử lý backend gì -> Bước 4: Lưu/cập nhật dữ liệu vào bảng nào -> Bước 5: Phản hồi kết quả hiển thị cho người dùng).",
+    "- [Luồng rẽ nhánh / Luồng phụ - Alternative Flows]: Các nhánh lựa chọn khác nhau của người dùng (ví dụ: các phương thức thanh toán/xác thực khác nhau, trường hợp bổ sung hồ sơ...).",
+    "- [Luồng ngoại lệ & Xử lý lỗi - Exception Flows]: Xử lý chi tiết khi lỗi mạng, sai OTP, hết hạn phiên làm việc, trùng lặp dữ liệu, backend timeout...",
+    "- [Quy tắc nghiệp vụ & Ràng buộc - Business Rules & Validations]: Chi tiết các điều kiện kiểm tra dữ liệu đầu vào (độ dài ký tự, định dạng regex, số điện thoại, CCCD, checksum, logic ràng buộc giữa các trường).",
+    "- Thêm '(CHÚ Ý): <nội dung lưu ý>' tại các điểm logic đặc thù, dễ phát sinh lỗi hoặc cần bảo mật cao."
   ],
   "bang_du_lieu": [
-    "List data objects/tables affected by the requested scope. Format: [Table/Object] - Meaning and key statuses."
+    "Liệt kê chi tiết tất cả các bảng dữ liệu, collection hoặc schema CSDL bị tác động. Định dạng chi tiết:",
+    "- [Tên Bảng/Table Name] - <Ý nghĩa & Vai trò trong nghiệp vụ> | Các trường cốt lõi (Columns/Fields): <Tên trường (kiểu dữ liệu) - mô tả ý nghĩa, ví dụ: ID (PK), CUST_NAME (VARCHAR), STATUS (INT)...> | Khóa chính & Khóa ngoại (PK/FK/Liên kết): <liên kết với các bảng nào> | Vòng đời trạng thái (Status Lifecycle): <Mô tả các mã trạng thái và điều kiện chuyển đổi trạng thái, ví dụ: CHO_DUYET (0) -> DA_DUYET (1) / TU_CHOI (2)>."
   ],
   "test_scenarios": [
-    "HIGH-LEVEL test strategy focusing on the requested scope (validations, business rules, edge cases)."
+    "Xây dựng ma trận kịch bản kiểm thử (Test Scenarios) toàn diện, bao phủ sâu các khía cạnh:",
+    "- [Happy Path] Kiểm thử thành công toàn trình (End-to-End) với đầy đủ dữ liệu hợp lệ và kiểm tra đúng kết quả trả về, đúng trạng thái CSDL.",
+    "- [Validation & Ràng buộc dữ liệu] Kiểm tra trường bắt buộc, dữ liệu rỗng, ký tự đặc biệt, độ dài min/max, định dạng số điện thoại/email/ngày tháng/CCCD, regex, checksum.",
+    "- [Logic nghiệp vụ & Rẽ nhánh] Kiểm tra các điều kiện rẽ nhánh, trạng thái đối tượng, trùng lặp thông tin, thử lại quá số lần, hết hạn hiệu lực.",
+    "- [Ngoại lệ & Ca biên] Kiểm tra dữ liệu ranh giới, timeout, mất kết nối mạng giữa chừng, nhập sai OTP/mật khẩu, hủy giao dịch giữa chừng.",
+    "- [Phân quyền & Bảo mật] Kiểm tra truy cập trái phép, thiếu token, token hết hạn, giả mạo dữ liệu request (Tampering).",
+    "- [Hiệu năng & Đồng thời] Kiểm tra gửi nhiều request đồng thời (double-click, race condition), xử lý chịu tải nhiều người dùng cùng lúc."
   ],
   "rui_ro_va_cau_hoi": [
-    "List risks, edge cases, or ambiguous points in the requested scope to confirm with BA."
+    "Phân tích sâu sắc các rủi ro kỹ thuật, lỗ hổng nghiệp vụ và câu hỏi làm rõ:",
+    "- [Rủi ro Kỹ thuật & Bảo mật]: Các rủi ro về bảo mật, hiệu năng, nguy cơ spam OTP/API, thiếu rate limit, rủi ro lộ dữ liệu nhạy cảm hoặc thiếu cơ chế rollback/idempotency.",
+    "- [Điểm chưa rõ / Chưa đặc tả]: Các trường hợp biên hoặc tình huống thực tế mà tài liệu hiện tại chưa quy định rõ hướng xử lý.",
+    "- [Q&A Xác nhận BA]: <Câu hỏi cụ thể cần làm rõ với BA/SA> -> Đề xuất phương án xử lý: <Đề xuất giải pháp khuyến nghị>."
   ]
 }}
 
