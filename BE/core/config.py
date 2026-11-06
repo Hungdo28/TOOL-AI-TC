@@ -59,6 +59,9 @@ class Settings:
     def from_env(cls) -> "Settings":
         backend_root = Path(__file__).resolve().parents[1]
         load_dotenv(backend_root / ".env")
+        # Hỗ trợ Secret Files trên Render (/etc/secrets/.env)
+        if Path("/etc/secrets/.env").is_file():
+            load_dotenv("/etc/secrets/.env")
 
         raw_credentials = (
             os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
@@ -113,7 +116,7 @@ class Settings:
             ai_callback_token=os.getenv("AI_CALLBACK_TOKEN", "").strip() or None,
             jwt_secret=os.getenv("JWT_SECRET", "autotc_jwt_secret_key_2026_hungdv").strip(),
             ai_api_url=os.getenv("AI_API_URL", "https://viettelai.vn/model-as-a-service").strip().rstrip("/"),
-            ai_api_key=os.getenv("AI_API_KEY", "sk-i3Pls4y--I4fTfS8VJdGHw").strip(),
+            ai_api_key=(os.getenv("AI_API_KEY", "").strip() or os.getenv("GEMINI_API_KEY", "").strip() or "sk-i3Pls4y--I4fTfS8VJdGHw"),
             ai_model=os.getenv("AI_MODEL", "DeepSeek-V4.1-Flash").strip(),
             figma_access_token=os.getenv("FIGMA_ACCESS_TOKEN", "").strip(),
         )
