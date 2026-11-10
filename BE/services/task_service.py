@@ -5,6 +5,7 @@ from typing import Any
 from core.config import Settings
 from services.ai_callback_service import AiCallbackService
 from services.ai_pipeline_service import AiPipelineService
+from services.autotest_service import AutoTestService
 from services.common import (
     ALLOWED_EXTENSIONS,
     ALLOWED_STATUSES,
@@ -35,6 +36,11 @@ class TaskService:
         self.tracker = ExecutionTracker()
         self.pipeline = (
             AiPipelineService(workspace, settings, execution_tracker=self.tracker)
+            if settings is not None
+            else None
+        )
+        self.autotest = (
+            AutoTestService(workspace, settings)
             if settings is not None
             else None
         )
@@ -142,3 +148,13 @@ class TaskService:
         if not self.pipeline:
             raise ApiError(500, "AI Pipeline chưa được khởi tạo trên Backend.")
         return self.pipeline.run_From_payload(payload)
+
+    def generate_autotest(self, payload: dict[str, Any]) -> dict[str, Any]:
+        if not self.autotest:
+            raise ApiError(500, "AutoTest Service chưa được khởi tạo trên Backend.")
+        return self.autotest.generate_autotest_cases(payload)
+
+    def run_autotest(self, payload: dict[str, Any]) -> dict[str, Any]:
+        if not self.autotest:
+            raise ApiError(500, "AutoTest Service chưa được khởi tạo trên Backend.")
+        return self.autotest.run_autotest_suite(payload)

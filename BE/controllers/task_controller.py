@@ -72,3 +72,13 @@ class TaskController:
         payload = dict(request.read_json() or {})
         result = self.service.run_ai_pipeline(payload)
         return ApiResponse(200, result)
+
+    def generate_autotest(self, request) -> ApiResponse:
+        payload = dict(request.read_json() or {})
+        result = self.service.generate_autotest(payload)
+        return ApiResponse(200, result)
+
+    def run_autotest(self, request) -> ApiResponse:
+        payload = dict(request.read_json() or {})
+        result = self.service.run_autotest(payload)
+        return ApiResponse(200, result)

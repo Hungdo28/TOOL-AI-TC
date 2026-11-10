@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sinh & Chạy Auto Test - AI Automation Harness</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="bg-slate-50 min-h-screen font-sans p-4 md:p-6 text-slate-800 relative selection:bg-emerald-100 selection:text-emerald-900">
+
+    <div class="max-w-screen-2xl mx-auto space-y-6 relative z-10">
+
+        <!-- HEADER VỚI MENU CHUYỂN 2 TRANG -->
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 transition-all">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full lg:w-auto">
+                <div>
+                    <h1 class="text-2xl font-extrabold text-slate-900 flex items-center gap-2 tracking-tight">
+                        <i data-lucide="bot" class="w-7 h-7 text-emerald-600"></i> Auto Test Harness
+                    </h1>
+                    <p class="text-xs text-slate-500 font-medium mt-0.5">Trang 2: Sinh kịch bản Auto Test & Thực thi tự động API / Web UI</p>
+                </div>
+
+                <!-- MENU CHUYỂN 2 TRANG -->
+                <div class="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+                    <a href="index.html"
+                        class="px-3.5 py-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white/60 text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-all">
+                        <i data-lucide="file-spreadsheet" class="w-4 h-4 text-blue-600"></i>
+                        <span>1. Sinh Testcase Manual</span>
+                    </a>
+                    <a href="autotest.html"
+                        class="px-3.5 py-2 rounded-lg bg-emerald-600 text-white text-xs sm:text-sm font-bold shadow-xs flex items-center gap-1.5 transition-all">
+                        <i data-lucide="bot" class="w-4 h-4"></i>
+                        <span>2. Sinh & Chạy Auto Test</span>
+                    </a>
+                </div>
+            </div>
+
+            <div class="flex flex-col md:flex-row items-start md:items-center gap-4 w-full lg:w-auto">
+                <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-200">
+                        <div class="w-7 h-7 bg-emerald-100 rounded-full flex items-center justify-center">
+                            <i data-lucide="user" class="w-4 h-4 text-emerald-600"></i>
+                        </div>
+                        <div class="text-sm">
+                            <div id="displayFullName" class="font-bold text-slate-700 leading-none">...</div>
+                            <div id="displayRole" class="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mt-0.5">...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex gap-3 w-full md:w-auto">
+                    <button onclick="loadTasksDropdown(true)"
+                        class="flex-1 md:flex-none px-4 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded-lg text-sm font-semibold transition-all shadow-sm flex items-center justify-center gap-2">
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i> Làm mới
+                    </button>
+                    <button onclick="logout()"
+                        class="flex-1 md:flex-none px-4 py-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 rounded-lg text-sm font-semibold transition-all shadow-sm flex items-center justify-center gap-2">
+                        <i data-lucide="log-out" class="w-4 h-4"></i> Thoát
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- THỐNG KÊ TỔNG QUAN CHẠY AUTO TEST -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3.5">
+                <div class="w-11 h-11 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+                    <i data-lucide="layers" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <div class="text-xs font-semibold text-slate-500">Tổng kịch bản Auto</div>
+                    <div id="statTotal" class="text-xl font-extrabold text-slate-900">0</div>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl border border-emerald-200/80 shadow-xs flex items-center gap-3.5">
+                <div class="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                    <i data-lucide="check-circle-2" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <div class="text-xs font-semibold text-emerald-700">Đạt (PASS)</div>
+                    <div id="statPassed" class="text-xl font-extrabold text-emerald-600">0</div>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl border border-rose-200/80 shadow-xs flex items-center gap-3.5">
+                <div class="w-11 h-11 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+                    <i data-lucide="x-circle" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <div class="text-xs font-semibold text-rose-700">Thất bại (FAIL / ERROR)</div>
+                    <div id="statFailed" class="text-xl font-extrabold text-rose-600">0</div>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl border border-blue-200/80 shadow-xs flex items-center gap-3.5">
+                <div class="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                    <i data-lucide="gauge" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <div class="text-xs font-semibold text-blue-700">Tỷ lệ Đạt / Thời gian</div>
+                    <div id="statPassRate" class="text-base sm:text-lg font-extrabold text-blue-600">—</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MAIN WORKSPACE GRID -->
+        <div class="grid grid-cols-1 xl:grid-cols-12 gap-6">
+
+            <!-- CỘT TRÁI (4 CỘT): CẤU HÌNH SINH AUTO TEST & MÔI TRƯỜNG CHẠY -->
+            <div class="xl:col-span-4 space-y-6">
+
+                <!-- KHỐI 1: SINH KỊCH BẢN AUTO TEST -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                            <i data-lucide="sparkles" class="w-5 h-5 text-emerald-600"></i> 1. Sinh Testcase cho Auto Test
+                        </h2>
+                        <button type="button" onclick="loadSampleSuite()"
+                            class="text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition">
+                            Nạp mẫu thử ngay
+                        </button>
+                    </div>
+
+                    <div class="space-y-3.5">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Chọn bài toán có sẵn (Tùy chọn)</label>
+                            <select id="taskSelect" onchange="onSelectExistingTask()"
+                                class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none transition">
+                                <option value="">-- Nhập bài toán mới hoặc chọn bài toán từ Trang 1 --</option>
+                            </select>
+                            <p class="text-[11px] text-slate-400 mt-1">Nếu chọn bài toán đã sinh ở Trang 1, AI sẽ tự động chuyển các Manual Testcase sang kịch bản Auto Test.</p>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Tên bài toán / Bộ Auto Test</label>
+                            <input type="text" id="autoTaskName"
+                                class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none transition"
+                                placeholder="VD: Kiểm thử tự động API & UI Đăng nhập">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 uppercase mb-1.5">Chế độ Auto Test</label>
+                            <div class="grid grid-cols-3 gap-2">
+                                <button type="button" id="modeBtn_both" onclick="setAutoTestMode('both')"
+                                    class="px-2.5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold flex items-center justify-center gap-1 transition shadow-xs">
+                                    <i data-lucide="layers" class="w-3.5 h-3.5"></i> Cả API & UI
+                                </button>
+                                <button type="button" id="modeBtn_api" onclick="setAutoTestMode('api')"
+                                    class="px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center justify-center gap-1 transition">
+                                    <i data-lucide="webhook" class="w-3.5 h-3.5"></i> Chỉ API
+                                </button>
+                                <button type="button" id="modeBtn_webui" onclick="setAutoTestMode('webui')"
+                                    class="px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center justify-center gap-1 transition">
+                                    <i data-lucide="monitor" class="w-3.5 h-3.5"></i> Chỉ Web UI
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Đặc tả API / Swagger / cURL / Mô tả màn hình</label>
+                            <textarea id="specText" rows="4"
+                                class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none transition"
+                                placeholder="Dán Swagger JSON, cURL, danh sách Endpoint (VD: POST /api/auth/token) hoặc mô tả các trường trên trang web..."></textarea>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Yêu cầu bổ sung cho AI (Prompt)</label>
+                            <input type="text" id="customPrompt"
+                                class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none transition"
+                                placeholder="VD: Bổ sung kiểm tra thiếu trường bắt buộc, sai định dạng, kiểm tra mã lỗi 400...">
+                        </div>
+
+                        <div class="space-y-2 pt-1">
+                            <button type="button" id="btnGenerateAuto" onclick="generateAutoTestcases()"
+                                class="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 text-sm">
+                                <i data-lucide="wand-2" class="w-4 h-4"></i>
+                                <span id="btnGenerateAutoLabel">AI Sinh Kịch bản Auto Test</span>
+                            </button>
+                            <button type="button" id="btnFullFlowAuto" onclick="generateAndRunFullFlow()"
+                                class="w-full py-2.5 px-4 bg-gradient-to-r from-indigo-600 via-blue-600 to-emerald-600 hover:from-indigo-700 hover:to-emerald-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 text-xs sm:text-sm"
+                                title="Quét giao diện Web thật -> AI Sinh Testcase -> Tự động chạy Test & Chụp ảnh lưu vào Folder">
+                                <i data-lucide="zap" class="w-4 h-4"></i>
+                                <span id="btnFullFlowAutoLabel">Chạy Toàn Trình (Sinh TC &amp; Test luôn)</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- KHỐI 2: CẤU HÌNH MÔI TRƯỜNG THỰC THI (HARNESS ENVIRONMENT) -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                    <h2 class="text-base font-bold text-slate-800 border-b border-slate-100 pb-3 flex items-center gap-2">
+                        <i data-lucide="Sliders" class="w-5 h-5 text-blue-600"></i> 2. Cấu hình Môi trường Chạy Test
+                    </h2>
+
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 uppercase mb-1.5">Chọn nhanh Trang Web của bạn (Presets)</label>
+                            <div class="grid grid-cols-1 gap-1.5">
+                                <button type="button" onclick="applyWebsitePreset('customer')"
+                                    class="w-full px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-800 text-xs font-bold flex items-center justify-between transition text-left">
+                                    <span class="flex items-center gap-1.5 truncate"><i data-lucide="globe" class="w-3.5 h-3.5 text-blue-600 shrink-0"></i> 1. Customer Portal (customertest.giaothongso.com.vn)</span>
+                                    <span class="text-[10px] bg-white px-1.5 py-0.5 rounded border border-blue-200 shrink-0">#/login</span>
+                                </button>
+                                <button type="button" onclick="applyWebsitePreset('crm')"
+                                    class="w-full px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center justify-between transition text-left">
+                                    <span class="flex items-center gap-1.5 truncate"><i data-lucide="building-2" class="w-3.5 h-3.5 text-emerald-600 shrink-0"></i> 2. CRM Giao Thông Số (crmtest.giaothongso.com.vn)</span>
+                                    <span class="text-[10px] bg-white px-1.5 py-0.5 rounded border border-emerald-200 shrink-0">cust-regis</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Web UI Target URL (Cho Playwright / UI Test)</label>
+                            <input type="text" id="envWebUrl" value="https://customertest.giaothongso.com.vn/#/login"
+                                class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition"
+                                placeholder="https://customertest.giaothongso.com.vn/#/login">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2.5 p-2.5 bg-slate-50 rounded-xl border border-slate-200/80">
+                            <div class="col-span-2 text-[11px] font-bold text-slate-600 flex items-center gap-1">
+                                <i data-lucide="key-round" class="w-3.5 h-3.5 text-amber-600"></i>
+                                <span>Tài khoản Đăng nhập Web tự động (Dùng khi vào CRM / Portal)</span>
+                            </div>
+                            <div>
+                                <input type="text" id="envLoginUser"
+                                    class="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="Username / SĐT...">
+                            </div>
+                            <div>
+                                <input type="password" id="envLoginPass"
+                                    class="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="Mật khẩu...">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 uppercase mb-1">API Base URL (Môi trường đích)</label>
+                            <input type="text" id="envBaseUrl"
+                                class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition"
+                                placeholder="http://localhost:8088">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 uppercase mb-1 flex items-center justify-between">
+                                <span>Bearer Token / Auth Header (Tùy chọn)</span>
+                                <button type="button" onclick="fillCurrentSessionToken()" class="text-[11px] text-blue-600 hover:underline font-semibold">Lấy Token hiện tại</button>
+                            </label>
+                            <input type="text" id="envAuthToken"
+                                class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition"
+                                placeholder="Bearer eyJhbGciOi...">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 uppercase mb-1 flex items-center gap-1.5">
+                                <i data-lucide="folder-camera" class="w-3.5 h-3.5 text-emerald-600"></i>
+                                <span>Thư mục lưu ảnh chụp giao diện (Screenshot Folder)</span>
+                            </label>
+                            <input type="text" id="envScreenshotDir" value="AutoTC_Screenshots"
+                                class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none transition"
+                                placeholder="AutoTC_Screenshots hoặc D:\KetQuaTest\Images">
+                            <p class="text-[11px] text-slate-400 mt-1">Lưu tại <code>Desktop\AutoTC_Screenshots</code> (tránh làm Live Server tự reload trang).</p>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3 pt-1">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Timeout (giây)</label>
+                                <input type="number" id="envTimeoutSec" value="15" min="3" max="60"
+                                    class="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold">
+                            </div>
+                            <div class="flex flex-col justify-end gap-1.5 pb-0.5">
+                                <label class="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700" title="Bật để mở trình duyệt Chrome/Edge qua Playwright và chụp ảnh màn hình">
+                                    <input type="checkbox" id="envUsePlaywright" checked class="w-4 h-4 rounded text-emerald-600 border-slate-300">
+                                    <span>Playwright Browser</span>
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700">
+                                    <input type="checkbox" id="envHeadless" checked class="w-4 h-4 rounded text-emerald-600 border-slate-300">
+                                    <span>Chạy ngầm (Headless)</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CỘT PHẢI (8 CỘT): DANH SÁCH KỊCH BẢN & KẾT QUẢ CHẠY TRỰC TIẾP -->
+            <div class="xl:col-span-8 space-y-4">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col min-h-[640px]">
+
+                    <!-- THANH CÔNG CỤ -->
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 pb-4 border-b border-slate-100">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <h2 class="text-base font-bold text-slate-800 flex items-center gap-2 mr-2">
+                                <i data-lucide="terminal" class="w-5 h-5 text-emerald-600"></i> Kịch bản & Kết quả Thực thi
+                            </h2>
+                            <div class="flex items-center bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+                                <button type="button" onclick="setFilter('ALL')" id="filter_ALL" class="px-2.5 py-1 rounded-lg bg-white text-slate-800 shadow-2xs">Tất cả</button>
+                                <button type="button" onclick="setFilter('API')" id="filter_API" class="px-2.5 py-1 rounded-lg text-slate-600 hover:text-slate-900">API</button>
+                                <button type="button" onclick="setFilter('WEB_UI')" id="filter_WEB_UI" class="px-2.5 py-1 rounded-lg text-slate-600 hover:text-slate-900">Web UI</button>
+                                <button type="button" onclick="setFilter('PASS')" id="filter_PASS" class="px-2.5 py-1 rounded-lg text-emerald-700 hover:bg-white/50">PASS</button>
+                                <button type="button" onclick="setFilter('FAIL')" id="filter_FAIL" class="px-2.5 py-1 rounded-lg text-rose-700 hover:bg-white/50">FAIL</button>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
+                            <button type="button" onclick="addManualAutoCase()"
+                                class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+                                <i data-lucide="plus" class="w-3.5 h-3.5"></i> Thêm kịch bản
+                            </button>
+                            <button type="button" onclick="exportAutoTestReport()"
+                                class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+                                <i data-lucide="download" class="w-3.5 h-3.5"></i> Xuất Báo cáo
+                            </button>
+                            <button type="button" id="btnRunAllAuto" onclick="runAllAutoTests()"
+                                class="px-4 py-2 bg-slate-900 hover:bg-emerald-600 text-white rounded-xl text-xs sm:text-sm font-bold transition-all shadow-sm flex items-center gap-2">
+                                <i data-lucide="play" class="w-4 h-4 fill-current"></i>
+                                <span id="btnRunAllLabel">Chạy Auto Test tất cả</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- DANH SÁCH THẺ AUTO TESTCASE -->
+                    <div id="autoTestList" class="mt-4 space-y-3 flex-1">
+                        <!-- Sẽ được render bởi autotest.js -->
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- TOAST THÔNG BÁO -->
+    <div id="toast" class="fixed top-5 right-5 z-50 hidden items-center gap-2 px-4 py-3 rounded-2xl shadow-xl text-sm font-semibold text-white transition-all">
+        <span id="toastMsg">Thông báo</span>
+    </div>
+
+    <script src="autotest.js"></script>
+</body>
+
+</html>

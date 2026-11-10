@@ -30,6 +30,8 @@ class Router:
             ("POST", "/api/tasks/approve-testcases"): task_controller.approve_testcases,
             ("POST", "/api/tasks/run"): task_controller.run_ai,
             ("POST", "/webhook/luong-chuc-nang"): task_controller.run_ai,
+            ("POST", "/api/autotest/generate"): task_controller.generate_autotest,
+            ("POST", "/api/autotest/run"): task_controller.run_autotest,
         }
         if auth_controller:
             self.routes[("POST", "/api/auth/token")] = auth_controller.get_token

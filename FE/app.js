@@ -996,6 +996,7 @@ function renderTable() {
                 <!-- CỘT THAO TÁC -->
                 <td class="px-4 py-5 align-top min-w-[170px] text-center">
                     <div class="flex items-center justify-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity duration-300">
+                        <a href="autotest.html?task=${encodeURIComponent(ten)}" class="w-8 h-8 flex items-center justify-center bg-emerald-50 border border-emerald-200 hover:bg-emerald-600 text-emerald-700 hover:text-white rounded-lg transition-all shadow-sm" title="Chuyển sang Sinh & Chạy Auto Test"><i data-lucide="bot" class="w-4 h-4"></i></a>
                         <button onclick="downloadSingleTaskFiles(${originalIndex})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-emerald-50 text-slate-600 hover:text-emerald-600 rounded-lg transition-all shadow-sm" title="Tải tài liệu"><i data-lucide="download" class="w-4 h-4"></i></button>
                         ${isActivelyProcessing ? `
                         <button onclick="openStopStreamModal('${escapeHtml(ten)}', '${escapeHtml(taskReqId)}')" class="w-8 h-8 flex items-center justify-center bg-red-50 border border-red-200 hover:bg-red-100 text-red-600 rounded-lg transition-all shadow-sm" title="Dừng luồng AI"><i data-lucide="square" class="w-4 h-4 fill-current"></i></button>

@@ -48,11 +48,19 @@ class ApiHandler(BaseHTTPRequestHandler):
         try:
             request = HttpRequest(self, self.settings)
             self._send_json(self.router.dispatch(method, request))
+        except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+            LOGGER.warning("Trình duyệt đã đóng kết nối sớm trước khi nhận xong phản hồi.")
         except ApiError as error:
-            self._send_json(ApiResponse(error.status, {"success": False, "message": error.message}))
+            try:
+                self._send_json(ApiResponse(error.status, {"success": False, "message": error.message}))
+            except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+                pass
         except Exception:
             LOGGER.exception("Unhandled API error")
-            self._send_json(ApiResponse(500, {"success": False, "message": "Lỗi nội bộ backend"}))
+            try:
+                self._send_json(ApiResponse(500, {"success": False, "message": "Lỗi nội bộ backend"}))
+            except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+                pass
 
     def do_OPTIONS(self) -> None:  # noqa: N802
         self.send_response(204)
