@@ -118,9 +118,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     const apiBase = (
                         window.AUTO_TC_API_BASE ||
-                        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-                            ? 'http://localhost:8088/api'
-                            : 'https://tool-ai-tc.onrender.com/api')
+                        (window.location.hostname === 'quanlv.io.vn'
+                            ? 'https://tool-ai-tc.onrender.com/api'
+                            : `${window.location.origin}/api`)
                     ).replace(/\/$/, '');
 
                     const tokenResp = await fetch(`${apiBase}/auth/token`, {

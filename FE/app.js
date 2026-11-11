@@ -162,9 +162,9 @@ window.compareTestcaseOrder = compareTestcaseOrder;
 // ================= CẤU HÌNH API =================
 const BACKEND_API_BASE = (
     window.AUTO_TC_API_BASE ||
-    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-        ? 'http://localhost:8088/api'
-        : 'https://tool-ai-tc.onrender.com/api')
+    (window.location.hostname === 'quanlv.io.vn'
+        ? 'https://tool-ai-tc.onrender.com/api'
+        : `${window.location.origin}/api`)
 ).replace(/\/$/, '');
 const URL_GET_LIST = `${BACKEND_API_BASE}/tasks`;
 const URL_POST_RUN = `${BACKEND_API_BASE}/tasks/run`;

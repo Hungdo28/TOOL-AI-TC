@@ -39,9 +39,9 @@ function escapeHtml(value = '') {
 // ================= CẤU HÌNH API =================
 const BACKEND_API_BASE = (
     window.AUTO_TC_API_BASE ||
-    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-        ? 'http://localhost:8088/api'
-        : 'https://tool-ai-tc.onrender.com/api')
+    (window.location.hostname === 'quanlv.io.vn'
+        ? 'https://tool-ai-tc.onrender.com/api'
+        : `${window.location.origin}/api`)
 ).replace(/\/$/, '');
 
 const BACKEND_ORIGIN = BACKEND_API_BASE.replace(/\/api$/, '');
@@ -877,7 +877,7 @@ window.onSwitchCardType = function (idx, newType) {
             assertions: [{ type: 'status_code', expected: 200 }],
         };
     } else {
-        const webUrl = document.getElementById('envWebUrl')?.value || 'http://127.0.0.1:5500/FE/login.html';
+        const webUrl = document.getElementById('envWebUrl')?.value || `${window.location.origin}/login.html`;
         tc.auto_spec = {
             target_url: webUrl,
             actions: [
