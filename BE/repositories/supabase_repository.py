@@ -25,6 +25,7 @@ class SupabaseRepository:
             or settings.supabase_anon_key
         ).strip()
         self._lock = threading.RLock()
+        self._local_status_overrides: dict[str, str] = {}
 
         # Giữ lại google workspace upload file nếu có cấu hình Google Drive
         self._google_workspace = None
@@ -79,11 +80,12 @@ class SupabaseRepository:
         LOGGER.error("Lỗi kết nối Supabase %s %s: %s", method, endpoint, last_err)
         raise RuntimeError(f"Không thể kết nối Supabase: {last_err}") from last_err
 
-    @staticmethod
-    def _to_task_dict(row: dict[str, Any]) -> dict[str, Any]:
+    def _to_task_dict(self, row: dict[str, Any]) -> dict[str, Any]:
         """Chuyển đổi 1 record từ Supabase problems sang cấu trúc Dictionary chuẩn của hệ thống."""
         p_id = str(row.get("id") or "")
         legacy_id = row.get("legacy_id")
+        raw_status = str(row.get("status") or "Chưa làm")
+        status = self._local_status_overrides.get(p_id, raw_status)
         return {
             "id": p_id,
             "problem_id": p_id,
@@ -94,7 +96,7 @@ class SupabaseRepository:
             "URL": str(row.get("source_url") or ""),
             "Link Testcase": str(row.get("testcase_url") or ""),
             "Link tài liệu phân tích": str(row.get("analysis_doc_url") or ""),
-            "Trạng thái": str(row.get("status") or "Chưa làm"),
+            "Trạng thái": status,
             "Người làm": str(row.get("assignee") or ""),
         }
 
@@ -172,6 +174,15 @@ class SupabaseRepository:
                 if target_key:
                     db_changes[target_key] = v
 
+            if "status" in db_changes:
+                req_status = str(db_changes["status"] or "").strip()
+                if req_status == "Chờ duyệt":
+                    # Bảng problems trên Supabase có check constraint chỉ nhận ('Chưa làm', 'Waiting', 'Đã xong')
+                    self._local_status_overrides[task_uuid] = "Chờ duyệt"
+                    db_changes["status"] = "Đã xong"
+                else:
+                    self._local_status_overrides.pop(task_uuid, None)
+
             if not db_changes:
                 return existing
 
@@ -229,5 +240,24 @@ class SupabaseRepository:
             return self._google_workspace.create_testcase_sheet(task_name, testcases)
         raise RuntimeError(
             "Chưa cấu hình Google Workspace để tạo Google Sheet Testcase."
+        )
+
+    def upload_word_bytes_as_doc(self, task_name: str, docx_bytes: bytes, fallback_text: str = "") -> str:
+        if self._google_workspace:
+            return self._google_workspace.upload_word_bytes_as_doc(task_name, docx_bytes, fallback_text)
+        raise RuntimeError(
+            "Chưa cấu hình Google Workspace để đẩy file Word Phân tích lên Google Docs."
+        )
+
+    def upload_excel_bytes_as_sheet(
+        self,
+        task_name: str,
+        xlsx_bytes: bytes,
+        fallback_tcs: list[dict[str, Any]] | None = None,
+    ) -> str:
+        if self._google_workspace:
+            return self._google_workspace.upload_excel_bytes_as_sheet(task_name, xlsx_bytes, fallback_tcs)
+        raise RuntimeError(
+            "Chưa cấu hình Google Workspace để đẩy file Excel Testcase lên Google Sheet."
         )
 

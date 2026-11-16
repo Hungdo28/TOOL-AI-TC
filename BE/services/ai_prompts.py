@@ -34,34 +34,33 @@ CORE PRINCIPLES & RULES:
 
 JSON STRUCTURE (Return exactly 1 JSON object):
 {{
-  "muc_tieu_tai_lieu": "A concise 3-5 sentence narrative in Vietnamese defining: (1) Business background & system role; (2) Core user/system objective; (3) Key actors/roles; (4) Exact functional scope and success criteria.",
+  "muc_tieu_tai_lieu": [
+    "- [Bối cảnh & Mục tiêu nghiệp vụ]: Tóm tắt bài toán, mục tiêu cốt lõi và giá trị mang lại của chức năng trong SRS.",
+    "- [Tác nhân & Phân quyền (Actors/Roles)]: Danh sách người dùng/hệ thống tương tác và quyền hạn tương ứng.",
+    "- [Phạm vi & Điều kiện tiên quyết (Scope & Preconditions)]: Các chức năng/màn hình thuộc phạm vi xử lý và điều kiện cần có trước khi thực hiện."
+  ],
   "he_thong_va_api": [
-    "List key interacting systems and each API/job in the target scope using this concise format:",
-    "- [System] <Name> - Architectural role and main processing responsibility.",
-    "- [Method] <Endpoint URL> - Purpose | Params: <key input params, required/optional> | Response: <success payload/status> | Errors: <status codes & error meanings> | Tech note: <auth/token/checksum if any>."
+    "- [System] <Tên hệ thống/Module> - Vai trò kiến trúc và trách nhiệm xử lý chính trong luồng.",
+    "- [Method] <Endpoint URL> - Mục đích API | Params/Body: <các tham số đầu vào chính, kiểu dữ liệu, bắt buộc/tùy chọn> | Response: <cấu trúc trả về thành công> | Errors: <mã lỗi HTTP/error code & ý nghĩa> | Tech note: <header/auth/token/timeout nếu có>."
   ],
   "luong_nghiep_vu": [
-    "List the sequential flows and business rules in crisp steps:",
-    "- [Happy Path / Luồng chính]: Bước 1 (Actor action) -> Bước 2 (Validation & checks) -> Bước 3 (API/Backend processing) -> Bước 4 (DB persistence) -> Bước 5 (UI response & result).",
-    "- [Alternative & Exception Flows / Rẽ nhánh & Ngoại lệ]: Key branch choices and error handling (network timeout, invalid/expired OTP, duplicate record, backend error).",
-    "- [Business Rules & Validations / Quy tắc nghiệp vụ]: Specific validation rules (regex, min/max lengths, format, checksum, required constraints). Add '(CHÚ Ý): <note>' at critical logic points."
+    "- [Luồng chính / Happy Path]: Bước 1 (Thao tác người dùng/Actor) -> Bước 2 (Kiểm tra hợp lệ tại Client/Server) -> Bước 3 (Xử lý nghiệp vụ/Gọi API) -> Bước 4 (Cập nhật CSDL/Trạng thái) -> Bước 5 (Phản hồi giao diện/Thông báo).",
+    "- [Luồng rẽ nhánh & Ngoại lệ / Alternative & Exception Flows]: Xử lý các trường hợp rẽ nhánh, dữ liệu không hợp lệ, hết hạn, trùng lặp bản ghi, lỗi kết nối hoặc timeout.",
+    "- [Quy tắc nghiệp vụ & Ràng buộc dữ liệu / Business Rules & Validations]: Chi tiết điều kiện ràng buộc từng trường (bắt buộc/optional, độ dài min-max, định dạng/regex, giá trị biên, điều kiện hiển thị/khóa nút). Ghi rõ '(CHÚ Ý): <lưu ý>' tại các mốc logic quan trọng."
   ],
   "bang_du_lieu": [
-    "List affected database tables and key schemas:",
-    "- [Table Name] - Purpose & role | Key Columns: <field1 (type), field2 (type)...> | PK/FK: <relations with other tables> | Status Lifecycle: <e.g. CHO_DUYET (0) -> DA_DUYET (1) / TU_CHOI (2)>."
+    "- [Tên Bảng / Đối tượng Dữ liệu] - Mục đích lưu trữ | Key Columns: <tên_trường (kiểu dữ liệu, ràng buộc)...> | PK/FK: <khóa chính & liên kết bảng> | Status Lifecycle: <vòng đời trạng thái, VD: TAO_MOI (0) -> CHO_DUYET (1) -> HOAN_TAT (2) / HUY (3)>."
   ],
   "test_scenarios": [
-    "List 6-10 high-value test scenarios covering all critical angles:",
-    "- [Happy Path] End-to-end flow with valid data, expected response and DB state.",
-    "- [Validation & Data Constraints] Mandatory fields, boundary lengths, format checks (phone, email, dates, ID).",
-    "- [Business Logic & Branching] Conditional paths, status transitions, duplicate submissions, expiration behavior.",
-    "- [Exceptions & Edge Cases] Timeouts, connection drops, max invalid retries, boundary values.",
-    "- [Security & Concurrency] Unauthorized access, expired tokens, payload tampering, concurrent requests (race condition)."
+    "- [Happy Path] Kiểm thử luồng thành công toàn trình (End-to-End) với dữ liệu hợp lệ, đối chiếu UI, API response và DB.",
+    "- [Validation & Boundary] Kiểm thử các trường bắt buộc, giá trị biên (min/max length), định dạng dữ liệu (SĐT, Email, Ngày tháng, CCCD, Mã số...).",
+    "- [Business Logic & State Transition] Kiểm thử các điều kiện rẽ nhánh, chuyển đổi trạng thái hợp lệ/không hợp lệ, chặn thao tác trùng lặp.",
+    "- [Exception & Integration] Kiểm thử mất kết nối, API bên thứ 3 lỗi/timeout, dữ liệu trả về rỗng, rollback khi lỗi giữa chừng.",
+    "- [Security, Auth & Concurrency] Kiểm thử phân quyền truy cập, token hết hạn, gửi nhiều request đồng thời (race condition / double click)."
   ],
   "rui_ro_va_cau_hoi": [
-    "List 3-5 critical technical risks, unspecified edge cases, and BA clarification questions:",
-    "- [Rủi ro Kỹ thuật]: <Security, rate-limit, PII leakage, or missing idempotency/rollback risk>.",
-    "- [Q&A Xác nhận BA]: <Specific ambiguity in specs> -> Đề xuất: <Suggested solution or handling strategy>."
+    "- [Điểm chưa rõ trong SRS / Q&A Xác nhận BA]: <Điểm mâu thuẫn hoặc chưa đặc tả chi tiết trong tài liệu> -> Đề xuất: <Phương án xử lý đề xuất cho BA/Dev/QA>.",
+    "- [Rủi ro Kỹ thuật & Nghiệp vụ]: <Rủi ro về bảo mật, hiệu năng, mất đồng bộ dữ liệu, chưa có cơ chế retry/idempotency> -> Đề xuất: <Giải pháp phòng ngừa>."
   ]
 }}
 

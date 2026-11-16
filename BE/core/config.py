@@ -55,10 +55,12 @@ class Settings:
     ai_api_key: str = "sk-i3Pls4y--I4fTfS8VJdGHw"
     ai_model: str = "DeepSeek-V4.1-Flash"
     figma_access_token: str = ""
+    local_records_dir: str = str(Path(__file__).resolve().parents[3] / "AutoTC_Records")
 
     @classmethod
     def from_env(cls) -> "Settings":
         backend_root = Path(__file__).resolve().parents[1]
+        default_records_dir = str((backend_root.parent.parent / "AutoTC_Records").resolve())
         load_dotenv(backend_root / ".env")
         # Hỗ trợ Secret Files trên Render (/etc/secrets/.env)
         if Path("/etc/secrets/.env").is_file():
@@ -120,4 +122,5 @@ class Settings:
             ai_api_key=(os.getenv("AI_API_KEY", "").strip() or os.getenv("GEMINI_API_KEY", "").strip() or "sk-i3Pls4y--I4fTfS8VJdGHw"),
             ai_model=os.getenv("AI_MODEL", "DeepSeek-V4.1-Flash").strip(),
             figma_access_token=os.getenv("FIGMA_ACCESS_TOKEN", "").strip(),
+            local_records_dir=os.getenv("LOCAL_RECORDS_DIR", default_records_dir).strip() or default_records_dir,
         )

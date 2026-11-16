@@ -82,3 +82,27 @@ class TaskController:
         payload = dict(request.read_json() or {})
         result = self.service.run_autotest(payload)
         return ApiResponse(200, result)
+
+    def list_local_files(self, request) -> ApiResponse:
+        rel_dir = request.query_params.get("dir", "")
+        return ApiResponse(200, self.service.list_local_files(rel_dir))
+
+    def create_local_folder(self, request) -> ApiResponse:
+        payload = dict(request.read_json() or {})
+        return ApiResponse(201, self.service.create_local_folder(payload))
+
+    def save_local_record(self, request) -> ApiResponse:
+        payload = dict(request.read_json() or {})
+        return ApiResponse(200, self.service.save_local_record(payload))
+
+    def read_local_record(self, request) -> ApiResponse:
+        rel_path = request.query_params.get("path", "")
+        return ApiResponse(200, self.service.read_local_record(rel_path))
+
+    def open_local_folder(self, request) -> ApiResponse:
+        payload = dict(request.read_json() or {})
+        return ApiResponse(200, self.service.open_local_folder(payload))
+
+    def push_local_to_drive(self, request) -> ApiResponse:
+        payload = dict(request.read_json() or {})
+        return ApiResponse(200, self.service.push_local_to_drive(payload))

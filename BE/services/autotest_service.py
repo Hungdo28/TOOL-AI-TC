@@ -17,6 +17,7 @@ from services.ai_client import AiClient
 from services.common import ApiError
 from services.doc_crawler import DocumentCrawler
 from services.json_parser import parse_loose
+from services.local_storage_service import LocalStorageService
 
 LOGGER = logging.getLogger("autotc-backend")
 
@@ -34,6 +35,7 @@ class AutoTestService:
         self.settings = settings
         self.ai = AiClient(settings)
         self.crawler = DocumentCrawler(getattr(workspace, "_google_workspace", None), settings)
+        self.local_storage = LocalStorageService(settings.local_records_dir)
 
     # =========================================================================
     # 1. SINH TESTCASE CHO AUTO TEST (API & WEB UI)
@@ -119,6 +121,22 @@ class AutoTestService:
                 spec_text=spec_text,
             )
 
+        local_saved: dict[str, Any] = {}
+        try:
+            local_saved = self.local_storage.save_autotest_bundle(
+                task_name=task_name or "AutoTest",
+                kind="autotest_cases",
+                data={
+                    "taskName": task_name or "Bài toán Auto Test",
+                    "testMode": test_mode,
+                    "count": len(generated_cases),
+                    "generatedAt": time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "testcases": generated_cases,
+                },
+            )
+        except Exception as save_err:
+            LOGGER.warning("Không thể lưu kịch bản AutoTest xuống folder local: %s", save_err)
+
         return {
             "success": True,
             "taskName": task_name or "Bài toán Auto Test",
@@ -126,6 +144,7 @@ class AutoTestService:
             "count": len(generated_cases),
             "token_usage": token_usage,
             "dom_inspected": bool(live_dom_summary),
+            "local_record": local_saved,
             "testcases": generated_cases,
         }
 
@@ -622,17 +641,37 @@ LƯU Ý QUAN TRỌNG:
         total = len(results)
         pass_rate = round((passed / total) * 100, 1) if total > 0 else 0.0
 
+        summary_obj = {
+            "total": total,
+            "passed": passed,
+            "failed": failed,
+            "error": errored,
+            "pass_rate": pass_rate,
+            "total_duration_ms": total_duration_ms,
+            "executed_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+
+        local_saved: dict[str, Any] = {}
+        try:
+            local_saved = self.local_storage.save_autotest_bundle(
+                task_name=task_name or "AutoTest",
+                kind="autotest_report",
+                data={
+                    "taskName": task_name,
+                    "summary": summary_obj,
+                    "results": [
+                        {k: v for k, v in r.items() if k != "screenshot"}
+                        for r in results
+                    ],
+                },
+            )
+        except Exception as save_err:
+            LOGGER.warning("Không thể lưu kết quả chạy AutoTest xuống folder local: %s", save_err)
+
         return {
             "success": True,
-            "summary": {
-                "total": total,
-                "passed": passed,
-                "failed": failed,
-                "error": errored,
-                "pass_rate": pass_rate,
-                "total_duration_ms": total_duration_ms,
-                "executed_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-            },
+            "summary": summary_obj,
+            "local_record": local_saved,
             "results": results,
         }
 

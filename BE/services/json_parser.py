@@ -5,12 +5,12 @@ import re
 from typing import Any
 
 ANALYSIS_SECTIONS: list[tuple[str, str]] = [
-    ("muc_tieu_tai_lieu", "1. MỤC TIÊU TÀI LIỆU"),
-    ("he_thong_va_api", "2. CÁC HỆ THỐNG VÀ API"),
-    ("luong_nghiep_vu", "3. LUỒNG NGHIỆP VỤ CHÍNH"),
-    ("bang_du_lieu", "4. CÁC BẢNG DỮ LIỆU"),
-    ("test_scenarios", "5. KỊCH BẢN KIỂM THỬ (TEST SCENARIOS)"),
-    ("rui_ro_va_cau_hoi", "6. RỦI RO / ĐIỂM CHƯA RÕ"),
+    ("muc_tieu_tai_lieu", "1. TỔNG QUAN, MỤC TIÊU & PHẠM VI NGHIỆP VỤ (SRS OVERVIEW & SCOPE)"),
+    ("he_thong_va_api", "2. KIẾN TRÚC TÍCH HỢP & ĐẶC TẢ GIAO TIẾP API (SYSTEMS & API SPECS)"),
+    ("luong_nghiep_vu", "3. LUỒNG XỬ LÝ NGHIỆP VỤ & QUY TẮC KIỂM TRA (BUSINESS FLOWS & VALIDATION RULES)"),
+    ("bang_du_lieu", "4. MÔ HÌNH DỮ LIỆU & VÒNG ĐỜI TRẠNG THÁI (DATA MODEL & STATE LIFECYCLE)"),
+    ("test_scenarios", "5. ĐỊNH HƯỚNG & KỊCH BẢN KIỂM THỬ TRỌNG TÂM (KEY TEST SCENARIOS)"),
+    ("rui_ro_va_cau_hoi", "6. RỦI RO KỸ THUẬT, ĐIỂM KHUYẾT SRS & CÂU HỎI BA (RISKS, GAPS & BA Q&A)"),
 ]
 
 _KNOWN_KEYS_RE = re.compile(

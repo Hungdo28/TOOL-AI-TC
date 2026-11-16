@@ -252,8 +252,12 @@
                     <span>Chưa ưng ý? Chạy lại</span>
                 </button>
                 <button type="button" id="btnSave" onclick="saveReviewResults()" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs sm:text-sm font-bold transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2">
-                    <i data-lucide="check" class="w-4 h-4"></i>
-                    <span id="btnSaveLabel">Duyệt & Xuất vào Sheet</span>
+                    <i data-lucide="folder-down" class="w-4 h-4"></i>
+                    <span id="btnSaveLabel">Xác nhận & Lưu vào Local</span>
+                </button>
+                <button type="button" id="btnPushDrive" onclick="pushToDriveFromReview()" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs sm:text-sm font-bold transition-all shadow-md shadow-blue-600/20 flex items-center justify-center gap-2">
+                    <i data-lucide="cloud-upload" class="w-4 h-4"></i>
+                    <span id="btnPushDriveLabel">Đẩy lên Sheet & Docs</span>
                 </button>
             </div>
         </div>
@@ -614,7 +618,7 @@
             try {
                 // Query bài toán theo problem_id hoặc problem_title
                 const encoded = encodeURIComponent(probId);
-                const queryPath = `qa_memory?kind=eq.testcase&or=(problem_id.eq.${encoded},problem_title.eq.${encoded},problem_title.ilike.${encoded})&select=id,problem_id,problem_title,test_suite,content,review_status,approved&order=created_at.asc,id.asc&limit=2000`;
+                const queryPath = `qa_memory?kind=eq.testcase&or=(problem_id.eq.${encoded},problem_title.eq.${encoded},problem_title.ilike.${encoded})&select=id,problem_id,problem_title,test_suite,content,review_status,approved,created_at&order=created_at.desc,id.asc&limit=500`;
                 
                 const data = await api(queryPath);
                 isMockMode = false;
@@ -638,7 +642,24 @@
                 }
 
                 showEmptyState(false);
-                rawRows = data.map(normalizeRow).sort((a, b) => compareTestcaseOrder(a, b, sortAsc));
+                // Chỉ lấy các testcase thuộc phiên sinh mới nhất (trong vòng 3 phút của bản ghi mới nhất)
+                let latestBatch = data;
+                const timestamps = data
+                    .map(r => r.created_at ? new Date(r.created_at).getTime() : NaN)
+                    .filter(t => !Number.isNaN(t));
+                if (timestamps.length > 0) {
+                    const maxTime = Math.max(...timestamps);
+                    const SESSION_WINDOW_MS = 3 * 60 * 1000;
+                    const filtered = data.filter(r => {
+                        if (!r.created_at) return false;
+                        const t = new Date(r.created_at).getTime();
+                        return !Number.isNaN(t) && (maxTime - t <= SESSION_WINDOW_MS);
+                    });
+                    if (filtered.length > 0) {
+                        latestBatch = filtered;
+                    }
+                }
+                rawRows = latestBatch.map(normalizeRow).sort((a, b) => compareTestcaseOrder(a, b, sortAsc));
                 choice = {};
                 rawRows.forEach(r => {
                     choice[r.id] = r.review_status || (r.approved === true ? 'approved' : (r.approved === false ? 'rejected' : 'pending'));
@@ -1267,7 +1288,7 @@
                 }
 
                 // 4. Gửi request sang Backend AI API
-                const apiBase = (window.AUTO_TC_API_BASE || (window.location.hostname === 'quanlv.io.vn' ? 'https://tool-ai-tc.onrender.com/api' : `${window.location.origin}/api`)).replace(/\/$/, '');
+                const apiBase = (window.AUTO_TC_API_BASE || (window.location.hostname === 'quanlv.io.vn' ? 'https://tool-ai-tc.onrender.com/api' : (['5500', '5501', '5173', ''].includes(window.location.port) ? 'http://127.0.0.1:8088/api' : `${window.location.origin}/api`))).replace(/\/$/, '');
                 
                 const sel = document.getElementById('probSelect');
                 const probId = sel?.value || '';
@@ -1399,7 +1420,7 @@
                     .sort((a, b) => compareTestcaseOrder(a, b, true));
 
                 if (approvedRows.length > 0) {
-                    label.textContent = 'Đang xuất vào Google Sheet...';
+                    label.textContent = 'Đang lưu vào Folder Local...';
                     const groups = new Map();
                     approvedRows.forEach(r => {
                         const suite = String(r.test_suite || 'General').trim() || 'General';
@@ -1407,7 +1428,6 @@
                         groups.get(suite).push(r);
                     });
                     const sheetRows = [];
-                    let tcNo = 0;
                     for (const [suite, list] of groups.entries()) {
                         sheetRows.push({ row_type: 'suite', id: '', test_suite: suite, muc_dich: suite, cac_buoc: '', ket_qua_mong_muon: '', ghi_chu: '' });
                         for (const r of list) {
@@ -1428,32 +1448,61 @@
                     const probId = sel?.value || '';
                     const taskName = (sel?.selectedOptions?.[0]?.textContent || '').replace(/\s*\(\d+\s*TC\)\s*$/, '').trim() || rawRows[0]?.problem_title || '';
                     if (taskName) {
-                        await fetch(((window.AUTO_TC_API_BASE || (window.location.hostname === 'quanlv.io.vn' ? 'https://tool-ai-tc.onrender.com/api' : `${window.location.origin}/api`)).replace(/\/$/, '') + '/tasks/run'), {
+                        const apiBase = (window.AUTO_TC_API_BASE || (window.location.hostname === 'quanlv.io.vn' ? 'https://tool-ai-tc.onrender.com/api' : (['5500', '5501', '5173', ''].includes(window.location.port) ? 'http://127.0.0.1:8088/api' : `${window.location.origin}/api`))).replace(/\/$/, '');
+                        await fetch(`${apiBase}/tasks/run`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 baiToan: taskName,
                                 problem_id: probId,
-                                loaiChay: 'export_sheet',
-                                requestId: `export-${Date.now()}`,
+                                loaiChay: 'save_local',
+                                requestId: `local-${Date.now()}`,
                                 testcases: sheetRows
                             })
-                        });
-                        await api(`problems?title=eq.${encodeURIComponent(taskName)}`, {
-                            method: 'PATCH',
-                            headers: { Prefer: 'return=minimal' },
-                            body: JSON.stringify({ status: 'Đã xong' })
                         });
                     }
                 }
 
-                showToast(`Đã duyệt & xuất ${approvedRows.length} testcase vào Google Sheet!`, 'success');
+                showToast(`📁 Đã lưu ${approvedRows.length} testcase & Word Phân tích vào Folder Local! Hãy kiểm tra và bấm "Đẩy lên Sheet & Docs".`, 'success');
             } catch (err) {
                 console.error('Lỗi khi lưu kết quả:', err);
                 showToast(`Lưu thất bại: ${err.message}`, 'error');
             } finally {
-                label.textContent = 'Duyệt & Xuất vào Sheet';
+                label.textContent = 'Xác nhận & Lưu vào Local';
                 updateCounters();
+            }
+        }
+
+        async function pushToDriveFromReview() {
+            const sel = document.getElementById('probSelect');
+            const probId = sel?.value || '';
+            const taskName = (sel?.selectedOptions?.[0]?.textContent || '').replace(/\s*\(\d+\s*TC\)\s*$/, '').trim() || rawRows[0]?.problem_title || '';
+            if (!taskName) {
+                showToast('Chưa xác định được bài toán!', 'error');
+                return;
+            }
+            if (!confirm(`☁️ Bạn có chắc chắn muốn đẩy Sheet Testcase và Word Phân tích từ Folder Local của "${taskName}" lên Google Sheet & Docs không?`)) {
+                return;
+            }
+            const btn = document.getElementById('btnPushDrive');
+            const lbl = document.getElementById('btnPushDriveLabel');
+            if (btn) btn.disabled = true;
+            if (lbl) lbl.textContent = 'Đang đẩy lên Sheet & Docs...';
+            try {
+                const apiBase = (window.AUTO_TC_API_BASE || (window.location.hostname === 'quanlv.io.vn' ? 'https://tool-ai-tc.onrender.com/api' : (['5500', '5501', '5173', ''].includes(window.location.port) ? 'http://127.0.0.1:8088/api' : `${window.location.origin}/api`))).replace(/\/$/, '');
+                const resp = await fetch(`${apiBase}/local/push-drive`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ baiToan: taskName, problem_id: probId })
+                });
+                const data = await resp.json().catch(() => ({}));
+                if (!resp.ok) throw new Error(data.message || `Lỗi HTTP ${resp.status}`);
+                showToast(data.message || `☁️ Đã đẩy tài liệu của "${taskName}" lên Google Sheet & Docs thành công!`, 'success');
+            } catch (err) {
+                showToast(`Đẩy lên Sheet & Docs thất bại: ${err.message}`, 'error');
+            } finally {
+                if (btn) btn.disabled = false;
+                if (lbl) lbl.textContent = 'Đẩy lên Sheet & Docs';
             }
         }
 

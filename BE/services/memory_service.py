@@ -145,6 +145,18 @@ class MemoryService:
                     "content_hash": content_hash(hash_input),
                 })
             if records:
+                # Xóa các testcase của các phiên chạy cũ thuộc cùng bài toán này (cả theo ID lẫn theo Tên bài toán) để không bị cộng dồn qua nhiều lần chạy
+                try:
+                    pid_enc = urllib.parse.quote(str(problem_id))
+                    title_enc = urllib.parse.quote(str(problem_title).strip())
+                    self.sb._request(
+                        f"qa_memory?kind=eq.testcase&or=(problem_id.eq.{pid_enc},problem_title.eq.{title_enc},problem_title.ilike.{title_enc})",
+                        method="DELETE",
+                        prefer="return=minimal",
+                    )
+                except Exception as del_err:
+                    LOGGER.debug("Không thể dọn qa_memory cũ của bài toán %s: %s", problem_id, del_err)
+
                 self.sb._request(
                     "qa_memory?on_conflict=kind,problem_id,content_hash",
                     method="POST",

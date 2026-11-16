@@ -120,7 +120,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         window.AUTO_TC_API_BASE ||
                         (window.location.hostname === 'quanlv.io.vn'
                             ? 'https://tool-ai-tc.onrender.com/api'
-                            : `${window.location.origin}/api`)
+                            : (['5500', '5501', '5173', ''].includes(window.location.port)
+                                ? 'http://127.0.0.1:8088/api'
+                                : `${window.location.origin}/api`))
                     ).replace(/\/$/, '');
 
                     const tokenResp = await fetch(`${apiBase}/auth/token`, {

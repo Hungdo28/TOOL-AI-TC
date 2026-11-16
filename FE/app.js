@@ -164,7 +164,9 @@ const BACKEND_API_BASE = (
     window.AUTO_TC_API_BASE ||
     (window.location.hostname === 'quanlv.io.vn'
         ? 'https://tool-ai-tc.onrender.com/api'
-        : `${window.location.origin}/api`)
+        : (['5500', '5501', '5173', ''].includes(window.location.port)
+            ? 'http://127.0.0.1:8088/api'
+            : `${window.location.origin}/api`))
 ).replace(/\/$/, '');
 const URL_GET_LIST = `${BACKEND_API_BASE}/tasks`;
 const URL_POST_RUN = `${BACKEND_API_BASE}/tasks/run`;
@@ -675,7 +677,7 @@ function startPollingIfNeeded(runOnce = false) {
                 });
                 const tasksWithoutReview = newlyFinished.filter(taskName => !tasksNeedingReview.includes(taskName));
 
-                tasksNeedingReview.forEach(queueTestcaseReview);
+                tasksNeedingReview.forEach(taskName => queueTestcaseReview(taskName));
                 tasksWithoutReview.forEach(taskName => delete runContextByTask[taskName]);
                 resultMessages.push(`Hoàn thành: ${newlyFinished.join(', ')}`);
             }
@@ -914,10 +916,23 @@ function renderTable() {
         const makeLink = (linkStr, tenBaiToan, type = 'source') => {
             const urls = splitHttpLinks(linkStr);
 
+            const localButtonsHtml = (type === 'testcase' && trangThai === 'Chờ duyệt')
+                ? `<div class="flex flex-col items-center gap-1.5 mb-1">
+                        <button type="button" onclick="openLocalTaskFolder(${originalIndex})" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition cursor-pointer" title="Mở Folder Local để xem file Excel TC & Word Phân tích">
+                            <i data-lucide="folder-open" class="w-3.5 h-3.5"></i> Mở Folder Local
+                        </button>
+                        <button type="button" onclick="confirmPushLocalToDrive(${originalIndex})" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition cursor-pointer" title="Xác nhận đẩy tài liệu từ Folder Local lên Google Sheet & Docs">
+                            <i data-lucide="cloud-upload" class="w-3.5 h-3.5"></i> Đẩy lên Sheet & Docs
+                        </button>
+                   </div>`
+                : (type === 'analysis' && trangThai === 'Chờ duyệt'
+                    ? `<button type="button" onclick="openLocalTaskFolder(${originalIndex})" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition cursor-pointer mb-1" title="Đã lưu file Word Phân tích trong Folder Local - Bấm để mở">
+                            <i data-lucide="file-text" class="w-3.5 h-3.5"></i> Đã lưu Word Local
+                       </button>`
+                    : '');
+
             if (urls.length === 0) {
-                if (type === 'testcase' && trangThai === 'Chờ duyệt') {
-                    return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">⏳ Chờ duyệt</span>`;
-                }
+                if (localButtonsHtml) return localButtonsHtml;
                 return '<span class="text-slate-400 italic">Trống</span>';
             }
 
@@ -943,7 +958,7 @@ function renderTable() {
                         </div>`;
             }).join('');
 
-            return `<div class="flex flex-col gap-2 items-center">${linksHtml}</div>`;
+            return `<div class="flex flex-col gap-2 items-center">${localButtonsHtml}${linksHtml}</div>`;
         };
 
         return `
@@ -994,9 +1009,11 @@ function renderTable() {
                 <td class="px-4 py-5 align-top min-w-[220px] text-center">${makeLink(linkPT, ten, 'analysis')}</td>
 
                 <!-- CỘT THAO TÁC -->
-                <td class="px-4 py-5 align-top min-w-[170px] text-center">
+                <td class="px-4 py-5 align-top min-w-[200px] text-center">
                     <div class="flex items-center justify-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity duration-300">
                         <a href="autotest.html?task=${encodeURIComponent(ten)}" class="w-8 h-8 flex items-center justify-center bg-emerald-50 border border-emerald-200 hover:bg-emerald-600 text-emerald-700 hover:text-white rounded-lg transition-all shadow-sm" title="Chuyển sang Sinh & Chạy Auto Test"><i data-lucide="bot" class="w-4 h-4"></i></a>
+                        <button onclick="openLocalTaskFolder(${originalIndex})" class="w-8 h-8 flex items-center justify-center bg-amber-50 border border-amber-200 hover:bg-amber-500 text-amber-700 hover:text-white rounded-lg transition-all shadow-sm" title="Mở Folder Local của bài toán (Word & Excel)"><i data-lucide="folder-open" class="w-4 h-4"></i></button>
+                        <button onclick="confirmPushLocalToDrive(${originalIndex})" class="w-8 h-8 flex items-center justify-center bg-indigo-50 border border-indigo-200 hover:bg-indigo-600 text-indigo-700 hover:text-white rounded-lg transition-all shadow-sm" title="Xác nhận đẩy từ Folder Local lên Google Sheet & Drive"><i data-lucide="cloud-upload" class="w-4 h-4"></i></button>
                         <button onclick="downloadSingleTaskFiles(${originalIndex})" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 hover:bg-emerald-50 text-slate-600 hover:text-emerald-600 rounded-lg transition-all shadow-sm" title="Tải tài liệu"><i data-lucide="download" class="w-4 h-4"></i></button>
                         ${isActivelyProcessing ? `
                         <button onclick="openStopStreamModal('${escapeHtml(ten)}', '${escapeHtml(taskReqId)}')" class="w-8 h-8 flex items-center justify-center bg-red-50 border border-red-200 hover:bg-red-100 text-red-600 rounded-lg transition-all shadow-sm" title="Dừng luồng AI"><i data-lucide="square" class="w-4 h-4 fill-current"></i></button>
@@ -1453,8 +1470,20 @@ function clearTestcaseReviewSuggestions() {
 function queueTestcaseReview(taskName, preloadedRows = null) {
     if (!taskName) return;
     const cleanTaskName = String(taskName).trim();
-    if (activeTestcaseReview && activeTestcaseReview.taskName === cleanTaskName) return;
-    if (testcaseReviewQueue.some(item => item.taskName === cleanTaskName)) return;
+    if (activeTestcaseReview && activeTestcaseReview.taskName === cleanTaskName) {
+        if (Array.isArray(preloadedRows) && preloadedRows.length > 0) {
+            activeTestcaseReview.preloadedRows = preloadedRows;
+            openTestcaseReviewModalForTask(cleanTaskName, activeTestcaseReview.probId, preloadedRows);
+        }
+        return;
+    }
+    const existingQueued = testcaseReviewQueue.find(item => item.taskName === cleanTaskName);
+    if (existingQueued) {
+        if (Array.isArray(preloadedRows) && preloadedRows.length > 0) {
+            existingQueued.preloadedRows = preloadedRows;
+        }
+        return;
+    }
 
     const row = dataRows.find(item => getColVal(item, 'Bài toán') === taskName || getColVal(item, 'Bài toán') === cleanTaskName);
     const context = runContextByTask[taskName] || runContextByTask[cleanTaskName] || {};
@@ -1534,8 +1563,11 @@ function openTestcaseReviewModalForTask(taskName, probId = '', preloadedRows = n
 
     // Cập nhật tiêu đề phụ phù hợp với ngữ cảnh
     const subtitleEl = document.getElementById('testcaseReviewModalSubtitle');
+    const sessionBadge = Array.isArray(preloadedRows) && preloadedRows.length > 0
+        ? `<span class="inline-flex items-center gap-1 ml-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">Phiên vừa sinh: ${preloadedRows.length} testcase</span>`
+        : '';
     if (subtitleEl) {
-        subtitleEl.innerHTML = `AI vừa hoàn tất sinh testcase cho bài toán: <strong id="testcaseReviewTaskName" class="text-slate-900 font-bold">${escapeHtml(cleanTaskName)}</strong>. Tích chọn các testcase bạn muốn giữ:`;
+        subtitleEl.innerHTML = `AI vừa hoàn tất sinh testcase cho bài toán: <strong id="testcaseReviewTaskName" class="text-slate-900 font-bold">${escapeHtml(cleanTaskName)}</strong>${sessionBadge}. Tích chọn các testcase bạn muốn giữ:`;
     } else {
         const nameEl = document.getElementById('testcaseReviewTaskName');
         if (nameEl) nameEl.textContent = cleanTaskName;
@@ -1691,7 +1723,7 @@ async function loadModalTestcases(taskName, probId = '', preloadedRows = null) {
             orClauses.unshift(`problem_id.eq.${encodeURIComponent(probId)}`);
         }
 
-        const queryPath = `qa_memory?kind=eq.testcase&or=(${orClauses.join(',')})&select=id,problem_id,problem_title,test_suite,content,review_status,approved&order=created_at.asc,id.asc&limit=2000`;
+        const queryPath = `qa_memory?kind=eq.testcase&or=(${orClauses.join(',')})&select=id,problem_id,problem_title,test_suite,content,review_status,approved,created_at&order=created_at.desc,id.asc&limit=500`;
         const url = `${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/${queryPath}`;
 
         const res = await fetch(url, {
@@ -1708,11 +1740,35 @@ async function loadModalTestcases(taskName, probId = '', preloadedRows = null) {
         isModalMockMode = false;
 
         if (Array.isArray(data) && data.length > 0) {
-            modalTestcaseRows = data.map(normalizeModalTestcaseRow).sort((a, b) => compareTestcaseOrder(a, b, modalSortAsc));
+            // Chỉ giữ lại các testcase thuộc phiên sinh mới nhất (trong vòng 3 phút kể từ bản ghi mới nhất)
+            // để loại bỏ các bản ghi lịch sử bị cộng dồn từ các lần chạy trước đó
+            let latestBatch = data;
+            const timestamps = data
+                .map(r => r.created_at ? new Date(r.created_at).getTime() : NaN)
+                .filter(t => !Number.isNaN(t));
+            if (timestamps.length > 0) {
+                const maxTime = Math.max(...timestamps);
+                const SESSION_WINDOW_MS = 3 * 60 * 1000;
+                const filtered = data.filter(r => {
+                    if (!r.created_at) return false;
+                    const t = new Date(r.created_at).getTime();
+                    return !Number.isNaN(t) && (maxTime - t <= SESSION_WINDOW_MS);
+                });
+                if (filtered.length > 0) {
+                    latestBatch = filtered;
+                }
+            }
+
+            modalTestcaseRows = latestBatch.map(normalizeModalTestcaseRow).sort((a, b) => compareTestcaseOrder(a, b, modalSortAsc));
             modalChoice = {};
             modalTestcaseRows.forEach(r => {
                 modalChoice[r.id] = (r.review_status === 'rejected' || r.approved === false) ? 'rejected' : 'approved';
             });
+
+            const subtitleEl = document.getElementById('testcaseReviewModalSubtitle');
+            if (subtitleEl && (!Array.isArray(preloadedRows) || preloadedRows.length === 0)) {
+                subtitleEl.innerHTML = `AI vừa hoàn tất sinh testcase cho bài toán: <strong id="testcaseReviewTaskName" class="text-slate-900 font-bold">${escapeHtml(cleanName)}</strong> <span class="inline-flex items-center gap-1 ml-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">Phiên mới nhất: ${modalTestcaseRows.length} testcase</span>. Tích chọn các testcase bạn muốn giữ:`;
+            }
 
             renderModalTestcaseCards();
             updateModalCounters();
@@ -2012,13 +2068,13 @@ function updateModalCounters() {
     const noticeText = document.getElementById('modalSaveNoticeText');
     if (dot && noticeText) {
         dot.className = `w-2.5 h-2.5 rounded-full ${approved > 0 ? 'bg-emerald-500' : 'bg-amber-500'}`;
-        noticeText.textContent = `Đã tích chọn giữ ${approved}/${total} testcase. Bấm nút Xác nhận để lưu vào Sheet.`;
+        noticeText.textContent = `Đã tích chọn giữ ${approved}/${total} testcase. Bấm nút Xác nhận để lưu vào Folder Local trước khi đẩy lên Sheet & Docs.`;
         noticeText.className = 'text-slate-700 font-medium';
     }
 
     const btnLabel = document.getElementById('btnSaveApproveLabel');
     if (btnLabel) {
-        btnLabel.textContent = `Xác nhận & Giữ ${approved} testcase`;
+        btnLabel.textContent = `Xác nhận & Lưu ${approved} TC vào Local`;
     }
 }
 
@@ -2089,7 +2145,7 @@ async function saveAndApproveTestcaseReview() {
     const btn = document.getElementById('btnSaveApprove');
     const label = document.getElementById('btnSaveApproveLabel');
     if (btn) btn.disabled = true;
-    if (label) label.textContent = 'Đang lưu & tạo Google Sheet...';
+    if (label) label.textContent = 'Đang lưu vào Folder Local...';
 
     try {
         if (!isModalMockMode && modalTestcaseRows.length > 0) {
@@ -2123,53 +2179,44 @@ async function saveAndApproveTestcaseReview() {
             r.approved = modalChoice[r.id] === 'approved';
         });
 
-        // Xuất các testcase đã duyệt vào Google Sheet qua luồng n8n (loaiChay = 'export_sheet')
+        // Lưu các testcase đã chọn vào Folder Local trước (loaiChay = 'save_local')
         const sheetRows = buildApprovedSheetRows(approvedRows);
+        let savedFolder = '';
         if (sheetRows.length > 0) {
-            const exportPayload = {
+            const saveLocalPayload = {
                 baiToan: taskName,
                 problem_id: probId,
-                loaiChay: 'export_sheet',
+                loaiChay: 'save_local',
                 requestId: createRequestId(),
                 testcases: sheetRows
             };
             try {
-                await fetchWithTimeout(URL_POST_RUN, {
+                const saveRes = await fetchWithTimeout(URL_POST_RUN, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(exportPayload)
+                    body: JSON.stringify(saveLocalPayload)
                 }, 45000);
+                const saveData = await saveRes.json().catch(() => ({}));
+                savedFolder = saveData.local_records?.folderPath || '';
             } catch (exportErr) {
-                console.warn('Gửi lệnh tạo Sheet sang n8n:', exportErr);
+                console.warn('Gửi lệnh lưu Folder Local:', exportErr);
             }
-
-            // Cập nhật trạng thái bài toán sang "Đã xong" trên Supabase nếu chưa được n8n cập nhật
-            try {
-                const filterQuery = probId
-                    ? `id=eq.${encodeURIComponent(probId)}`
-                    : `title=eq.${encodeURIComponent(taskName)}`;
-                await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/problems?${filterQuery}`, {
-                    method: 'PATCH',
-                    headers: {
-                        apikey: SUPABASE_ANON_KEY,
-                        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-                        'Content-Type': 'application/json',
-                        Prefer: 'return=minimal'
-                    },
-                    body: JSON.stringify({ status: 'Đã xong' })
-                });
-            } catch (_) {}
         }
 
-        showToast(`Đã duyệt ${approvedRows.length} testcase & xuất vào Google Sheet cho "${taskName}"!`, 'success');
+        const folderNote = savedFolder ? ` (${savedFolder})` : '';
+        showToast(
+            `📁 Đã lưu ${approvedRows.length} testcase & Word Phân tích vào Folder Local${folderNote}! Hãy kiểm tra và nhấn nút "Đẩy lên Sheet & Docs" trên bảng.`,
+            'success',
+            9000
+        );
         approveTestcaseReview();
         await loadData();
     } catch (err) {
-        console.error('Lỗi khi lưu duyệt testcase:', err);
-        alert(`❌ Lỗi khi duyệt và xuất Sheet: ${err.message}`);
+        console.error('Lỗi khi lưu testcase vào Folder Local:', err);
+        alert(`❌ Lỗi khi lưu vào Folder Local: ${err.message}`);
     } finally {
         if (btn) btn.disabled = false;
-        if (label) label.textContent = 'Duyệt & Xuất vào Sheet';
+        if (label) label.textContent = 'Xác nhận & Lưu vào Local';
     }
 }
 
@@ -2457,15 +2504,20 @@ async function doRunSingle(tenBaiToan, testcasePrompt, mode) {
         }
 
         if (!responseFailed) {
+            const tcList = responseData.data?.testcases || responseData.testcases || [];
+            if (runContextByTask[tenBaiToan] && Array.isArray(tcList) && tcList.length > 0) {
+                runContextByTask[tenBaiToan].preloadedRows = tcList;
+            }
             await syncExecutionMetadataFromResponse(res, [tenBaiToan]);
+            if (mode !== 'phan_tich' && Array.isArray(tcList) && tcList.length > 0) {
+                queueTestcaseReview(tenBaiToan, tcList);
+            }
             await startPollingIfNeeded(true);
             const tokenUsage = responseData.data?.token_usage || responseData.token_usage;
             const tokenMsg = tokenUsage?.total_tokens ? ` (${tokenUsage.total_tokens.toLocaleString()} tokens)` : '';
-            showToast((responseData.message || 'Xử lý bài toán thành công.') + tokenMsg, 'success', 8000);
-            if (mode !== 'phan_tich') {
-                const tcList = responseData.data?.testcases || responseData.testcases || [];
-                queueTestcaseReview(tenBaiToan, tcList);
-            }
+            const localFolder = responseData.data?.local_records?.folderPath;
+            const localMsg = localFolder ? ` | Đã lưu vào Folder Local: ${localFolder} (Hãy kiểm tra và nhấn "Đẩy lên Sheet")` : '';
+            showToast((responseData.message || 'Đã lưu tài liệu vào Folder Local.') + tokenMsg + localMsg, 'success', 9000);
         } else {
             processingTasks = processingTasks.filter(item => item !== tenBaiToan);
             delete taskStartTime[tenBaiToan];
@@ -2945,3 +2997,110 @@ window.stopAllRunningTasks = async function () {
     }
 };
 
+
+// ================= BỘ HÀM TIỆN ÍCH CHỌC VÀO FOLDER & SINH BẢN GHI LOCAL =================
+window.AutoTCLocal = {
+    async listFiles(dir = '') {
+        await ensureAuthToken();
+        const resp = await fetch(`${BACKEND_API_BASE}/local/files?dir=${encodeURIComponent(dir)}`, {
+            method: 'GET',
+            headers: getBackendHeaders(false),
+        });
+        return resp.json();
+    },
+    async createFolder(folder) {
+        await ensureAuthToken();
+        const resp = await fetch(`${BACKEND_API_BASE}/local/folders`, {
+            method: 'POST',
+            headers: getBackendHeaders(true),
+            body: JSON.stringify({ folder }),
+        });
+        return resp.json();
+    },
+    async saveRecord({ folder = '', fileName, content, append = false }) {
+        await ensureAuthToken();
+        const resp = await fetch(`${BACKEND_API_BASE}/local/records`, {
+            method: 'POST',
+            headers: getBackendHeaders(true),
+            body: JSON.stringify({ folder, fileName, content, append }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.message || 'Lỗi lưu bản ghi local');
+        return data;
+    },
+    async readRecord(path) {
+        await ensureAuthToken();
+        const resp = await fetch(`${BACKEND_API_BASE}/local/records?path=${encodeURIComponent(path)}`, {
+            method: 'GET',
+            headers: getBackendHeaders(false),
+        });
+        return resp.json();
+    },
+    async openTaskFolder(taskName) {
+        await ensureAuthToken();
+        const resp = await fetch(`${BACKEND_API_BASE}/local/open-folder`, {
+            method: 'POST',
+            headers: getBackendHeaders(true),
+            body: JSON.stringify({ taskName }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.message || 'Không thể mở Folder Local');
+        return data;
+    },
+    async pushTaskToDrive(taskName, problemId = '', testcases = null) {
+        await ensureAuthToken();
+        const payload = { baiToan: taskName, problem_id: problemId };
+        if (Array.isArray(testcases)) payload.testcases = testcases;
+        const resp = await fetch(`${BACKEND_API_BASE}/local/push-drive`, {
+            method: 'POST',
+            headers: getBackendHeaders(true),
+            body: JSON.stringify(payload),
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.message || 'Không thể đẩy tài liệu lên Google Sheet/Drive');
+        return data;
+    },
+};
+
+window.openLocalTaskFolder = async function (index) {
+    const row = dataRows[index];
+    if (!row) return;
+    const taskName = getColVal(row, 'Bài toán') || '';
+    if (!taskName) return;
+    try {
+        const res = await window.AutoTCLocal.openTaskFolder(taskName);
+        showToast(`📁 Đã mở Folder Local: ${res.folderPath || taskName}`, 'info', 6000);
+    } catch (err) {
+        showToast(`Không thể mở Folder Local: ${err.message}`, 'error', 6000);
+    }
+};
+
+window.confirmPushLocalToDrive = async function (index) {
+    const row = dataRows[index];
+    if (!row) return;
+    const taskName = getColVal(row, 'Bài toán') || '';
+    const probId = row.id || row.problem_id || '';
+    if (!taskName) return;
+
+    const ok = confirm(
+        `☁️ XÁC NHẬN ĐẨY LÊN GOOGLE SHEET & DRIVE\n\n` +
+        `Bài toán: "${taskName}"\n\n` +
+        `Hệ thống sẽ lấy file Sheet Testcase (.xlsx) và file Word Phân tích (.docx) từ Folder Local của bài toán này để đẩy lên Google Sheet & Google Docs.\n\n` +
+        `Nhấn OK để xác nhận đẩy lên!`
+    );
+    if (!ok) return;
+
+    document.getElementById('loadingText').innerText = `Đang đẩy Sheet TC & Word Phân tích của "${taskName}" lên Google Drive...`;
+    document.getElementById('loadingOverlay').classList.remove('hidden');
+
+    try {
+        const res = await window.AutoTCLocal.pushTaskToDrive(taskName, probId);
+        showToast(res.message || `Đã đẩy tài liệu của "${taskName}" lên Google Sheet & Drive thành công!`, 'success', 8000);
+        await loadData(true);
+    } catch (err) {
+        console.error('Lỗi khi đẩy từ Folder Local lên Drive:', err);
+        showToast(`Lỗi khi đẩy lên Sheet: ${err.message}`, 'error', 8000);
+    } finally {
+        document.getElementById('loadingOverlay').classList.add('hidden');
+    }
+};

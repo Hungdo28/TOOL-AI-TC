@@ -32,6 +32,12 @@ class Router:
             ("POST", "/webhook/luong-chuc-nang"): task_controller.run_ai,
             ("POST", "/api/autotest/generate"): task_controller.generate_autotest,
             ("POST", "/api/autotest/run"): task_controller.run_autotest,
+            ("GET", "/api/local/files"): task_controller.list_local_files,
+            ("POST", "/api/local/folders"): task_controller.create_local_folder,
+            ("POST", "/api/local/records"): task_controller.save_local_record,
+            ("GET", "/api/local/records"): task_controller.read_local_record,
+            ("POST", "/api/local/open-folder"): task_controller.open_local_folder,
+            ("POST", "/api/local/push-drive"): task_controller.push_local_to_drive,
         }
         if auth_controller:
             self.routes[("POST", "/api/auth/token")] = auth_controller.get_token

@@ -23,6 +23,7 @@ from services.json_parser import (
     parse_loose,
     parse_requirements,
 )
+from services.local_storage_service import LocalStorageService
 from services.memory_service import MemoryService
 
 LOGGER = logging.getLogger("autotc-backend")
@@ -89,6 +90,7 @@ class AiPipelineService:
         self.ai = AiClient(settings)
         self.memory = MemoryService(workspace)
         self.crawler = DocumentCrawler(getattr(workspace, "_google_workspace", None), settings)
+        self.local_storage = LocalStorageService(settings.local_records_dir)
         self._cancelled_tasks: set[str] = set()
         self._cancel_lock = threading.RLock()
 
@@ -125,26 +127,13 @@ class AiPipelineService:
             str(body.get("maTestCase") or body.get("ma_testcase") or body.get("prefix") or "TC"),
         ).strip() or "TC"
 
-        # Nhánh xuất trực tiếp từ màn hình review.html
-        if mode == "export_sheet":
-            task_ident = body.get("problem_id") or body.get("baiToan")
-            testcases = body.get("testcases") or []
-            if not task_ident:
-                raise ApiError(400, "Thiếu tên hoặc ID bài toán để xuất Sheet.")
-            task = self.workspace.find_task(str(task_ident))
-            if not task:
-                raise ApiError(404, f'Không tìm thấy bài toán "{task_ident}"')
-            task_name = task.get("Bài toán") or str(task_ident)
-            tc_url = self.workspace.create_testcase_sheet(task_name, testcases)
-            updated = self.workspace.update_task(
-                task["id"],
-                {"Link Testcase": tc_url, "Trạng thái": "Đã xong"},
-            )
-            return {
-                "success": True,
-                "message": "Đã xuất Testcase vào Google Sheet thành công.",
-                "data": updated,
-            }
+        # Nhánh lưu danh sách Testcase đã chọn trên màn hình Duyệt vào Folder Local trước
+        if mode == "save_local":
+            return self.save_approved_to_local(body, tc_prefix=prefix)
+
+        # Nhánh xác nhận đẩy từ Folder Local lên Google Sheet & Google Docs
+        if mode in ("export_sheet", "push_drive"):
+            return self.push_local_to_drive(body, tc_prefix=prefix)
 
         # Lấy danh sách bài toán cần chạy
         task_names: list[str] = []
@@ -299,30 +288,59 @@ class AiPipelineService:
                 )
 
                 tc_sheet_rows: list[dict[str, Any]] = []
+                analysis_text = ""
                 if fut_analysis:
-                    analysis_doc_url = fut_analysis.result()
+                    analysis_doc_url, analysis_text = fut_analysis.result()
                 if fut_testcase:
                     testcase_url, testcase_count, tc_sheet_rows = fut_testcase.result()
 
             self.check_cancelled(title)
-            # 4. Cập nhật trạng thái hoàn tất ("Đã xong")
-            changes: dict[str, Any] = {"Trạng thái": "Đã xong"}
-            if analysis_doc_url:
-                changes["Link tài liệu phân tích"] = analysis_doc_url
-            if testcase_url:
-                changes["Link Testcase"] = testcase_url
-
-            updated_task = self.workspace.update_task(problem_id, changes)
             task_usage = self.ai.get_task_usage(title)
+            formatted_tcs = [
+                {
+                    "id": r.get("id") or f"TC_{idx + 1:02d}",
+                    "test_suite": r.get("test_suite") or "Chung",
+                    "review_status": "approved",
+                    "approved": True,
+                    "content": {
+                        "id": r.get("id") or f"TC_{idx + 1:02d}",
+                        "muc_dich": r.get("muc_dich") or "",
+                        "cac_buoc": r.get("cac_buoc") or "",
+                        "ket_qua_mong_muon": r.get("ket_qua_mong_muon") or "",
+                        "ghi_chu": r.get("ghi_chu") or "",
+                    },
+                }
+                for idx, r in enumerate(tc_sheet_rows or [])
+                if r.get("row_type") == "testcase"
+            ]
+
+            local_bundle = {}
+            try:
+                local_bundle = self.local_storage.save_pipeline_task_bundle(
+                    task_title=title,
+                    problem_id=problem_id,
+                    testcases=tc_sheet_rows or formatted_tcs,
+                    analysis_text=analysis_text,
+                    analysis_doc_url="",
+                    testcase_url="",
+                    token_usage=task_usage,
+                    tc_prefix=tc_prefix,
+                )
+            except Exception as local_err:
+                LOGGER.warning("Không thể lưu bộ tài liệu Word/Excel local cho [%s]: %s", title, local_err)
+
+            # 4. Đặt trạng thái "Chờ duyệt" để người dùng kiểm tra Folder Local và nhấn Xác nhận đẩy lên Sheet
+            changes: dict[str, Any] = {"Trạng thái": "Chờ duyệt"}
+            updated_task = self.workspace.update_task(problem_id, changes)
+
             LOGGER.info(
-                "🏁 Hoàn tất bài toán [%s]: %d testcases | Token: %s (In: %s, Out: %s) | Sheet=%s | Doc=%s",
+                "🏁 Đã lưu Local bài toán [%s]: %d testcases | Token: %s (In: %s, Out: %s) | Folder Local=%s (Chờ xác nhận đẩy lên Sheet)",
                 title,
                 testcase_count,
                 f"{task_usage.get('total_tokens', 0):,}",
                 f"{task_usage.get('input_tokens', 0):,}",
                 f"{task_usage.get('output_tokens', 0):,}",
-                testcase_url,
-                analysis_doc_url,
+                local_bundle.get("folderPath", ""),
             )
             return {
                 "success": True,
@@ -330,25 +348,10 @@ class AiPipelineService:
                 "problem_id": problem_id,
                 "testcase_count": testcase_count,
                 "testcase_url": testcase_url,
-                "testcases": [
-                    {
-                        "id": r.get("id") or f"TC_{idx + 1:02d}",
-                        "test_suite": r.get("test_suite") or "Chung",
-                        "review_status": "approved",
-                        "approved": True,
-                        "content": {
-                            "id": r.get("id") or f"TC_{idx + 1:02d}",
-                            "muc_dich": r.get("muc_dich") or "",
-                            "cac_buoc": r.get("cac_buoc") or "",
-                            "ket_qua_mong_muon": r.get("ket_qua_mong_muon") or "",
-                            "ghi_chu": r.get("ghi_chu") or "",
-                        }
-                    }
-                    for idx, r in enumerate(tc_sheet_rows or [])
-                    if r.get("row_type") == "testcase"
-                ],
+                "testcases": formatted_tcs,
                 "analysis_doc_url": analysis_doc_url,
                 "token_usage": task_usage,
+                "local_records": local_bundle,
                 "task": updated_task,
             }
 
@@ -396,7 +399,7 @@ class AiPipelineService:
                 self._cancelled_tasks.discard(_normalized(task_name))
 
     # =========================================================================
-    # NHÁNH 1: PHÂN TÍCH BÀI TOÁN & XUẤT GOOGLE DOCS
+    # NHÁNH 1: PHÂN TÍCH BÀI TOÁN & LƯU FILE WORD (.DOCX) VÀO FOLDER LOCAL TRƯỚC
     # =========================================================================
     def _run_analysis_branch(
         self,
@@ -404,26 +407,31 @@ class AiPipelineService:
         title: str,
         doc_text: str,
         user_prompt: str,
-    ) -> str:
+    ) -> tuple[str, str]:
         self.check_cancelled(title)
         prompt = build_analysis_prompt(doc_text, user_prompt)
         raw_ai = self.ai.complete(prompt, max_tokens=4000, temperature=0.2, task_name=title)
         self.check_cancelled(title)
         final_text = parse_analysis_report(raw_ai)
 
-        self.check_cancelled(title)
-        doc_url = self.workspace.create_analysis_doc(title, final_text)
-        self.workspace.update_task(problem_id, {"Link tài liệu phân tích": doc_url})
+        # Chỉ lưu file Word (.docx) chuẩn báo cáo vào Folder Local của bài toán (chờ người dùng xác nhận mới đẩy lên Drive)
+        local_word_path = ""
+        try:
+            word_res = self.local_storage.save_analysis_word(title, final_text)
+            local_word_path = word_res.get("filePath") or ""
+        except Exception as w_err:
+            LOGGER.warning("[%s] Lưu file Word phân tích local gặp lỗi: %s", title, w_err)
+
         self.memory.save_analysis(
             problem_id=problem_id,
             problem_title=title,
             final_text=final_text,
-            doc_url=doc_url,
+            doc_url=local_word_path,
         )
-        return doc_url
+        return "", final_text
 
     # =========================================================================
-    # NHÁNH 2: TRÍCH XUẤT REQUIREMENT -> SINH CONDITION -> SINH TESTCASE & SHEET
+    # NHÁNH 2: TRÍCH XUẤT REQUIREMENT -> SINH CONDITION -> LƯU SHEET TC (.XLSX) LOCAL TRƯỚC
     # =========================================================================
     def _run_testcase_branch(
         self,
@@ -468,10 +476,12 @@ class AiPipelineService:
         sheet_rows = self._group_by_test_suite(raw_tc_rows, tc_prefix)
         tc_only_count = sum(1 for r in sheet_rows if r.get("row_type") == "testcase")
 
-        # Bước 2.7: Tạo file Google Sheet Testcase & ghi toàn bộ dòng trong 1 batch
+        # Bước 2.7: Chỉ lưu file Excel (.xlsx) đa sheet vào Folder Local trên máy (chờ xác nhận mới đẩy lên Google Sheet)
         self.check_cancelled(title)
-        tc_url = self.workspace.create_testcase_sheet(title, sheet_rows)
-        self.workspace.update_task(problem_id, {"Link Testcase": tc_url})
+        try:
+            self.local_storage.save_testcase_excel(title, sheet_rows, tc_prefix=tc_prefix)
+        except Exception as ex_err:
+            LOGGER.warning("[%s] Lưu file Excel TC local gặp lỗi: %s", title, ex_err)
 
         # Bước 2.8: Lưu toàn bộ testcase vào qa_memory để phục vụ màn hình Review & Chạy lại
         try:
@@ -483,7 +493,179 @@ class AiPipelineService:
         except Exception as e:
             LOGGER.warning("[%s] Lưu qa_memory thất bại: %s", title, e)
 
-        return tc_url, tc_only_count, sheet_rows
+        return "", tc_only_count, sheet_rows
+
+    def save_approved_to_local(self, body: dict[str, Any], *, tc_prefix: str = "TC") -> dict[str, Any]:
+        """
+        Bước 2 của luồng: Sau khi người dùng chọn các testcase muốn giữ trên màn hình lựa chọn,
+        lưu bộ Testcase đã chọn (.xlsx) và tài liệu Word phân tích (.docx) vào Folder Local của bài toán,
+        giữ trạng thái 'Chờ duyệt' để người dùng kiểm tra rồi mới nhấn 'Đẩy lên Sheet & Docs'.
+        """
+        import urllib.parse
+
+        task_ident = body.get("problem_id") or body.get("baiToan") or body.get("taskName")
+        testcases = body.get("testcases") if isinstance(body.get("testcases"), list) else []
+        if not task_ident:
+            raise ApiError(400, "Thiếu tên hoặc ID bài toán để lưu vào Folder Local.")
+
+        task = self.workspace.find_task(str(task_ident))
+        if not task:
+            raise ApiError(404, f'Không tìm thấy bài toán "{task_ident}"')
+
+        task_id = str(task.get("id") or task_ident)
+        task_name = str(task.get("Bài toán") or task_ident).strip()
+
+        if testcases:
+            try:
+                self.local_storage.save_testcase_excel(task_name, testcases, tc_prefix=tc_prefix)
+            except Exception as local_err:
+                LOGGER.warning("Không thể lưu file Excel đã chọn vào Folder Local [%s]: %s", task_name, local_err)
+            try:
+                self.memory.save_testcases(
+                    problem_id=task_id,
+                    problem_title=task_name,
+                    sheet_rows=testcases,
+                )
+            except Exception as mem_err:
+                LOGGER.debug("Không thể đồng bộ lại qa_memory khi lưu Local [%s]: %s", task_name, mem_err)
+
+        bundle_info = self.local_storage.get_task_bundle_info(task_name)
+        if not bundle_info.get("wordDocPath") and hasattr(self.workspace, "_request"):
+            try:
+                enc = urllib.parse.quote(task_id)
+                a_rows = self.workspace._request(
+                    f"qa_memory?kind=eq.analysis&problem_id=eq.{enc}&select=content&order=created_at.desc&limit=1"
+                )
+                if isinstance(a_rows, list) and a_rows:
+                    c_obj = a_rows[0].get("content")
+                    if isinstance(c_obj, dict) and str(c_obj.get("final_text") or "").strip():
+                        self.local_storage.save_analysis_word(task_name, str(c_obj["final_text"]).strip())
+            except Exception:
+                pass
+
+        updated = self.workspace.update_task(task_id, {"Trạng thái": "Chờ duyệt"})
+        bundle_info = self.local_storage.get_task_bundle_info(task_name)
+
+        return {
+            "success": True,
+            "message": f'Đã lưu Testcase & Word Phân tích vào Folder Local của "{task_name}". Hãy kiểm tra và nhấn "Đẩy lên Sheet & Docs"!',
+            "local_records": bundle_info,
+            "data": updated,
+        }
+
+    def push_local_to_drive(self, body: dict[str, Any], *, tc_prefix: str = "TC") -> dict[str, Any]:
+        """
+        Khi người dùng nhấn Xác nhận đẩy lên Sheet:
+        1. Nếu có danh sách testcase đã duyệt gửi kèm, cập nhật lại file [TC] <Bài toán>.xlsx trong Folder Local.
+        2. Đọc trực tiếp file [TC] <Bài toán>.xlsx và Phân tích bài toán - <Bài toán>.docx từ Folder Local
+           của bài toán (giữ nguyên cả các chỉnh sửa thủ công trên Excel/Word nếu người dùng có sửa).
+        3. Đẩy cả 2 tài liệu lên Folder Bài toán trên Google Drive (Google Sheet + Google Doc) và cập nhật trạng thái 'Đã xong'.
+        """
+        from pathlib import Path
+        import urllib.parse
+
+        task_ident = body.get("problem_id") or body.get("baiToan") or body.get("taskName")
+        testcases = body.get("testcases") if isinstance(body.get("testcases"), list) else []
+        if not task_ident:
+            raise ApiError(400, "Thiếu tên hoặc ID bài toán để đẩy lên Sheet.")
+
+        task = self.workspace.find_task(str(task_ident))
+        if not task:
+            raise ApiError(404, f'Không tìm thấy bài toán "{task_ident}"')
+
+        task_id = str(task.get("id") or task_ident)
+        task_name = str(task.get("Bài toán") or task_ident).strip()
+
+        # 1. Nếu có danh sách testcase truyền từ màn hình Duyệt, cập nhật lại file Excel trong Folder Local
+        if testcases:
+            try:
+                self.local_storage.save_testcase_excel(task_name, testcases, tc_prefix=tc_prefix)
+            except Exception as local_err:
+                LOGGER.warning("Không thể cập nhật file Excel local trước khi đẩy Drive [%s]: %s", task_name, local_err)
+
+        bundle_info = self.local_storage.get_task_bundle_info(task_name)
+        excel_path = bundle_info.get("excelSheetPath") or ""
+        word_path = bundle_info.get("wordDocPath") or ""
+
+        # Nếu chưa có file Excel trong Folder Local, tự khôi phục từ qa_memory trên Supabase
+        if not excel_path and hasattr(self.workspace, "_request"):
+            try:
+                enc = urllib.parse.quote(task_id)
+                rows = self.workspace._request(
+                    f"qa_memory?kind=eq.testcase&problem_id=eq.{enc}&select=test_suite,content,approved,review_status&order=created_at.asc,id.asc"
+                )
+                if isinstance(rows, list) and rows:
+                    approved = [r for r in rows if r.get("approved") is True or r.get("review_status") == "approved"]
+                    use_rows = approved if approved else rows
+                    saved_ex = self.local_storage.save_testcase_excel(task_name, use_rows, tc_prefix=tc_prefix)
+                    excel_path = saved_ex.get("filePath") or ""
+            except Exception as mem_err:
+                LOGGER.warning("Không thể dựng lại file Excel từ qa_memory [%s]: %s", task_name, mem_err)
+
+        # Nếu chưa có file Word trong Folder Local, tự khôi phục từ qa_memory (kind=analysis) trên Supabase
+        analysis_fallback_text = ""
+        if hasattr(self.workspace, "_request"):
+            try:
+                enc = urllib.parse.quote(task_id)
+                a_rows = self.workspace._request(
+                    f"qa_memory?kind=eq.analysis&problem_id=eq.{enc}&select=content&order=created_at.desc&limit=1"
+                )
+                if isinstance(a_rows, list) and a_rows:
+                    c_obj = a_rows[0].get("content")
+                    if isinstance(c_obj, dict):
+                        analysis_fallback_text = str(c_obj.get("final_text") or "").strip()
+            except Exception:
+                pass
+
+        if not word_path and analysis_fallback_text:
+            try:
+                saved_w = self.local_storage.save_analysis_word(task_name, analysis_fallback_text)
+                word_path = saved_w.get("filePath") or ""
+            except Exception as w_err:
+                LOGGER.warning("Không thể dựng lại file Word từ qa_memory [%s]: %s", task_name, w_err)
+
+        # 2. Đẩy file Excel (.xlsx) từ Folder Local lên Google Sheet
+        tc_url = str(task.get("Link Testcase") or "")
+        if excel_path and Path(excel_path).is_file():
+            try:
+                xlsx_bytes = Path(excel_path).read_bytes()
+                tc_url = self.workspace.upload_excel_bytes_as_sheet(task_name, xlsx_bytes, fallback_tcs=testcases)
+            except Exception as g_sheet_err:
+                LOGGER.warning("Lỗi khi đẩy Excel local lên Google Sheet [%s]: %s", task_name, g_sheet_err)
+                raise ApiError(500, f"Không thể đẩy lên Google Sheet: {g_sheet_err}")
+        elif testcases:
+            tc_url = self.workspace.create_testcase_sheet(task_name, testcases)
+
+        # 3. Đẩy file Word (.docx) từ Folder Local lên Google Docs (nếu có file Word trong folder local)
+        doc_url = str(task.get("Link tài liệu phân tích") or "")
+        if word_path and Path(word_path).is_file():
+            try:
+                docx_bytes = Path(word_path).read_bytes()
+                doc_url = self.workspace.upload_word_bytes_as_doc(
+                    task_name,
+                    docx_bytes,
+                    fallback_text=analysis_fallback_text,
+                )
+            except Exception as g_doc_err:
+                LOGGER.warning("Lỗi khi đẩy Word local lên Google Docs [%s]: %s", task_name, g_doc_err)
+
+        changes_export: dict[str, Any] = {"Trạng thái": "Đã xong"}
+        if tc_url:
+            changes_export["Link Testcase"] = tc_url
+        if doc_url:
+            changes_export["Link tài liệu phân tích"] = doc_url
+
+        updated = self.workspace.update_task(task_id, changes_export)
+        bundle_info = self.local_storage.get_task_bundle_info(task_name)
+
+        return {
+            "success": True,
+            "message": f'Đã đẩy tài liệu từ Folder Local của "{task_name}" lên Google Sheet & Drive thành công!',
+            "testcase_url": tc_url,
+            "analysis_doc_url": doc_url,
+            "local_records": bundle_info,
+            "data": updated,
+        }
 
     @staticmethod
     def _chunk_document(title: str, doc_text: str) -> list[dict[str, Any]]:

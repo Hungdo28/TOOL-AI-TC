@@ -41,7 +41,9 @@ const BACKEND_API_BASE = (
     window.AUTO_TC_API_BASE ||
     (window.location.hostname === 'quanlv.io.vn'
         ? 'https://tool-ai-tc.onrender.com/api'
-        : `${window.location.origin}/api`)
+        : (['5500', '5501', '5173', ''].includes(window.location.port)
+            ? 'http://127.0.0.1:8088/api'
+            : `${window.location.origin}/api`))
 ).replace(/\/$/, '');
 
 const BACKEND_ORIGIN = BACKEND_API_BASE.replace(/\/api$/, '');
@@ -460,7 +462,8 @@ window.generateAutoTestcases = async function () {
         updateSummaryStats();
         renderAutoTestList();
         const domMsg = data.dom_inspected ? ' (Đã quét phần tử thật trên trang Web)' : '';
-        showToast(`Đã sinh thành công ${autoTestCases.length} kịch bản Auto Test${domMsg}!`);
+        const localMsg = data.local_record?.filePath ? ` | Đã lưu vào folder: ${data.local_record.filePath}` : '';
+        showToast(`Đã sinh thành công ${autoTestCases.length} kịch bản Auto Test${domMsg}${localMsg}!`);
         return true;
     } catch (err) {
         console.error('Lỗi khi sinh Auto Testcase:', err);
@@ -550,8 +553,9 @@ window.runAllAutoTests = async function () {
 
         updateSummaryStats(data.summary);
         const s = data.summary || {};
+        const savedPathMsg = data.local_record?.filePath ? ` | Bản ghi lưu tại: ${data.local_record.filePath}` : '';
         showToast(
-            `Hoàn tất chạy Auto Test: ${s.passed || 0}/${s.total || 0} PASS (${s.pass_rate || 0}%) trong ${s.total_duration_ms || 0}ms!`,
+            `Hoàn tất chạy Auto Test: ${s.passed || 0}/${s.total || 0} PASS (${s.pass_rate || 0}%) trong ${s.total_duration_ms || 0}ms${savedPathMsg}!`,
             (s.failed || 0) + (s.error || 0) > 0 ? 'info' : 'success'
         );
     } catch (err) {
@@ -985,7 +989,7 @@ window.deleteAutoCase = function (idx) {
     renderAutoTestList();
 };
 
-window.exportAutoTestReport = function () {
+window.exportAutoTestReport = async function () {
     const taskName = document.getElementById('autoTaskName')?.value.trim() || 'AutoTest_Report';
     const report = {
         taskName,
@@ -996,6 +1000,21 @@ window.exportAutoTestReport = function () {
             executionResult: executionResults[tc.id] || { status: 'NOT_RUN' },
         })),
     };
+
+    try {
+        const saved = await window.AutoTCLocal.saveRecord({
+            folder: taskName,
+            fileName: `${taskName.replace(/\s+/g, '_')}_AutoTest_Report.json`,
+            content: report,
+        });
+        if (saved && saved.filePath) {
+            showToast(`Đã tự tạo folder và lưu bản ghi vào: ${saved.filePath}!`);
+            return;
+        }
+    } catch (_) {
+        // Fallback tải xuống trình duyệt nếu Backend đang tắt
+    }
+
     const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1004,4 +1023,40 @@ window.exportAutoTestReport = function () {
     a.click();
     URL.revokeObjectURL(url);
     showToast('Đã xuất file Báo cáo kết quả Auto Test (.json)!');
+};
+
+// ================= BỘ HÀM TIỆN ÍCH CHỌC VÀO FOLDER & SINH BẢN GHI LOCAL =================
+window.AutoTCLocal = {
+    async listFiles(dir = '') {
+        const resp = await fetch(`${BACKEND_API_BASE}/local/files?dir=${encodeURIComponent(dir)}`, {
+            method: 'GET',
+            headers: getBackendHeaders(false),
+        });
+        return resp.json();
+    },
+    async createFolder(folder) {
+        const resp = await fetch(`${BACKEND_API_BASE}/local/folders`, {
+            method: 'POST',
+            headers: getBackendHeaders(true),
+            body: JSON.stringify({ folder }),
+        });
+        return resp.json();
+    },
+    async saveRecord({ folder = '', fileName, content, append = false }) {
+        const resp = await fetch(`${BACKEND_API_BASE}/local/records`, {
+            method: 'POST',
+            headers: getBackendHeaders(true),
+            body: JSON.stringify({ folder, fileName, content, append }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.message || 'Lỗi lưu bản ghi local');
+        return data;
+    },
+    async readRecord(path) {
+        const resp = await fetch(`${BACKEND_API_BASE}/local/records?path=${encodeURIComponent(path)}`, {
+            method: 'GET',
+            headers: getBackendHeaders(false),
+        });
+        return resp.json();
+    },
 };

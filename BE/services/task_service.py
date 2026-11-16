@@ -6,6 +6,7 @@ from core.config import Settings
 from services.ai_callback_service import AiCallbackService
 from services.ai_pipeline_service import AiPipelineService
 from services.autotest_service import AutoTestService
+from services.local_storage_service import LocalStorageService
 from services.common import (
     ALLOWED_EXTENSIONS,
     ALLOWED_STATUSES,
@@ -43,6 +44,11 @@ class TaskService:
             AutoTestService(workspace, settings)
             if settings is not None
             else None
+        )
+        self.local_storage = (
+            LocalStorageService(settings.local_records_dir)
+            if settings is not None
+            else LocalStorageService("./AutoTC_Records")
         )
 
     @property
@@ -158,3 +164,63 @@ class TaskService:
         if not self.autotest:
             raise ApiError(500, "AutoTest Service chưa được khởi tạo trên Backend.")
         return self.autotest.run_autotest_suite(payload)
+
+    def list_local_files(self, relative_dir: str = "") -> dict[str, Any]:
+        return self.local_storage.list_folder(relative_dir)
+
+    def create_local_folder(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self.local_storage.create_folder(payload)
+
+    def save_local_record(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self.local_storage.save_record(payload)
+
+    def read_local_record(self, relative_path: str) -> dict[str, Any]:
+        return self.local_storage.read_record(relative_path)
+
+    def open_local_folder(self, payload: dict[str, Any]) -> dict[str, Any]:
+        task_name = str(payload.get("taskName") or payload.get("baiToan") or payload.get("folder") or "").strip()
+        if task_name and hasattr(self.workspace, "_request"):
+            info = self.local_storage.get_task_bundle_info(task_name)
+            try:
+                import urllib.parse
+
+                task = self.workspace.find_task(task_name)
+                task_id = str(task.get("id") or "") if task else ""
+                excel_path = info.get("excelSheetPath") or ""
+                needs_excel_rebuild = not excel_path
+                if excel_path:
+                    try:
+                        import openpyxl
+
+                        wb_chk = openpyxl.load_workbook(excel_path)
+                        ws_chk = wb_chk.worksheets[0]
+                        if ws_chk["A13"].value != "ID" or len(ws_chk.conditional_formatting) > 0:
+                            needs_excel_rebuild = True
+                    except Exception:
+                        pass
+
+                if task_id and needs_excel_rebuild:
+                    enc = urllib.parse.quote(task_id)
+                    rows = self.workspace._request(
+                        f"qa_memory?kind=eq.testcase&problem_id=eq.{enc}&select=test_suite,content,approved,review_status&order=created_at.asc,id.asc"
+                    )
+                    if isinstance(rows, list) and rows:
+                        approved = [r for r in rows if r.get("approved") is True or r.get("review_status") == "approved"]
+                        self.local_storage.save_testcase_excel(task_name, approved or rows)
+                if task_id and not info.get("wordDocPath"):
+                    enc = urllib.parse.quote(task_id)
+                    a_rows = self.workspace._request(
+                        f"qa_memory?kind=eq.analysis&problem_id=eq.{enc}&select=content&order=created_at.desc&limit=1"
+                    )
+                    if isinstance(a_rows, list) and a_rows:
+                        c_obj = a_rows[0].get("content")
+                        if isinstance(c_obj, dict) and str(c_obj.get("final_text") or "").strip():
+                            self.local_storage.save_analysis_word(task_name, str(c_obj["final_text"]).strip())
+            except Exception:
+                pass
+        return self.local_storage.open_task_folder(payload)
+
+    def push_local_to_drive(self, payload: dict[str, Any]) -> dict[str, Any]:
+        if not self.pipeline:
+            raise ApiError(500, "AI Pipeline chưa được khởi tạo trên Backend.")
+        return self.pipeline.push_local_to_drive(payload)
