@@ -1,4 +1,11 @@
-google-api-python-client>=2.170.0,<3
-google-auth>=2.40.0,<3
-google-auth-oauthlib>=1.2.0,<2
-python-docx==1.2.0
+fastapi==0.165.0
+google_api_python_client==2.198.0
+google_auth_oauthlib==1.4.0
+openpyxl==3.1.5
+Pillow==13.0.0
+playwright==1.62.0
+protobuf==7.36.2
+pydantic==2.14.3
+python_docx==1.2.0
+qdrant_client==1.20.0
+Requests==2.34.2
