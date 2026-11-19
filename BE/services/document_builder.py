@@ -5,6 +5,8 @@ import json
 import logging
 import re
 import time
+import xml.etree.ElementTree as ET
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -201,6 +203,31 @@ def _build_fallback_template_workbook() -> openpyxl.Workbook:
     return wb
 
 
+def _ensure_safe_openpyxl_cleanup() -> None:
+    """Tránh [WinError 32] trên Windows khi Defender giữ khóa file tạm của openpyxl lúc xóa."""
+    import openpyxl.worksheet._writer as _ww
+
+    if getattr(_ww.WorksheetWriter, "_safe_cleanup_patched", False):
+        return
+    orig_cleanup = _ww.WorksheetWriter.cleanup
+
+    def _safe_cleanup(self) -> None:
+        for delay in (0.0, 0.05, 0.1, 0.2):
+            if delay:
+                time.sleep(delay)
+            try:
+                orig_cleanup(self)
+                return
+            except PermissionError:
+                continue
+            except (FileNotFoundError, ValueError):
+                return
+        LOGGER.debug("Bỏ qua xóa file tạm openpyxl đang bị Windows khóa: %s", getattr(self, "out", ""))
+
+    _ww.WorksheetWriter.cleanup = _safe_cleanup  # type: ignore[method-assign]
+    _ww.WorksheetWriter._safe_cleanup_patched = True  # type: ignore[attr-defined]
+
+
 def load_template_workbook() -> openpyxl.Workbook:
     """Mở file Template Testcase gốc (nếu đã được đồng bộ về BE/templates/template_testcase.xlsx)."""
     if TEMPLATE_CACHE_PATH.is_file():
@@ -253,6 +280,83 @@ def _organize_subsuites_for_sheet(
     return result
 
 
+_OOXML_MAIN_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+_OOXML_REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+_OOXML_PKG_REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
+
+
+def _inject_cached_formula_values_xlsx(
+    xlsx_bytes: bytes,
+    sheet_caches: dict[str, dict[str, str | int | float]],
+) -> bytes:
+    """
+    Điền sẵn giá trị tính toán (<v>) vào XML của các ô công thức trong file .xlsx.
+    Giúp Excel hiển thị ngay [TC]_1, [TC]_2... và tổng số TC ngay cả khi mở ở
+    chế độ Calculation=Manual, Protected View, hoặc trình xem trước chỉ đọc.
+    """
+    if not sheet_caches:
+        return xlsx_bytes
+
+    ET.register_namespace("", _OOXML_MAIN_NS)
+    ET.register_namespace("r", _OOXML_REL_NS)
+    ET.register_namespace("mc", "http://schemas.openxmlformats.org/markup-compatibility/2006")
+    ET.register_namespace("x14ac", "http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac")
+
+    in_buf = io.BytesIO(xlsx_bytes)
+    out_buf = io.BytesIO()
+    with zipfile.ZipFile(in_buf, "r") as zin:
+        try:
+            wb_xml = ET.fromstring(zin.read("xl/workbook.xml"))
+            rels_xml = ET.fromstring(zin.read("xl/_rels/workbook.xml.rels"))
+        except KeyError:
+            return xlsx_bytes
+
+        rid_to_target: dict[str, str] = {}
+        for rel in rels_xml.findall(f"{{{_OOXML_PKG_REL_NS}}}Relationship"):
+            rid = rel.attrib.get("Id", "")
+            target = rel.attrib.get("Target", "").lstrip("/")
+            if target and not target.startswith("xl/"):
+                target = f"xl/{target}"
+            if rid and target:
+                rid_to_target[rid] = target
+
+        path_to_cache: dict[str, dict[str, str | int | float]] = {}
+        for sh in wb_xml.findall(f".//{{{_OOXML_MAIN_NS}}}sheet"):
+            sh_name = sh.attrib.get("name", "")
+            rid = sh.attrib.get(f"{{{_OOXML_REL_NS}}}id", "")
+            target = rid_to_target.get(rid)
+            if target and sh_name in sheet_caches:
+                path_to_cache[target] = sheet_caches[sh_name]
+
+        if not path_to_cache:
+            return xlsx_bytes
+
+        with zipfile.ZipFile(out_buf, "w", compression=zipfile.ZIP_DEFLATED) as zout:
+            for item in zin.infolist():
+                data = zin.read(item.filename)
+                cache_map = path_to_cache.get(item.filename)
+                if cache_map:
+                    root = ET.fromstring(data)
+                    for c_el in root.iter(f"{{{_OOXML_MAIN_NS}}}c"):
+                        ref = c_el.attrib.get("r", "")
+                        if ref not in cache_map:
+                            continue
+                        val = cache_map[ref]
+                        v_el = c_el.find(f"{{{_OOXML_MAIN_NS}}}v")
+                        if v_el is None:
+                            v_el = ET.SubElement(c_el, f"{{{_OOXML_MAIN_NS}}}v")
+                        if isinstance(val, str):
+                            c_el.set("t", "str")
+                            v_el.text = val
+                        else:
+                            if "t" in c_el.attrib:
+                                del c_el.attrib["t"]
+                            v_el.text = str(val)
+                    data = ET.tostring(root, encoding="utf-8", xml_declaration=True)
+                zout.writestr(item, data)
+    return out_buf.getvalue()
+
+
 def build_testcase_excel_bytes(
     task_name: str,
     testcases: list[dict[str, Any]],
@@ -260,12 +364,13 @@ def build_testcase_excel_bytes(
     tc_prefix: str = "TC",
 ) -> bytes:
     """
-    Sinh file Excel (.xlsx) giữ nguyên 100% Template gốc (dòng 1..14 là Header gộp ô, câu lệnh tự sinh ID ở cột A giữ nguyên):
+    Sinh file Excel (.xlsx) giữ nguyên 100% Template gốc (dòng 1..14 là Header gộp ô):
     - Font chữ toàn bộ dữ liệu: Sarabun, căn lề trên (TOP).
-    - Tự động điền C3 (Tên chức năng) và C4 (Mã TC, mặc định 'TC').
-    - CHỈ điền dữ liệu vào 3 cột B (Mục đích kiểm thử), C (Các bước thực hiện), D (Kết quả mong muốn) bắt đầu từ dòng 15.
-    - KHÔNG ghi đè cột A (giữ nguyên câu lệnh tự sinh ID testcase của Template).
-    - Nếu bài toán chỉ có 1 chức năng: Đổi tên trực tiếp sheet đầu tiên thành tên chức năng đó (không tạo 2 sheet trùng nhau).
+    - Tự động điền C3 (Tên chức năng), C4 (Mã TC, mặc định 'TC') và cập nhật C11 tổng số TC.
+    - Điền dữ liệu vào 3 cột B (Mục đích), C (Các bước thực hiện), D (Kết quả mong muốn) từ dòng 15.
+    - Cột A từ dòng 15 trở xuống (kèm dòng dự phòng bên dưới) chứa công thức Excel/Sheets tương thích
+      COUNTIFS + giá trị cache sẵn để tự điền [TC]_1, [TC]_2... ngay lập tức trên mọi chế độ Excel.
+    - Nếu bài toán chỉ có 1 chức năng: Đổi tên trực tiếp sheet đầu tiên thành tên chức năng đó.
     - Nếu bài toán có >= 2 chức năng: Sheet đầu là 'Tổng hợp', kèm các Sheet con cho từng chức năng.
     """
     from openpyxl.cell.cell import MergedCell
@@ -278,24 +383,23 @@ def build_testcase_excel_bytes(
     # Bỏ hoàn toàn Conditional Formatting tự động của Sheet (để Tool trực tiếp bôi màu dòng Test Suite)
     master_ws.conditional_formatting = ConditionalFormattingList()
 
-    # Lưu ý: Trong Template gốc, dòng 13 & 14 là Header gộp ô (A13:A14, B13:B14, C13:C14, D13:D14...),
-    # nên dòng dữ liệu bắt đầu từ DÒNG 15. Chỉ xóa giá trị cũ ở cột B, C, D từ dòng 15 trở xuống.
+    # Dòng 13 & 14 là Header gộp ô (A13:A14, B13:B14...), dữ liệu bắt đầu từ DÒNG 15.
     for r_clear in range(15, master_ws.max_row + 1):
-        for c_clear in (2, 3, 4):
+        for c_clear in (1, 2, 3, 4):
             cell_obj = master_ws.cell(row=r_clear, column=c_clear)
             if not isinstance(cell_obj, MergedCell) and cell_obj.value is not None:
                 cell_obj.value = None
 
     clean_prefix = re.sub(r"[\[\]\s]+", "", str(tc_prefix or "TC")).strip() or "TC"
-    f_meta_val = Font(name=FONT_NAME, size=10, bold=True, color="000000")
+    f_meta_val = Font(name=FONT_NAME, size=10, bold=True, color="FF000000")
 
-    # Tool trực tiếp bôi màu dòng Test Suite (#FFE599 hoặc xanh dịu) + chữ In đậm Sarabun, dòng Test con nền trắng
-    f_suite = Font(name=FONT_NAME, size=11, bold=True, color="000000")
+    # Tool trực tiếp bôi màu dòng Test Suite (#FFE599) + chữ In đậm Sarabun, dòng Test con nền trắng
+    f_suite = Font(name=FONT_NAME, size=11, bold=True, color="FF000000")
     fill_suite = PatternFill(start_color="FFE599", end_color="FFE599", fill_type="solid")
-    f_tc = Font(name=FONT_NAME, size=11, bold=False, color="000000")
-    f_id_cell = Font(name=FONT_NAME, size=11, bold=False, color="000000")
+    f_tc = Font(name=FONT_NAME, size=11, bold=False, color="FF000000")
+    f_id_cell = Font(name=FONT_NAME, size=11, bold=False, color="FF000000")
     fill_clear = PatternFill(fill_type=None)
-    s_thin = Side(border_style="thin", color="000000")
+    s_thin = Side(border_style="thin", color="FF000000")
     b_data = Border(left=s_thin, right=s_thin, top=s_thin, bottom=s_thin)
     al_left_top = Alignment(horizontal="left", vertical="top", wrap_text=True)
     al_center_mid = Alignment(horizontal="center", vertical="center", wrap_text=True)
@@ -304,12 +408,18 @@ def build_testcase_excel_bytes(
     if not isinstance(master_ws["A13"], MergedCell):
         master_ws["A13"].value = "ID"
 
+    sheet_caches: dict[str, dict[str, str | int | float]] = {}
+
     def write_rows_from_row_15(
         ws,
         screen_title: str,
         suites_data: list[tuple[str, list[dict[str, Any]]]],
+        *,
+        trailing_buffer_rows: int = 80,
     ) -> None:
         ws.conditional_formatting = ConditionalFormattingList()
+        cache_map: dict[str, str | int | float] = {}
+
         # Điền thông tin C3 (Tên màn hình/chức năng) và C4 (Mã trường hợp kiểm thử) trên Template
         try:
             if not isinstance(ws["A13"], MergedCell):
@@ -324,17 +434,20 @@ def build_testcase_excel_bytes(
             pass
 
         curr_row = 15
+        tc_counter = 0
+        d_nonempty_count = 0
+
         for suite_name, suite_tcs in suites_data:
-            # Giữ câu lệnh tự động điền ID ở cột A
             c_a = ws.cell(row=curr_row, column=1)
             if not isinstance(c_a, MergedCell):
-                c_a.value = f'=IF(LEN(TRIM(C{curr_row}))=0,"","["&$C$4&"]_"&COUNTA($C$15:C{curr_row}))'
+                c_a.value = f'=IF(LEN(TRIM(C{curr_row}))=0,"","["&$C$4&"]_"&COUNTIFS($C$15:C{curr_row},"?*"))'
                 c_a.font = f_suite
                 c_a.fill = fill_suite
                 c_a.alignment = al_center_mid
                 c_a.border = b_data
+                cache_map[f"A{curr_row}"] = ""
 
-            # 1. Dòng Test Suite: Tool trực tiếp bôi màu nền (cột A..T) và in đậm chữ tên Test Suite ở cột B
+            # 1. Dòng Test Suite: bôi màu nền vàng (cột A..T) và in đậm tên Test Suite ở cột B
             ws.row_dimensions[curr_row].height = 26
             for col_i in range(2, 21):
                 c = ws.cell(row=curr_row, column=col_i)
@@ -347,24 +460,32 @@ def build_testcase_excel_bytes(
                     c.border = b_data
             curr_row += 1
 
-            # 2. Các dòng Test con: chỉ ghi đúng 3 cột B (Mục đích), C (Các bước), D (Kết quả mong muốn), nền trắng
+            # 2. Các dòng Test con: ghi 3 cột B (Mục đích), C (Các bước), D (Kết quả mong muốn), nền trắng
             for tc in suite_tcs:
+                purpose = str(tc.get("muc_dich") or "").strip()
+                steps = str(tc.get("cac_buoc") or "").strip()
+                expected = str(tc.get("ket_qua_mong_muon") or "").strip()
+
                 c_a_tc = ws.cell(row=curr_row, column=1)
                 if not isinstance(c_a_tc, MergedCell):
-                    c_a_tc.value = f'=IF(LEN(TRIM(C{curr_row}))=0,"","["&$C$4&"]_"&COUNTA($C$15:C{curr_row}))'
+                    c_a_tc.value = f'=IF(LEN(TRIM(C{curr_row}))=0,"","["&$C$4&"]_"&COUNTIFS($C$15:C{curr_row},"?*"))'
                     c_a_tc.font = f_id_cell
                     c_a_tc.fill = fill_clear
                     c_a_tc.alignment = al_center_mid
                     c_a_tc.border = b_data
+                    if steps:
+                        tc_counter += 1
+                        cache_map[f"A{curr_row}"] = f"[{clean_prefix}]_{tc_counter}"
+                    else:
+                        cache_map[f"A{curr_row}"] = ""
 
-                purpose = tc.get("muc_dich") or ""
-                steps = tc.get("cac_buoc") or ""
-                expected = tc.get("ket_qua_mong_muon") or ""
+                if expected:
+                    d_nonempty_count += 1
 
                 for col_i, val in ((2, purpose), (3, steps), (4, expected)):
                     c = ws.cell(row=curr_row, column=col_i)
                     if not isinstance(c, MergedCell):
-                        c.value = val
+                        c.value = val if val != "" else None
                         c.font = f_tc
                         c.fill = fill_clear
                         c.alignment = al_left_top
@@ -376,15 +497,40 @@ def build_testcase_excel_bytes(
                 )
                 curr_row += 1
 
+        # Đặt sẵn công thức tự điền ID ở cột A cho các dòng trống phía dưới để thêm tay testcase vẫn tự nhảy ID
+        buffer_end = curr_row + max(0, trailing_buffer_rows) - 1
+        for r_buf in range(curr_row, buffer_end + 1):
+            c_a_buf = ws.cell(row=r_buf, column=1)
+            if not isinstance(c_a_buf, MergedCell):
+                c_a_buf.value = f'=IF(LEN(TRIM(C{r_buf}))=0,"","["&$C$4&"]_"&COUNTIFS($C$15:C{r_buf},"?*"))'
+                c_a_buf.font = f_id_cell
+                c_a_buf.alignment = al_center_mid
+                cache_map[f"A{r_buf}"] = ""
+
+        # Cập nhật ô tổng số trường hợp kiểm thử C11 phủ hết số dòng thực tế (tránh kẹt ở dòng 977 của Template)
+        max_count_row = max(1040, buffer_end)
+        try:
+            if not isinstance(ws["C11"], MergedCell):
+                ws["C11"].value = f"=COUNTA($D$15:$D${max_count_row})"
+            cache_map["C7"] = 0
+            cache_map["C8"] = 0
+            cache_map["C9"] = 0
+            cache_map["C10"] = d_nonempty_count
+            cache_map["C11"] = d_nonempty_count
+        except Exception:
+            pass
+
+        sheet_caches[ws.title] = cache_map
+
     used_sheet_titles: set[str] = set()
 
     if len(grouped_suites) == 1:
-        # Chỉ có 1 chức năng: Đổi tên trực tiếp sheet đầu tiên thành tên chức năng đó (không nhân bản thành 2 trang giống nhau)
+        # Chỉ có 1 chức năng: Đổi tên trực tiếp sheet đầu tiên thành tên chức năng đó
         only_suite_name, only_tcs = grouped_suites[0]
         master_ws.title = _clean_excel_sheet_title(only_suite_name, 1, used_sheet_titles)
         master_ws.sheet_properties.tabColor = TAB_COLORS[0]
         sub_suites = _organize_subsuites_for_sheet(only_suite_name, only_tcs)
-        write_rows_from_row_15(master_ws, only_suite_name, sub_suites)
+        write_rows_from_row_15(master_ws, only_suite_name, sub_suites, trailing_buffer_rows=200)
     elif len(grouped_suites) > 1:
         # Có từ 2 chức năng trở lên: Sheet đầu là 'Tổng hợp', kèm các Sheet con cho từng chức năng
         master_ws.title = "Tổng hợp"
@@ -399,16 +545,25 @@ def build_testcase_excel_bytes(
             child_ws.sheet_properties.tabColor = TAB_COLORS[(s_idx - 1) % len(TAB_COLORS)]
             child_sheets.append((child_ws, suite_name, suite_tcs))
 
-        write_rows_from_row_15(master_ws, task_name, grouped_suites)
+        write_rows_from_row_15(master_ws, task_name, grouped_suites, trailing_buffer_rows=200)
         for child_ws, suite_name, suite_tcs in child_sheets:
             sub_suites = _organize_subsuites_for_sheet(suite_name, suite_tcs)
-            write_rows_from_row_15(child_ws, suite_name, sub_suites)
+            write_rows_from_row_15(child_ws, suite_name, sub_suites, trailing_buffer_rows=60)
     else:
-        write_rows_from_row_15(master_ws, task_name, [])
+        write_rows_from_row_15(master_ws, task_name, [], trailing_buffer_rows=200)
 
+    _ensure_safe_openpyxl_cleanup()
     buf = io.BytesIO()
-    wb.save(buf)
-    return buf.getvalue()
+    try:
+        wb.save(buf)
+        raw_bytes = buf.getvalue()
+    finally:
+        try:
+            wb.close()
+        except Exception:
+            pass
+
+    return _inject_cached_formula_values_xlsx(raw_bytes, sheet_caches)
 
 
 def read_testcases_from_local_excel(excel_path: str | Path) -> list[dict[str, Any]]:
@@ -416,45 +571,55 @@ def read_testcases_from_local_excel(excel_path: str | Path) -> list[dict[str, An
     Đọc lại danh sách các dòng Test Suite và Test con từ dòng 15 trở xuống
     trên Sheet tổng của file Excel Local.
     """
-    wb = openpyxl.load_workbook(excel_path, data_only=True)
-    ws = wb.worksheets[0]
+    wb = openpyxl.load_workbook(excel_path, read_only=True, data_only=True)
     rows_out: list[dict[str, Any]] = []
-    current_suite = "General"
+    try:
+        ws = wb.worksheets[0]
+        current_suite = "General"
+        tc_no = 0
 
-    for r_idx in range(15, ws.max_row + 1):
-        b_val = str(ws.cell(row=r_idx, column=2).value or "").strip()
-        c_val = str(ws.cell(row=r_idx, column=3).value or "").strip()
-        d_val = str(ws.cell(row=r_idx, column=4).value or "").strip()
+        for r_idx, row_vals in enumerate(ws.iter_rows(min_row=15, max_col=4, values_only=True), start=15):
+            a_val = str(row_vals[0] if len(row_vals) > 0 and row_vals[0] is not None else "").strip()
+            b_val = str(row_vals[1] if len(row_vals) > 1 and row_vals[1] is not None else "").strip()
+            c_val = str(row_vals[2] if len(row_vals) > 2 and row_vals[2] is not None else "").strip()
+            d_val = str(row_vals[3] if len(row_vals) > 3 and row_vals[3] is not None else "").strip()
 
-        if not (b_val or c_val or d_val):
-            continue
+            if not (b_val or c_val or d_val):
+                continue
 
-        # Nếu chỉ có cột B (Mục đích / Tên Suite) mà cột C (Các bước) và D (Kết quả) trống -> Dòng Test Suite
-        if b_val and not c_val and not d_val:
-            current_suite = b_val
-            rows_out.append(
-                {
-                    "row_type": "suite",
-                    "id": "",
-                    "test_suite": current_suite,
-                    "muc_dich": current_suite,
-                    "cac_buoc": "",
-                    "ket_qua_mong_muon": "",
-                    "ghi_chu": "",
-                }
-            )
-        else:
-            rows_out.append(
-                {
-                    "row_type": "testcase",
-                    "id": "",
-                    "test_suite": current_suite,
-                    "muc_dich": b_val,
-                    "cac_buoc": c_val,
-                    "ket_qua_mong_muon": d_val,
-                    "ghi_chu": "",
-                }
-            )
+            # Nếu chỉ có cột B (Mục đích / Tên Suite) mà cột C (Các bước) và D (Kết quả) trống -> Dòng Test Suite
+            if b_val and not c_val and not d_val:
+                current_suite = b_val
+                rows_out.append(
+                    {
+                        "row_type": "suite",
+                        "id": "",
+                        "test_suite": current_suite,
+                        "muc_dich": current_suite,
+                        "cac_buoc": "",
+                        "ket_qua_mong_muon": "",
+                        "ghi_chu": "",
+                    }
+                )
+            else:
+                tc_no += 1
+                tc_id = a_val if (a_val and not a_val.startswith("=")) else f"[TC]_{tc_no}"
+                rows_out.append(
+                    {
+                        "row_type": "testcase",
+                        "id": tc_id,
+                        "test_suite": current_suite,
+                        "muc_dich": b_val,
+                        "cac_buoc": c_val,
+                        "ket_qua_mong_muon": d_val,
+                        "ghi_chu": "",
+                    }
+                )
+    finally:
+        try:
+            wb.close()
+        except Exception:
+            pass
 
     return rows_out
 
@@ -525,10 +690,10 @@ def _apply_sarabun_font(
 
 def _add_formatted_runs(paragraph, text: str, base_size: float = 11.0, default_color: RGBColor = RGBColor(30, 41, 59)) -> None:
     """
-    Tự động tô đậm và đổi màu các nhãn kỹ thuật như [System], [POST], Params:, Response:, Errors:, (CHÚ Ý)... với font Sarabun.
+    Tự động tô đậm và đổi màu các nhãn kỹ thuật như [System], [POST], Bước 1:, (1), Params:, Response:, Errors:, (CHÚ Ý)... với font Sarabun.
     """
     pattern = re.compile(
-        r"(\[[A-Za-zÀ-ỹ0-9_\-\s/&\+()]+\]|\(CHÚ Ý\)\s*:?|(?:Params/Body|Params|Response|Errors|Tech note|Key Columns|PK/FK|Status Lifecycle|Đề xuất)\s*:)",
+        r"(\[[A-Za-zÀ-ỹ0-9_\-\s/&\+():.,]+\]|\(CHÚ Ý\)\s*:?|(?:Bước\s+\d+\s*[:.)]|\(\d+\))|(?:Params/Body|Params|Body|Response|Errors|Tech note|Key Columns|PK/FK|Status Lifecycle|Đề xuất)\s*:)",
         re.IGNORECASE,
     )
     parts = pattern.split(text)
@@ -549,6 +714,62 @@ def _add_formatted_runs(paragraph, text: str, base_size: float = 11.0, default_c
             _apply_sarabun_font(run, base_size, bold=True, color=clr)
         else:
             _apply_sarabun_font(run, base_size, bold=False, color=default_color)
+
+
+def _split_into_sub_bullets(text: str) -> list[str]:
+    """
+    Tách một đoạn văn bản dày đặc (chứa Bước 1..N, (1)..(N), dấu | hoặc nhiều mệnh đề ;)
+    thành danh sách các ý nhỏ riêng biệt để trình bày thoáng, dễ đọc trên Word & Google Docs.
+    """
+    s = str(text or "").strip()
+    if not s:
+        return []
+
+    if " | " in s:
+        parts = [p.strip() for p in s.split(" | ") if p.strip()]
+        if len(parts) > 1:
+            out: list[str] = []
+            for p in parts:
+                out.extend(_split_into_sub_bullets(p))
+            return out
+
+    if re.search(r"\bBước\s+\d+\s*[:.)]", s, re.IGNORECASE):
+        parts = re.split(
+            r"(?:(?<=[.;!])\s+|\s*(?:->|→)\s*)(?=Bước\s+\d+\s*[:.)])",
+            s,
+            flags=re.IGNORECASE,
+        )
+        cleaned = [p.strip() for p in parts if p and p.strip()]
+        if len(cleaned) > 1:
+            return cleaned
+
+    if re.search(r"(?:^|[.;:])\s*\(\d+\)\s+", s):
+        parts = re.split(r"(?:^|(?<=[.;:]))\s*(?=\(\d+\)\s+)", s)
+        cleaned = [p.strip() for p in parts if p and p.strip()]
+        if len(cleaned) > 1:
+            return cleaned
+
+    if s.count(";") >= 2:
+        chunks: list[str] = []
+        depth = 0
+        start = 0
+        for i, ch in enumerate(s):
+            if ch == "(":
+                depth += 1
+            elif ch == ")" and depth > 0:
+                depth -= 1
+            elif ch == ";" and depth == 0:
+                seg = s[start:i].strip()
+                if seg:
+                    chunks.append(seg)
+                start = i + 1
+        tail = s[start:].strip()
+        if tail:
+            chunks.append(tail)
+        if len(chunks) > 1:
+            return chunks
+
+    return [s]
 
 
 def _parse_sections_from_analysis_text(analysis_text: str) -> list[tuple[str, list[str]]]:
@@ -590,6 +811,177 @@ def _parse_sections_from_analysis_text(analysis_text: str) -> list[tuple[str, li
     return sections
 
 
+def read_analysis_text_from_local_word(docx_source: str | Path | bytes | io.BytesIO) -> str:
+    """
+    Khôi phục lại nguyên vẹn văn bản 6 mục phân tích SRS từ một file Word (.docx) đã có sẵn
+    (hỗ trợ cả định dạng Bảng 2 cột / Callout Box lẫn định dạng đoạn văn thuần).
+    """
+    if isinstance(docx_source, (bytes, bytearray)):
+        doc = Document(io.BytesIO(docx_source))
+    elif isinstance(docx_source, io.BytesIO):
+        docx_source.seek(0)
+        doc = Document(docx_source)
+    else:
+        doc = Document(str(docx_source))
+
+    from docx.table import Table
+    from docx.text.paragraph import Paragraph
+
+    heading_pat = re.compile(
+        r"^[1-6]\.\s+(TỔNG QUAN|MỤC TIÊU|KIẾN TRÚC|CÁC HỆ THỐNG|LUỒNG|MÔ HÌNH|CÁC BẢNG DỮ LIỆU|ĐỊNH HƯỚNG|KỊCH BẢN KIỂM THỬ|RỦI RO|[A-ZÀ-Ỹ0-9\s/&(),\-]{8,})",
+        re.IGNORECASE,
+    )
+
+    out_lines: list[str] = []
+    in_sections = False
+
+    for child in doc.element.body.iterchildren():
+        tag = child.tag.split("}")[-1]
+        if tag == "p":
+            p = Paragraph(child, doc)
+            txt = p.text.strip()
+            if not txt:
+                continue
+            if "\tPhần " in txt or "\tMục " in txt or txt.upper() == "MỤC LỤC TÀI LIỆU":
+                continue
+            if heading_pat.match(txt):
+                in_sections = True
+                out_lines.append(txt)
+            elif in_sections:
+                is_sub_bullet = txt.startswith("•")
+                clean_p = re.sub(r"^[▸\-*•]+\s*", "", txt).strip()
+                if clean_p:
+                    if is_sub_bullet and out_lines and out_lines[-1].startswith("- "):
+                        sep = " " if out_lines[-1].endswith(":") else " | "
+                        out_lines[-1] = f"{out_lines[-1]}{sep}{clean_p}"
+                    else:
+                        out_lines.append(f"- {clean_p}")
+        elif tag == "tbl":
+            tbl = Table(child, doc)
+            rows = tbl.rows
+            if not rows:
+                continue
+            cols_count = len(rows[0].cells)
+            if cols_count >= 4:
+                continue
+            if cols_count == 1 and len(rows) == 1:
+                cell_lines = [p.text.strip() for p in rows[0].cells[0].paragraphs if p.text.strip()]
+                if not cell_lines:
+                    continue
+                if len(cell_lines) == 1 and heading_pat.match(cell_lines[0]):
+                    in_sections = True
+                    out_lines.append(cell_lines[0])
+                elif in_sections:
+                    for cl in cell_lines:
+                        is_sub = cl.startswith("•")
+                        clean_cl = re.sub(r"^[▸\-*•]+\s*", "", cl).strip()
+                        if clean_cl:
+                            if is_sub and out_lines and out_lines[-1].startswith("- "):
+                                sep = " " if out_lines[-1].endswith(":") else " | "
+                                out_lines[-1] = f"{out_lines[-1]}{sep}{clean_cl}"
+                            else:
+                                out_lines.append(f"- {clean_cl}")
+            elif cols_count == 2 and in_sections:
+                for r_i, row in enumerate(rows):
+                    if r_i == 0:
+                        continue
+                    left_txt = row.cells[0].text.strip()
+                    right_parts = [
+                        re.sub(r"^[•▸\-*]+\s*", "", p.text.strip()).strip()
+                        for p in row.cells[1].paragraphs
+                        if p.text.strip()
+                    ]
+                    right_txt = " | ".join(p for p in right_parts if p)
+                    if left_txt and not left_txt.startswith("Hạng mục #"):
+                        out_lines.append(f"- {left_txt} - {right_txt}" if right_txt else f"- {left_txt}")
+                    elif right_txt:
+                        out_lines.append(f"- {right_txt}")
+
+    return "\n".join(out_lines).strip()
+
+
+def _extract_toc_subitems(sec_idx: int, sec_title: str, sec_lines: list[str]) -> list[tuple[str, str]]:
+    """
+    Trích xuất danh sách các mục con (1.1, 1.2, ...) cho từng phần lớn trong Mục lục (Table of Contents).
+    """
+    up_title = sec_title.upper()
+    subitems: list[tuple[str, str]] = []
+
+    if sec_idx == 2 or "API" in up_title or "HỆ THỐNG" in up_title or "KIẾN TRÚC" in up_title:
+        has_sys = any("[SYSTEM]" in ln.upper() for ln in sec_lines)
+        has_api = any(
+            any(k in ln.upper() for k in ("[METHOD]", "[GET]", "[POST]", "[PUT]", "[DELETE]", "/API/"))
+            for ln in sec_lines
+        )
+        sub_i = 1
+        if has_sys:
+            subitems.append((f"{sec_idx}.{sub_i}", "Các hệ thống & Phân hệ tích hợp (Systems Overview)"))
+            sub_i += 1
+        if has_api or not subitems:
+            subitems.append((f"{sec_idx}.{sub_i}", "Đặc tả chi tiết Giao tiếp API (Endpoints, Params, Response, Errors)"))
+        return subitems
+
+    if sec_idx == 4 or "DỮ LIỆU" in up_title or "DATA MODEL" in up_title:
+        seen_tables: set[str] = set()
+        for ln in sec_lines:
+            clean = re.sub(r"^[-*•]\s*", "", ln.strip())
+            m = re.match(r"^\[([^\]]+)\]\s*(?:[-:]\s*([^|]+))?", clean)
+            if m:
+                tbl_name = m.group(1).strip()
+                desc = (m.group(2) or "").strip()
+                if tbl_name.upper() not in seen_tables:
+                    seen_tables.add(tbl_name.upper())
+                    sub_code = f"{sec_idx}.{len(subitems) + 1}"
+                    lbl = f"Bảng dữ liệu {tbl_name}" + (f" — {desc}" if desc else "")
+                    if len(lbl) > 78:
+                        lbl = lbl[:75].rstrip() + "..."
+                    subitems.append((sub_code, lbl))
+            if len(subitems) >= 8:
+                break
+        return subitems
+
+    seen_labels: set[str] = set()
+    for ln in sec_lines:
+        clean = re.sub(r"^[-*•]\s*", "", ln.strip())
+        m = re.match(r"^\[([^\]]+)\]", clean)
+        if m:
+            raw_lbl = m.group(1).strip()
+            norm_lbl = raw_lbl.upper()
+            if (
+                raw_lbl.startswith(".")
+                or "CẮT CỤT" in norm_lbl
+                or "TÀI LIỆU CHƯA" in norm_lbl
+            ):
+                continue
+            if norm_lbl not in seen_labels:
+                seen_labels.add(norm_lbl)
+                sub_code = f"{sec_idx}.{len(subitems) + 1}"
+                if len(raw_lbl) > 78:
+                    raw_lbl = raw_lbl[:75].rstrip() + "..."
+                subitems.append((sub_code, raw_lbl))
+        if len(subitems) >= 6:
+            break
+
+    return subitems
+
+
+def _add_internal_hyperlink(
+    paragraph,
+    anchor: str,
+    text: str,
+    *,
+    size_pt: float = 11.0,
+    bold: bool = False,
+    color: RGBColor = RGBColor(30, 58, 138),
+) -> None:
+    """Tạo liên kết nội bộ (internal bookmark hyperlink) trong Word & Google Docs với font Sarabun."""
+    hyperlink = parse_xml(f'<w:hyperlink {nsdecls("w")} w:anchor="{anchor}" w:history="1"/>')
+    run = paragraph.add_run(text)
+    _apply_sarabun_font(run, size_pt, bold=bold, color=color)
+    hyperlink.append(run._r)
+    paragraph._p.append(hyperlink)
+
+
 def build_analysis_word_bytes(
     task_name: str,
     analysis_text: str,
@@ -599,9 +991,9 @@ def build_analysis_word_bytes(
     """
     Sinh tài liệu Word (.docx) Báo cáo Phân tích SRS:
     - Giữ nguyên 100% Trang bìa gốc của bạn (từ TEMPLATE_DOC_CACHE_PATH tải về từ TEMPLATE_DOC_ID).
+    - Trang 2: Bảng thông tin tổng quan tài liệu + MỤC LỤC TÀI LIỆU (Table of Contents) có phân cấp & liên kết nội bộ.
     - Toàn bộ nội dung sử dụng font chữ Sarabun.
-    - Bố cục 6 phần chuẩn Phân tích SRS (Mục tiêu/Phạm vi, Hệ thống & API, Luồng nghiệp vụ & Validation,
-      Mô hình Dữ liệu & Trạng thái, Kịch bản Kiểm thử Trọng tâm, Rủi ro & Q&A BA).
+    - Bố cục 6 phần chuẩn Phân tích SRS đồng nhất 100% giữa Word (.docx) và Google Docs.
     """
     has_cover_template = False
     if TEMPLATE_DOC_CACHE_PATH.is_file():
@@ -614,10 +1006,19 @@ def build_analysis_word_bytes(
     else:
         doc = Document()
 
-    normal_style = doc.styles["Normal"]
-    normal_style.font.name = FONT_NAME
-    normal_style.font.size = Pt(11.0)
-    normal_style.font.color.rgb = RGBColor(30, 41, 59)
+    normal_style = next(
+        (
+            s
+            for s in doc.styles
+            if str(getattr(s, "name", "")).lower() == "normal"
+            or getattr(s, "style_id", "") == "Normal"
+        ),
+        None,
+    )
+    if normal_style is not None:
+        normal_style.font.name = FONT_NAME
+        normal_style.font.size = Pt(11.0)
+        normal_style.font.color.rgb = RGBColor(30, 41, 59)
 
     now_str = time.strftime("%d/%m/%Y %H:%M")
 
@@ -630,11 +1031,10 @@ def build_analysis_word_bytes(
         section.left_margin = Cm(2.2)
         section.right_margin = Cm(2.0)
     else:
-        # Đảm bảo sau trang bìa gốc có khoảng ngắt rõ ràng và căn lề trái cho phần nội dung
-        p_break = doc.add_paragraph()
-        p_break.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        p_break.paragraph_format.space_before = Pt(6)
-        p_break.paragraph_format.space_after = Pt(6)
+        if len(doc.paragraphs) > 1 and not doc.paragraphs[-1].text.strip():
+            last_p = doc.paragraphs[-1]._p
+            if "w:br" not in last_p.xml and "w:drawing" not in last_p.xml:
+                last_p.getparent().remove(last_p)
 
     # -------------------------------------------------------------------------
     # BẢNG THÔNG TIN TỔNG QUAN BÀI TOÁN PHÂN TÍCH SRS (METADATA TABLE)
@@ -674,37 +1074,101 @@ def build_analysis_word_bytes(
                 color=RGBColor(30, 58, 138) if is_lbl else RGBColor(15, 23, 42),
             )
 
-    doc.add_paragraph().paragraph_format.space_after = Pt(4)
+    doc.add_paragraph().paragraph_format.space_after = Pt(6)
+
+    # -------------------------------------------------------------------------
+    # PHẦN MỤC LỤC TÀI LIỆU (TABLE OF CONTENTS) - HIỂN THỊ TRÊN CẢ WORD & DOCS
+    # -------------------------------------------------------------------------
+    sections = _parse_sections_from_analysis_text(analysis_text)
+
+    toc_hdr = doc.add_paragraph()
+    toc_hdr.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    toc_hdr.paragraph_format.space_before = Pt(4)
+    toc_hdr.paragraph_format.space_after = Pt(8)
+    toc_hdr_pPr = toc_hdr._p.get_or_add_pPr()
+    toc_hdr_pPr.append(
+        parse_xml(
+            f'<w:pBdr {nsdecls("w")}>'
+            f'<w:bottom w:val="single" w:sz="12" w:space="4" w:color="1E3A8A"/>'
+            f"</w:pBdr>"
+        )
+    )
+    toc_hdr_run = toc_hdr.add_run("MỤC LỤC TÀI LIỆU")
+    _apply_sarabun_font(toc_hdr_run, 13.5, bold=True, color=RGBColor(30, 58, 138))
+
+    for sec_idx, (sec_title, sec_lines) in enumerate(sections, start=1):
+        anchor_name = f"sec_{sec_idx}"
+        is_risk_toc = "RỦI RO" in sec_title.upper() or "ĐIỂM CHƯA RÕ" in sec_title.upper()
+        main_color = RGBColor(146, 64, 14) if is_risk_toc else RGBColor(30, 58, 138)
+
+        p_toc1 = doc.add_paragraph()
+        p_toc1.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        p_toc1.paragraph_format.space_before = Pt(5)
+        p_toc1.paragraph_format.space_after = Pt(2)
+        p_toc1._p.get_or_add_pPr().append(
+            parse_xml(f'<w:tabs {nsdecls("w")}><w:tab w:val="right" w:leader="dot" w:pos="9500"/></w:tabs>')
+        )
+        _add_internal_hyperlink(p_toc1, anchor_name, sec_title, size_pt=11.0, bold=True, color=main_color)
+        r_tab1 = p_toc1.add_run(f"\tPhần {sec_idx:02d}")
+        _apply_sarabun_font(r_tab1, 10.5, bold=True, color=main_color)
+
+        subitems = _extract_toc_subitems(sec_idx, sec_title, sec_lines)
+        for sub_code, sub_label in subitems:
+            p_toc2 = doc.add_paragraph()
+            p_toc2.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            p_toc2.paragraph_format.left_indent = Cm(0.65)
+            p_toc2.paragraph_format.space_before = Pt(1)
+            p_toc2.paragraph_format.space_after = Pt(2)
+            p_toc2._p.get_or_add_pPr().append(
+                parse_xml(f'<w:tabs {nsdecls("w")}><w:tab w:val="right" w:leader="dot" w:pos="9500"/></w:tabs>')
+            )
+            _add_internal_hyperlink(
+                p_toc2,
+                anchor_name,
+                f"{sub_code}. {sub_label}",
+                size_pt=10.0,
+                bold=False,
+                color=RGBColor(51, 65, 85),
+            )
+            r_tab2 = p_toc2.add_run(f"\tMục {sub_code}")
+            _apply_sarabun_font(r_tab2, 9.5, bold=False, color=RGBColor(100, 116, 139))
+
+    doc.add_page_break()
 
     # -------------------------------------------------------------------------
     # RENDER 6 PHẦN TRONG BÁO CÁO PHÂN TÍCH SRS (FONT SARABUN)
     # -------------------------------------------------------------------------
-    sections = _parse_sections_from_analysis_text(analysis_text)
-
-    def add_section_heading(title_text: str, is_risk: bool = False) -> None:
-        h_tbl = doc.add_table(rows=1, cols=1)
-        h_tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
-        hc = h_tbl.cell(0, 0)
-        hc.width = Cm(16.8)
+    def add_section_heading(title_text: str, sec_idx: int, is_risk: bool = False) -> None:
         bg = "FEF3C7" if is_risk else "F1F5F9"
         left_color = "D97706" if is_risk else "1E3A8A"
         text_rgb = RGBColor(146, 64, 14) if is_risk else RGBColor(30, 58, 138)
+        anchor_name = f"sec_{sec_idx}"
+        bm_id = 100 + sec_idx
 
-        _set_cell_bg(hc, bg)
-        _set_cell_margins(hc, top=110, bottom=110, left=180, right=140)
-        _set_cell_borders(
-            hc,
-            left={"val": "single", "sz": "24", "color": left_color},
-            top={"val": "single", "sz": "4", "color": "E2E8F0"},
-            bottom={"val": "single", "sz": "4", "color": "E2E8F0"},
-            right={"val": "single", "sz": "4", "color": "E2E8F0"},
-        )
-        hp = hc.paragraphs[0]
+        hp = doc.add_paragraph()
         hp.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        hp.paragraph_format.space_before = Pt(0)
-        hp.paragraph_format.space_after = Pt(0)
+        hp.paragraph_format.space_before = Pt(10)
+        hp.paragraph_format.space_after = Pt(6)
+        hp.paragraph_format.keep_with_next = True
+
+        p_pr = hp._p.get_or_add_pPr()
+        p_pr.append(parse_xml(f'<w:outlineLvl {nsdecls("w")} w:val="0"/>'))
+        p_pr.append(parse_xml(f'<w:shd {nsdecls("w")} w:val="clear" w:color="auto" w:fill="{bg}"/>'))
+        p_pr.append(
+            parse_xml(
+                f'<w:pBdr {nsdecls("w")}>'
+                f'<w:top w:val="single" w:sz="4" w:space="6" w:color="E2E8F0"/>'
+                f'<w:left w:val="single" w:sz="24" w:space="10" w:color="{left_color}"/>'
+                f'<w:bottom w:val="single" w:sz="4" w:space="6" w:color="E2E8F0"/>'
+                f'<w:right w:val="single" w:sz="4" w:space="8" w:color="E2E8F0"/>'
+                f"</w:pBdr>"
+            )
+        )
+
+        hp._p.append(parse_xml(f'<w:bookmarkStart {nsdecls("w")} w:id="{bm_id}" w:name="{anchor_name}"/>'))
         hr = hp.add_run(title_text.upper())
         _apply_sarabun_font(hr, 12.0, bold=True, color=text_rgb)
+        hp._p.append(parse_xml(f'<w:bookmarkEnd {nsdecls("w")} w:id="{bm_id}"/>'))
 
     def render_callout_box(lines: list[str], *, bg_hex: str = "EFF6FF", border_hex: str = "2563EB") -> None:
         box = doc.add_table(rows=1, cols=1)
@@ -720,14 +1184,44 @@ def build_analysis_word_bytes(
             bottom={"val": "single", "sz": "4", "color": "BFDBFE"},
             right={"val": "single", "sz": "4", "color": "BFDBFE"},
         )
-        for idx, line in enumerate(lines):
-            p = cell.paragraphs[0] if idx == 0 else cell.add_paragraph()
-            p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-            p.paragraph_format.space_before = Pt(2)
-            p.paragraph_format.space_after = Pt(3)
-            p.paragraph_format.line_spacing = 1.25
+        p_count = 0
+        for line in lines:
             clean_line = re.sub(r"^[-*•]\s*", "", line.strip())
-            _add_formatted_runs(p, clean_line, base_size=11.0)
+            if not clean_line:
+                continue
+            m_hdr = re.match(r"^(\[[^\]]+\])\s*:?\s*(.+)$", clean_line)
+            if m_hdr:
+                hdr_label = m_hdr.group(1).strip() + ":"
+                body_str = m_hdr.group(2).strip()
+                sub_items = _split_into_sub_bullets(body_str)
+            else:
+                hdr_label = ""
+                sub_items = _split_into_sub_bullets(clean_line)
+
+            if hdr_label and len(sub_items) > 1:
+                p_hdr = cell.paragraphs[0] if p_count == 0 else cell.add_paragraph()
+                p_count += 1
+                p_hdr.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                p_hdr.paragraph_format.space_before = Pt(3)
+                p_hdr.paragraph_format.space_after = Pt(1)
+                _add_formatted_runs(p_hdr, hdr_label, base_size=11.0)
+                for si in sub_items:
+                    p_sub = cell.add_paragraph()
+                    p_count += 1
+                    p_sub.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                    p_sub.paragraph_format.left_indent = Cm(0.55)
+                    p_sub.paragraph_format.space_before = Pt(1)
+                    p_sub.paragraph_format.space_after = Pt(2)
+                    p_sub.paragraph_format.line_spacing = 1.22
+                    _add_formatted_runs(p_sub, f"• {si}", base_size=10.5)
+            else:
+                p = cell.paragraphs[0] if p_count == 0 else cell.add_paragraph()
+                p_count += 1
+                p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                p.paragraph_format.space_before = Pt(2)
+                p.paragraph_format.space_after = Pt(3)
+                p.paragraph_format.line_spacing = 1.25
+                _add_formatted_runs(p, clean_line, base_size=11.0)
 
     def render_structured_table(
         items: list[tuple[str, str]],
@@ -775,14 +1269,14 @@ def build_analysis_word_bytes(
             _set_cell_margins(c1, top=100, bottom=100, left=140, right=140)
             _set_cell_borders(c1, top=thin_b, bottom=thin_b, left=thin_b, right=thin_b)
 
-            sub_parts = [sp.strip() for sp in right_val.split(" | ") if sp.strip()] or [right_val]
+            sub_parts = _split_into_sub_bullets(right_val) or [right_val]
             for sp_idx, sp in enumerate(sub_parts):
                 p1 = c1.paragraphs[0] if sp_idx == 0 else c1.add_paragraph()
                 p1.alignment = WD_ALIGN_PARAGRAPH.LEFT
                 p1.paragraph_format.space_before = Pt(1)
                 p1.paragraph_format.space_after = Pt(2)
                 p1.paragraph_format.line_spacing = 1.2
-                prefix = "• " if len(sub_parts) > 1 and sp_idx > 0 else ""
+                prefix = "• " if len(sub_parts) > 1 else ""
                 _add_formatted_runs(p1, prefix + sp, base_size=10.5)
 
     def split_label_and_detail(line: str, fallback_idx: int) -> tuple[str, str]:
@@ -798,10 +1292,10 @@ def build_analysis_word_bytes(
             return k.strip(), v.strip()
         return f"Hạng mục #{fallback_idx:02d}", clean
 
-    for sec_title, sec_lines in sections:
+    for sec_idx, (sec_title, sec_lines) in enumerate(sections, start=1):
         up_title = sec_title.upper()
         is_risk_sec = "RỦI RO" in up_title or "ĐIỂM CHƯA RÕ" in up_title or "ĐIỂM KHUYẾT" in up_title
-        add_section_heading(sec_title, is_risk=is_risk_sec)
+        add_section_heading(sec_title, sec_idx, is_risk=is_risk_sec)
 
         p_spacer = doc.add_paragraph()
         p_spacer.paragraph_format.space_before = Pt(0)
@@ -824,15 +1318,46 @@ def build_analysis_word_bytes(
         else:
             for ln in sec_lines:
                 clean_ln = re.sub(r"^[-*•]\s*", "", ln.strip())
-                p = doc.add_paragraph()
-                p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-                p.paragraph_format.left_indent = Cm(0.4)
-                p.paragraph_format.space_before = Pt(3)
-                p.paragraph_format.space_after = Pt(4)
-                p.paragraph_format.line_spacing = 1.25
-                bullet_run = p.add_run("▸ ")
-                _apply_sarabun_font(bullet_run, 11.0, bold=True, color=RGBColor(37, 99, 235))
-                _add_formatted_runs(p, clean_ln, base_size=11.0)
+                if not clean_ln:
+                    continue
+                m_flow = re.match(r"^(\[[^\]]+\])\s*:?\s*(.+)$", clean_ln)
+                if m_flow:
+                    flow_hdr = m_flow.group(1).strip() + ":"
+                    flow_body = m_flow.group(2).strip()
+                    sub_steps = _split_into_sub_bullets(flow_body)
+                else:
+                    flow_hdr = ""
+                    sub_steps = _split_into_sub_bullets(clean_ln)
+
+                if flow_hdr and len(sub_steps) > 1:
+                    p_hdr = doc.add_paragraph()
+                    p_hdr.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                    p_hdr.paragraph_format.left_indent = Cm(0.3)
+                    p_hdr.paragraph_format.space_before = Pt(6)
+                    p_hdr.paragraph_format.space_after = Pt(2)
+                    p_hdr.paragraph_format.keep_with_next = True
+                    bullet_run = p_hdr.add_run("▸ ")
+                    _apply_sarabun_font(bullet_run, 11.0, bold=True, color=RGBColor(37, 99, 235))
+                    _add_formatted_runs(p_hdr, flow_hdr, base_size=11.0)
+
+                    for step_txt in sub_steps:
+                        p_step = doc.add_paragraph()
+                        p_step.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                        p_step.paragraph_format.left_indent = Cm(1.0)
+                        p_step.paragraph_format.space_before = Pt(1.5)
+                        p_step.paragraph_format.space_after = Pt(2.5)
+                        p_step.paragraph_format.line_spacing = 1.22
+                        _add_formatted_runs(p_step, f"• {step_txt}", base_size=10.5)
+                else:
+                    p = doc.add_paragraph()
+                    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                    p.paragraph_format.left_indent = Cm(0.4)
+                    p.paragraph_format.space_before = Pt(3)
+                    p.paragraph_format.space_after = Pt(4)
+                    p.paragraph_format.line_spacing = 1.25
+                    bullet_run = p.add_run("▸ ")
+                    _apply_sarabun_font(bullet_run, 11.0, bold=True, color=RGBColor(37, 99, 235))
+                    _add_formatted_runs(p, clean_ln, base_size=11.0)
 
         p_after = doc.add_paragraph()
         p_after.paragraph_format.space_before = Pt(0)
@@ -841,3 +1366,43 @@ def build_analysis_word_bytes(
     buf = io.BytesIO()
     doc.save(buf)
     return buf.getvalue()
+
+
+def ensure_word_file_has_toc(word_path: str | Path, task_title: str = "", fallback_text: str = "") -> bool:
+    """
+    Kiểm tra file Word (.docx) hiện có tại word_path:
+    Nếu file chưa có phần 'MỤC LỤC TÀI LIỆU', tự động trích xuất nội dung 6 mục phân tích
+    từ chính file .docx đó (hoặc dùng fallback_text) và dựng lại file .docx mới có đầy đủ Mục lục + Bảng biểu chuẩn.
+    """
+    p_obj = Path(word_path)
+    if not p_obj.is_file():
+        if fallback_text and fallback_text.strip() and task_title:
+            new_bytes = build_analysis_word_bytes(task_title, fallback_text)
+            p_obj.parent.mkdir(parents=True, exist_ok=True)
+            p_obj.write_bytes(new_bytes)
+            return True
+        return False
+
+    try:
+        doc = Document(str(p_obj))
+        has_toc = any("MỤC LỤC TÀI LIỆU" in p.text.upper() for p in doc.paragraphs)
+        has_clumped_flows = any(
+            ("Bước 1:" in p.text and "Bước 2:" in p.text)
+            or ("(1)" in p.text and "(2)" in p.text)
+            for p in doc.paragraphs
+        )
+        if has_toc and not has_clumped_flows:
+            return False
+
+        extracted = fallback_text.strip() if fallback_text and fallback_text.strip() else read_analysis_text_from_local_word(p_obj)
+        if not extracted:
+            return False
+
+        inferred_title = task_title.strip() or p_obj.stem.replace("Phân tích bài toán - ", "").strip()
+        new_bytes = build_analysis_word_bytes(inferred_title, extracted)
+        p_obj.write_bytes(new_bytes)
+        LOGGER.info("[DocumentBuilder] Đã nâng cấp bổ sung Mục lục cho file Word: %s", p_obj)
+        return True
+    except Exception as err:
+        LOGGER.warning("Không thể nâng cấp Mục lục cho file Word (%s): %s", p_obj, err)
+        return False

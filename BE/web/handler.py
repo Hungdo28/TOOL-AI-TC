@@ -40,12 +40,28 @@ class ApiHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Headers", "Content-Type,Authorization,X-User-Name,X-User-Role,X-Callback-Token")
 
     def _send_json(self, response: ApiResponse) -> None:
+        if isinstance(response.body, (bytes, bytearray)):
+            payload = bytes(response.body)
+            self.send_response(response.status)
+            self._send_cors_headers()
+            self.send_header("Content-Type", response.content_type or "application/octet-stream")
+            self.send_header("Content-Length", str(len(payload)))
+            if response.headers:
+                for k, v in response.headers.items():
+                    self.send_header(k, v)
+            self.end_headers()
+            self.wfile.write(payload)
+            return
+
         payload = json.dumps(response.body, ensure_ascii=False).encode("utf-8")
         self.send_response(response.status)
         self._send_cors_headers()
-        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Type", response.content_type or "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(payload)))
         self.send_header("Cache-Control", "no-store")
+        if response.headers:
+            for k, v in response.headers.items():
+                self.send_header(k, v)
         self.end_headers()
         self.wfile.write(payload)
 

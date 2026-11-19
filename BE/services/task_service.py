@@ -177,48 +177,129 @@ class TaskService:
     def read_local_record(self, relative_path: str) -> dict[str, Any]:
         return self.local_storage.read_record(relative_path)
 
+    def _ensure_local_bundle_restored(self, task_name: str) -> None:
+        """Tự động khôi phục file Excel/Word từ qa_memory nếu máy chưa có."""
+        if not task_name or not hasattr(self.workspace, "_request"):
+            return
+        try:
+            import urllib.parse
+            info = self.local_storage.get_task_bundle_info(task_name)
+            task = self.workspace.find_task(task_name)
+            task_id = str(task.get("id") or "") if task else ""
+            if not task_id:
+                return
+
+            if not info.get("excelSheetPath"):
+                enc = urllib.parse.quote(task_id)
+                rows = self.workspace._request(
+                    f"qa_memory?kind=eq.testcase&problem_id=eq.{enc}&select=test_suite,content,approved,review_status&order=created_at.asc,id.asc"
+                )
+                if isinstance(rows, list) and rows:
+                    approved = [r for r in rows if r.get("approved") is True or r.get("review_status") == "approved"]
+                    self.local_storage.save_testcase_excel(task_name, approved or rows)
+
+            if not info.get("wordDocPath"):
+                enc = urllib.parse.quote(task_id)
+                a_rows = self.workspace._request(
+                    f"qa_memory?kind=eq.analysis&problem_id=eq.{enc}&select=content&order=created_at.desc&limit=1"
+                )
+                if isinstance(a_rows, list) and a_rows:
+                    c_obj = a_rows[0].get("content")
+                    if isinstance(c_obj, dict) and str(c_obj.get("final_text") or "").strip():
+                        self.local_storage.save_analysis_word(task_name, str(c_obj["final_text"]).strip())
+        except Exception:
+            pass
+
     def open_local_folder(self, payload: dict[str, Any]) -> dict[str, Any]:
         task_name = str(payload.get("taskName") or payload.get("baiToan") or payload.get("folder") or "").strip()
-        if task_name and hasattr(self.workspace, "_request"):
-            info = self.local_storage.get_task_bundle_info(task_name)
+        self._ensure_local_bundle_restored(task_name)
+        return self.local_storage.open_task_folder(payload)
+
+    def open_local_file(self, payload: dict[str, Any]) -> dict[str, Any]:
+        task_name = str(payload.get("taskName") or payload.get("baiToan") or payload.get("folder") or "").strip()
+        self._ensure_local_bundle_restored(task_name)
+        return self.local_storage.open_task_file(payload)
+
+    def download_local_file(self, query: dict[str, str]) -> tuple[bytes, str, str]:
+        task_name = str(query.get("taskName") or query.get("baiToan") or "").strip()
+        file_type = str(query.get("type") or query.get("fileType") or "word").strip()
+        if not task_name:
+            raise ApiError(400, "Thiếu tham số taskName")
+        self._ensure_local_bundle_restored(task_name)
+        return self.local_storage.get_task_file_bytes(task_name, file_type)
+
+    def get_local_testcases(self, query: dict[str, str]) -> dict[str, Any]:
+        """Lấy toàn bộ danh sách testcase cho màn Review (ưu tiên qa_memory phân trang, fallback đọc file Excel Local)."""
+        task_name = str(query.get("taskName") or query.get("baiToan") or "").strip()
+        prob_id = str(query.get("problem_id") or query.get("problemId") or "").strip()
+        if not task_name and not prob_id:
+            raise ApiError(400, "Thiếu tham số taskName hoặc problem_id")
+
+        if not prob_id and task_name:
             try:
-                import urllib.parse
-
                 task = self.workspace.find_task(task_name)
-                task_id = str(task.get("id") or "") if task else ""
-                excel_path = info.get("excelSheetPath") or ""
-                needs_excel_rebuild = not excel_path
-                if excel_path:
-                    try:
-                        import openpyxl
-
-                        wb_chk = openpyxl.load_workbook(excel_path)
-                        ws_chk = wb_chk.worksheets[0]
-                        if ws_chk["A13"].value != "ID" or len(ws_chk.conditional_formatting) > 0:
-                            needs_excel_rebuild = True
-                    except Exception:
-                        pass
-
-                if task_id and needs_excel_rebuild:
-                    enc = urllib.parse.quote(task_id)
-                    rows = self.workspace._request(
-                        f"qa_memory?kind=eq.testcase&problem_id=eq.{enc}&select=test_suite,content,approved,review_status&order=created_at.asc,id.asc"
-                    )
-                    if isinstance(rows, list) and rows:
-                        approved = [r for r in rows if r.get("approved") is True or r.get("review_status") == "approved"]
-                        self.local_storage.save_testcase_excel(task_name, approved or rows)
-                if task_id and not info.get("wordDocPath"):
-                    enc = urllib.parse.quote(task_id)
-                    a_rows = self.workspace._request(
-                        f"qa_memory?kind=eq.analysis&problem_id=eq.{enc}&select=content&order=created_at.desc&limit=1"
-                    )
-                    if isinstance(a_rows, list) and a_rows:
-                        c_obj = a_rows[0].get("content")
-                        if isinstance(c_obj, dict) and str(c_obj.get("final_text") or "").strip():
-                            self.local_storage.save_analysis_word(task_name, str(c_obj["final_text"]).strip())
+                if task:
+                    prob_id = str(task.get("id") or task.get("problem_id") or "")
+                    if not task_name:
+                        task_name = str(task.get("Bài toán") or "").strip()
             except Exception:
                 pass
-        return self.local_storage.open_task_folder(payload)
+
+        mem = self.pipeline.memory if self.pipeline else None
+        if mem is None:
+            from services.memory_service import MemoryService
+            mem = MemoryService(self.workspace)
+
+        rows = mem.fetch_task_testcases(problem_id=prob_id, problem_title=task_name)
+        if rows:
+            return {
+                "success": True,
+                "source": "qa_memory",
+                "total": len(rows),
+                "items": rows,
+            }
+
+        if task_name:
+            info = self.local_storage.get_task_bundle_info(task_name)
+            excel_path = info.get("excelSheetPath") or ""
+            if excel_path:
+                from services.document_builder import read_testcases_from_local_excel
+                parsed = read_testcases_from_local_excel(excel_path)
+                tc_items: list[dict[str, Any]] = []
+                idx = 0
+                for r in parsed:
+                    if r.get("row_type") != "testcase":
+                        continue
+                    idx += 1
+                    tc_items.append({
+                        "id": f"local_{idx}",
+                        "problem_id": prob_id,
+                        "problem_title": task_name,
+                        "test_suite": r.get("test_suite") or "Chung",
+                        "review_status": "approved",
+                        "approved": True,
+                        "content": {
+                            "id": r.get("id") or f"[TC]_{idx}",
+                            "muc_dich": r.get("muc_dich") or "",
+                            "cac_buoc": r.get("cac_buoc") or "",
+                            "ket_qua_mong_muon": r.get("ket_qua_mong_muon") or "",
+                            "ghi_chu": r.get("ghi_chu") or "",
+                        },
+                    })
+                if tc_items:
+                    return {
+                        "success": True,
+                        "source": "local_excel",
+                        "total": len(tc_items),
+                        "items": tc_items,
+                    }
+
+        return {
+            "success": True,
+            "source": "empty",
+            "total": 0,
+            "items": [],
+        }
 
     def push_local_to_drive(self, payload: dict[str, Any]) -> dict[str, Any]:
         if not self.pipeline:

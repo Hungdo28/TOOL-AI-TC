@@ -82,20 +82,36 @@ class SupabaseRepository:
 
     def _to_task_dict(self, row: dict[str, Any]) -> dict[str, Any]:
         """Chuyển đổi 1 record từ Supabase problems sang cấu trúc Dictionary chuẩn của hệ thống."""
+        from pathlib import Path
+        import re
+
         p_id = str(row.get("id") or "")
         legacy_id = row.get("legacy_id")
+        title = str(row.get("title") or "")
+        tc_url = str(row.get("testcase_url") or "")
+        doc_url = str(row.get("analysis_doc_url") or "")
         raw_status = str(row.get("status") or "Chưa làm")
         status = self._local_status_overrides.get(p_id, raw_status)
+
+        # Khôi phục trạng thái 'Chờ duyệt' sau khi restart backend nếu bài toán đã sinh file Local nhưng chưa đẩy lên Drive
+        if p_id not in self._local_status_overrides and raw_status == "Đã xong" and not tc_url.strip() and not doc_url.strip() and title.strip():
+            records_dir = getattr(self.settings, "local_records_dir", None)
+            if records_dir:
+                safe_folder = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "_", title.strip()).strip(" .")
+                task_dir = Path(records_dir) / safe_folder
+                if task_dir.is_dir() and any(f.suffix.lower() in (".xlsx", ".docx") and not f.name.startswith("~$") for f in task_dir.iterdir() if f.is_file()):
+                    status = "Chờ duyệt"
+
         return {
             "id": p_id,
             "problem_id": p_id,
             "legacy_id": legacy_id,
             "ID": legacy_id if legacy_id is not None else "",
             "row_number": p_id,  # Luôn dùng UUID làm mã định danh duy nhất cho Frontend
-            "Bài toán": str(row.get("title") or ""),
+            "Bài toán": title,
             "URL": str(row.get("source_url") or ""),
-            "Link Testcase": str(row.get("testcase_url") or ""),
-            "Link tài liệu phân tích": str(row.get("analysis_doc_url") or ""),
+            "Link Testcase": tc_url,
+            "Link tài liệu phân tích": doc_url,
             "Trạng thái": status,
             "Người làm": str(row.get("assignee") or ""),
         }

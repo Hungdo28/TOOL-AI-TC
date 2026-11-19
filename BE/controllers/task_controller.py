@@ -103,6 +103,22 @@ class TaskController:
         payload = dict(request.read_json() or {})
         return ApiResponse(200, self.service.open_local_folder(payload))
 
+    def open_local_file(self, request) -> ApiResponse:
+        payload = dict(request.read_json() or {})
+        return ApiResponse(200, self.service.open_local_file(payload))
+
+    def download_local_file(self, request) -> ApiResponse:
+        content_bytes, mime_type, file_name = self.service.download_local_file(request.query_params)
+        import urllib.parse
+        encoded_filename = urllib.parse.quote(file_name)
+        headers = {
+            "Content-Disposition": f"inline; filename*=UTF-8''{encoded_filename}",
+        }
+        return ApiResponse(200, content_bytes, content_type=mime_type, headers=headers)
+
+    def get_local_testcases(self, request) -> ApiResponse:
+        return ApiResponse(200, self.service.get_local_testcases(request.query_params))
+
     def push_local_to_drive(self, request) -> ApiResponse:
         payload = dict(request.read_json() or {})
         return ApiResponse(200, self.service.push_local_to_drive(payload))

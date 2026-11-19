@@ -33,7 +33,7 @@ class TaskCancelledError(Exception):
     """Ngoại lệ khi tiến trình xử lý bài toán bị người dùng yêu cầu dừng."""
     pass
 
-CHUNK_CHARS = 16000
+CHUNK_CHARS = 5000
 MAX_REQ_PER_FEATURE_CHUNK = 8
 CONDITIONS_PER_BATCH = 6
 DOC_SEP = "--- TÀI LIỆU TIẾP THEO ---"
@@ -90,7 +90,9 @@ class AiPipelineService:
         self.ai = AiClient(settings)
         self.memory = MemoryService(workspace)
         self.crawler = DocumentCrawler(getattr(workspace, "_google_workspace", None), settings)
-        self.local_storage = LocalStorageService(settings.local_records_dir)
+        self.local_storage = LocalStorageService(
+            getattr(settings, "local_records_dir", None) or "./AutoTC_Records"
+        )
         self._cancelled_tasks: set[str] = set()
         self._cancel_lock = threading.RLock()
 
@@ -263,6 +265,8 @@ class AiPipelineService:
             run_analysis = mode in ("single", "multiple", "phan_tich")
             run_testcase = mode in ("single", "multiple", "testcase")
 
+            scoped_doc_text = self._filter_doc_by_user_scope(title, doc_text, user_prompt)
+
             analysis_doc_url = str(task.get("Link tài liệu phân tích") or "")
             testcase_url = str(task.get("Link Testcase") or "")
             testcase_count = 0
@@ -270,7 +274,7 @@ class AiPipelineService:
             # Chạy song song Nhánh Phân tích BA (Google Docs) và Nhánh Sinh Testcase (Google Sheets)
             with ThreadPoolExecutor(max_workers=2) as branch_pool:
                 fut_analysis = (
-                    branch_pool.submit(self._run_analysis_branch, problem_id, title, doc_text, user_prompt)
+                    branch_pool.submit(self._run_analysis_branch, problem_id, title, scoped_doc_text, user_prompt)
                     if run_analysis
                     else None
                 )
@@ -279,7 +283,7 @@ class AiPipelineService:
                         self._run_testcase_branch,
                         problem_id,
                         title,
-                        doc_text,
+                        scoped_doc_text,
                         user_prompt,
                         tc_prefix,
                     )
@@ -325,9 +329,14 @@ class AiPipelineService:
                     testcase_url="",
                     token_usage=task_usage,
                     tc_prefix=tc_prefix,
+                    skip_excel_if_exists=run_testcase,
                 )
             except Exception as local_err:
                 LOGGER.warning("Không thể lưu bộ tài liệu Word/Excel local cho [%s]: %s", title, local_err)
+                try:
+                    local_bundle = self.local_storage.get_task_bundle_info(title)
+                except Exception:
+                    local_bundle = {}
 
             # 4. Đặt trạng thái "Chờ duyệt" để người dùng kiểm tra Folder Local và nhấn Xác nhận đẩy lên Sheet
             changes: dict[str, Any] = {"Trạng thái": "Chờ duyệt"}
@@ -410,7 +419,7 @@ class AiPipelineService:
     ) -> tuple[str, str]:
         self.check_cancelled(title)
         prompt = build_analysis_prompt(doc_text, user_prompt)
-        raw_ai = self.ai.complete(prompt, max_tokens=4000, temperature=0.2, task_name=title)
+        raw_ai = self.ai.complete(prompt, max_tokens=10000, temperature=0.2, timeout=240, task_name=title)
         self.check_cancelled(title)
         final_text = parse_analysis_report(raw_ai)
 
@@ -442,8 +451,8 @@ class AiPipelineService:
         tc_prefix: str,
     ) -> tuple[str, int, list[dict[str, Any]]]:
         self.check_cancelled(title)
-        # Bước 2.1: Chia tài liệu thành các chunk <= 5000 ký tự
-        doc_chunks = self._chunk_document(title, doc_text)
+        # Bước 2.1: Chia tài liệu thành các chunk tối ưu theo heading & độ dài tài liệu (kèm ngữ cảnh mục cha & phạm vi)
+        doc_chunks = self._chunk_document(title, doc_text, user_prompt=user_prompt)
         LOGGER.info("[%s] Đã chia tài liệu thành %d chunk.", title, len(doc_chunks))
 
         # Bước 2.2: Gọi AI_structured_requirement và truyền previous_feature_names chuẩn xác
@@ -530,7 +539,7 @@ class AiPipelineService:
                 LOGGER.debug("Không thể đồng bộ lại qa_memory khi lưu Local [%s]: %s", task_name, mem_err)
 
         bundle_info = self.local_storage.get_task_bundle_info(task_name)
-        if not bundle_info.get("wordDocPath") and hasattr(self.workspace, "_request"):
+        if hasattr(self.workspace, "_request"):
             try:
                 enc = urllib.parse.quote(task_id)
                 a_rows = self.workspace._request(
@@ -617,12 +626,15 @@ class AiPipelineService:
             except Exception:
                 pass
 
-        if not word_path and analysis_fallback_text:
-            try:
+        try:
+            from services.document_builder import ensure_word_file_has_toc
+            if word_path and Path(word_path).is_file():
+                ensure_word_file_has_toc(word_path, task_name, fallback_text=analysis_fallback_text)
+            elif analysis_fallback_text:
                 saved_w = self.local_storage.save_analysis_word(task_name, analysis_fallback_text)
                 word_path = saved_w.get("filePath") or ""
-            except Exception as w_err:
-                LOGGER.warning("Không thể dựng lại file Word từ qa_memory [%s]: %s", task_name, w_err)
+        except Exception as w_err:
+            LOGGER.warning("Không thể dựng/nâng cấp file Word từ Local/qa_memory [%s]: %s", task_name, w_err)
 
         # 2. Đẩy file Excel (.xlsx) từ Folder Local lên Google Sheet
         tc_url = str(task.get("Link Testcase") or "")
@@ -667,60 +679,368 @@ class AiPipelineService:
             "data": updated,
         }
 
+    _SCOPE_STOPWORDS = {
+        "chỉ", "chi", "phân", "tích", "phan", "tich", "kiểm", "thử", "kiem", "thu",
+        "viết", "viet", "sinh", "tạo", "tao", "làm", "lam", "xử", "lý", "xu", "ly",
+        "testcase", "testcases", "test", "case", "cases", "tc", "tcs", "kịch", "bản", "kich", "ban",
+        "cho", "phần", "mục", "muc", "hệ", "he", "chức", "năng", "chuc", "nang",
+        "màn", "hình", "man", "hinh", "luồng", "luong", "bài", "toán", "bai", "toan",
+        "tập", "trung", "tap", "vào", "vao", "của", "cua", "các", "cac", "những", "nhung",
+        "trong", "tài", "liệu", "tai", "lieu", "srs", "giúp", "giup", "tôi", "toi", "mình", "minh",
+        "hãy", "hay", "yêu", "cầu", "yeu", "cau", "bổ", "sung", "bo", "thêm", "them",
+        "tiết", "tiet", "đầy", "đủ", "day", "du", "toàn", "bộ", "toan", "tất", "cả", "tat", "ca",
+        "negative", "boundary", "biên", "bien", "exception", "lỗi", "loi", "quyền", "quyen",
+        "expected", "result", "trùng", "lặp", "trung", "lap", "gộp", "gop", "rà", "soát", "ra", "soat",
+        "với", "voi", "và", "va", "hoặc", "hoac", "theo", "đúng", "dung", "phạm", "vi", "pham",
+        "trên", "tren", "dưới", "duoi", "này", "nay", "đó", "do", "cần", "can", "muốn", "muon", "thôi", "thoi",
+    }
+
+    @classmethod
+    def _extract_scope_tokens(cls, user_prompt: str) -> list[str]:
+        """Trích xuất các từ khóa định danh phân hệ/chức năng/màn hình từ prompt người dùng."""
+        if not user_prompt or not user_prompt.strip():
+            return []
+
+        candidate_lines: list[str] = []
+        lines = [ln.strip() for ln in user_prompt.strip().splitlines() if ln.strip()]
+        for i, ln in enumerate(lines):
+            if ln.startswith("- [") or ln.startswith("DANH SÁCH TESTCASE") or ln.startswith("Các yêu cầu điều chỉnh trên là BẮT BUỘC"):
+                continue
+            if ln.startswith("YÊU CẦU ĐIỀU CHỈNH"):
+                if i + 1 < len(lines):
+                    candidate_lines.append(lines[i + 1])
+                continue
+            candidate_lines.append(ln)
+
+        raw_scope = " ".join(candidate_lines[:3])
+        words = re.findall(r"[0-9a-zA-ZÀ-ỹ_/-]+", raw_scope.lower())
+        return [w for w in words if w not in cls._SCOPE_STOPWORDS and len(w) >= 2]
+
+    @classmethod
+    def _filter_doc_by_user_scope(cls, title: str, doc_text: str, user_prompt: str) -> str:
+        """
+        Tự động khoanh vùng tài liệu theo đúng phân hệ / chức năng người dùng yêu cầu trong user_prompt
+        (VD: 'phân tích phần app agency', 'phân hệ CRM', 'báo cáo 52') trước khi đưa vào AI.
+        Giữ lại phần giới thiệu chung, đúng các mục khớp phạm vi và các API liên quan trực tiếp.
+        """
+        scope_tokens = cls._extract_scope_tokens(user_prompt)
+        if not scope_tokens or not doc_text or len(doc_text) < 4000:
+            return doc_text
+
+        scope_phrase = " ".join(scope_tokens)
+        lines = doc_text.split("\n")
+        sections: list[dict[str, Any]] = []
+        h1 = h2 = h3 = ""
+        cur_level = 0
+        cur_heading = ""
+        cur_lines: list[str] = []
+
+        def flush_sec() -> None:
+            if cur_lines or cur_heading:
+                sections.append(
+                    {
+                        "level": cur_level,
+                        "heading": cur_heading,
+                        "h1": h1,
+                        "h2": h2,
+                        "h3": h3,
+                        "body": "\n".join(cur_lines).strip(),
+                    }
+                )
+
+        for line in lines:
+            s = line.strip()
+            if s.startswith("# ") and not s.startswith("## "):
+                flush_sec()
+                h1, h2, h3 = s[2:].strip(), "", ""
+                cur_level, cur_heading, cur_lines = 1, s, [line]
+            elif s.startswith("## ") and not s.startswith("### "):
+                flush_sec()
+                h2, h3 = s[3:].strip(), ""
+                cur_level, cur_heading, cur_lines = 2, s, [line]
+            elif s.startswith("### ") and not s.startswith("#### "):
+                flush_sec()
+                h3 = s[4:].strip()
+                cur_level, cur_heading, cur_lines = 3, s, [line]
+            else:
+                cur_lines.append(line)
+        flush_sec()
+
+        if len(sections) <= 3:
+            return doc_text
+
+        def heading_matches(sec: dict[str, Any]) -> bool:
+            target = f"{sec['h2']} {sec['h3']}".lower()
+            if not target.strip():
+                return False
+            if len(scope_phrase) >= 3 and scope_phrase in target:
+                return True
+            return all(tok in target for tok in scope_tokens)
+
+        matched_indices = {i for i, sec in enumerate(sections) if heading_matches(sec)}
+
+        # Nếu không khớp trực tiếp trên tiêu đề ## / ###, thử tìm các mục có chứa đầy đủ từ khóa trong nội dung
+        if not matched_indices:
+            body_matches = {
+                i
+                for i, sec in enumerate(sections)
+                if sec["level"] in (2, 3)
+                and (
+                    (len(scope_phrase) >= 4 and scope_phrase in sec["body"].lower())
+                    or all(tok in sec["body"].lower() for tok in scope_tokens)
+                )
+            }
+            if body_matches and len(body_matches) < len(sections) * 0.6:
+                matched_indices = body_matches
+
+        if not matched_indices:
+            return doc_text
+
+        matched_body_lower = "\n".join(sections[i]["body"].lower() for i in sorted(matched_indices))
+
+        # Tự động giữ thêm các mục giới thiệu ngắn và các đặc tả API được gọi trong phân hệ đã chọn
+        api_noise = {"api", "lấy", "xem", "danh", "sách", "thông", "tin", "chi", "tiết", "của", "theo", "từng", "cho", "hàng", "ngày", "cuối", "tháng"}
+        kept_pieces: list[str] = [
+            f"[PHẠM VI NGƯỜI DÙNG YÊU CẦU: {user_prompt.strip()} — Tài liệu dưới đây đã được lọc theo đúng phân hệ/chức năng yêu cầu]"
+        ]
+        for i, sec in enumerate(sections):
+            h1_low = sec["h1"].lower()
+            h2_low = sec["h2"].lower()
+            is_intro = any(k in h1_low for k in ("giới thiệu", "tổng quan", "thông tin chung")) or (
+                "danh mục mã trạng thái" in h2_low
+            )
+            if i in matched_indices:
+                breadcrumb = " > ".join(x for x in (sec["h1"], sec["h2"], sec["h3"]) if x)
+                kept_pieces.append(f"[Thuộc mục: {breadcrumb}]\n{sec['body']}")
+            elif is_intro and len(sec["body"]) <= 4000:
+                kept_pieces.append(sec["body"])
+            elif ("api" in h1_low or h2_low.startswith("api ")) and sec["h2"]:
+                api_words = [
+                    w
+                    for w in re.findall(r"[0-9a-zA-ZÀ-ỹ]+", h2_low)
+                    if w not in api_noise and len(w) >= 3
+                ]
+                if len(api_words) >= 2 and all(w in matched_body_lower for w in api_words[:3]):
+                    kept_pieces.append(f"[API liên quan: {sec['h1']} > {sec['h2']}]\n{sec['body']}")
+
+        filtered_text = "\n\n".join(kept_pieces).strip()
+        if filtered_text and len(filtered_text) < len(doc_text) * 0.9:
+            LOGGER.info(
+                "[%s] Đã lọc phạm vi tài liệu theo Prompt (%s): giữ %d/%d ký tự thuộc đúng phân hệ yêu cầu.",
+                title,
+                scope_phrase,
+                len(filtered_text),
+                len(doc_text),
+            )
+            return filtered_text
+        return doc_text
+
     @staticmethod
-    def _chunk_document(title: str, doc_text: str) -> list[dict[str, Any]]:
+    def _chunk_document(title: str, doc_text: str, user_prompt: str = "") -> list[dict[str, Any]]:
         text = doc_text.strip()
         if not text:
             raise RuntimeError("Tài liệu rỗng, không có gì để chia chunk.")
+
+        doc_len = len(text)
+        if doc_len <= 20000:
+            target_chunk_chars = CHUNK_CHARS
+        elif doc_len <= 60000:
+            target_chunk_chars = 10000
+        else:
+            target_chunk_chars = 13000
+
+        soft_break_min = int(target_chunk_chars * 0.65)
+        hard_limit = int(target_chunk_chars * 1.15)
+        heading_prefixes = ("# ", "## ", "### ", "[SHEET TAB:")
 
         doc_title = title.strip() or text[:120].split("\n")[0]
         pieces: list[str] = []
 
         for line in text.split("\n"):
-            if len(line) <= CHUNK_CHARS:
+            if len(line) <= target_chunk_chars:
                 pieces.append(line)
                 continue
             rest = line
-            while len(rest) > CHUNK_CHARS:
-                cut = rest.rfind(". ", 0, CHUNK_CHARS)
-                if cut < int(CHUNK_CHARS * 0.5):
-                    cut = rest.rfind(" ", 0, CHUNK_CHARS)
-                if cut < int(CHUNK_CHARS * 0.5):
-                    cut = CHUNK_CHARS
+            while len(rest) > target_chunk_chars:
+                cut = rest.rfind(". ", 0, target_chunk_chars)
+                if cut < int(target_chunk_chars * 0.5):
+                    cut = rest.rfind(" ", 0, target_chunk_chars)
+                if cut < int(target_chunk_chars * 0.5):
+                    cut = target_chunk_chars
                 pieces.append(rest[: cut + 1].strip())
                 rest = rest[cut + 1 :]
             if rest.strip():
                 pieces.append(rest.strip())
 
-        chunks: list[str] = []
+        chunks: list[tuple[str, str]] = []
         cur = ""
+        active_h1 = ""
+        active_h2 = ""
+        active_h3 = ""
+        chunk_breadcrumb = ""
+
+        def current_breadcrumb() -> str:
+            parts = [x for x in (active_h1, active_h2, active_h3) if x]
+            return " > ".join(parts)
+
         for p in pieces:
-            is_sep = p.strip() == DOC_SEP
+            stripped = p.strip()
+            is_sep = stripped == DOC_SEP
+            is_heading = stripped.startswith(heading_prefixes)
+
             if cur and (
-                len(cur) + len(p) + 1 > CHUNK_CHARS
-                or (is_sep and len(cur) > CHUNK_CHARS * 0.4)
+                len(cur) + len(p) + 1 > hard_limit
+                or (is_sep and len(cur) > int(target_chunk_chars * 0.4))
+                or (is_heading and len(cur) >= soft_break_min)
+                or (len(cur) >= target_chunk_chars and len(cur) + len(p) + 1 > target_chunk_chars)
             ):
-                chunks.append(cur.strip())
+                chunks.append((chunk_breadcrumb, cur.strip()))
                 cur = ""
+                chunk_breadcrumb = current_breadcrumb()
+
+            if stripped.startswith("# ") and not stripped.startswith("## "):
+                active_h1, active_h2, active_h3 = stripped, "", ""
+            elif stripped.startswith("## ") and not stripped.startswith("### "):
+                active_h2, active_h3 = stripped, ""
+            elif stripped.startswith("### ") and not stripped.startswith("#### "):
+                active_h3 = stripped
+
             if is_sep and not cur:
                 continue
+            if not cur and not chunk_breadcrumb:
+                chunk_breadcrumb = current_breadcrumb()
             cur = f"{cur}\n{p}" if cur else p
         if cur.strip():
-            chunks.append(cur.strip())
+            chunks.append((chunk_breadcrumb, cur.strip()))
 
         total = len(chunks)
+        scope_banner = (
+            f"[PHẠM VI BẮT BUỘC THEO YÊU CẦU NGƯỜI DÙNG: {user_prompt.strip()} — CHỈ trích xuất các mục thuộc đúng phạm vi này!]\n"
+            if user_prompt and user_prompt.strip()
+            else ""
+        )
         result: list[dict[str, Any]] = []
-        for idx, c in enumerate(chunks):
+        for idx, (bcrumb, c) in enumerate(chunks):
             header = f"[Tài liệu: {doc_title} | Phần {idx + 1}/{total}]\n" if total > 1 else ""
+            bcrumb_line = f"[Ngữ cảnh phân hệ hiện tại: {bcrumb}]\n" if bcrumb else ""
             result.append(
                 {
-                    "data": header + c,
+                    "data": f"{scope_banner}{header}{bcrumb_line}{c}",
                     "chunk_index": idx + 1,
                     "total_chunks": total,
                     "is_last_chunk": idx == total - 1,
                 }
             )
         return result
+
+    @staticmethod
+    def _split_chunk_halves(chunk: dict[str, Any]) -> list[dict[str, Any]]:
+        """Tách đôi một chunk quá dày đặc theo ranh giới heading/dòng để AI không bị tràn output tokens."""
+        raw = str(chunk.get("data") or "")
+        header = ""
+        body = raw
+        if raw.startswith("[Tài liệu: ") and "\n" in raw:
+            header, body = raw.split("\n", 1)
+            header += "\n"
+        if len(body) < 4000:
+            return []
+
+        mid = len(body) // 2
+        lo, hi = int(len(body) * 0.3), int(len(body) * 0.75)
+        cut = -1
+        for marker in ("\n# ", "\n## ", "\n### ", "\n[SHEET TAB:"):
+            pos = body.rfind(marker, lo, hi)
+            if pos >= 0:
+                cut = pos
+                break
+        if cut < 0:
+            after = body.find("\n", mid)
+            before = body.rfind("\n", lo, mid)
+            if after >= 0 and (before < 0 or (after - mid) <= (mid - before)):
+                cut = after
+            elif before >= 0:
+                cut = before
+            else:
+                cut = mid
+
+        left = body[:cut].strip()
+        right = body[cut:].strip()
+        if not left or not right:
+            return []
+
+        return [
+            {**chunk, "data": f"{header}{left}", "is_last_chunk": False},
+            {**chunk, "data": f"{header}{right}"},
+        ]
+
+    def _extract_chunk_with_resilience(
+        self,
+        *,
+        title: str,
+        chunk: dict[str, Any],
+        prev_names: list[str],
+        user_prompt: str,
+    ) -> tuple[list[dict[str, Any]], list[str]]:
+        """Gọi AI trích xuất 1 chunk; nếu bị cắt cụt/lỗi JSON thì tự tách đôi chunk chạy song song để cứu dữ liệu."""
+        cidx = chunk["chunk_index"]
+        total = chunk["total_chunks"]
+
+        def call_single(c_obj: dict[str, Any]) -> dict[str, Any]:
+            self.check_cancelled(title)
+            prompt = build_requirement_extraction_prompt(
+                task_name=title,
+                chunk_data=c_obj["data"],
+                chunk_index=c_obj["chunk_index"],
+                total_chunks=c_obj["total_chunks"],
+                is_last_chunk=c_obj["is_last_chunk"],
+                previous_feature_names=prev_names,
+                user_prompt=user_prompt,
+            )
+            raw = self.ai.complete(prompt, max_tokens=16000, temperature=0.1, timeout=240, task_name=title)
+            self.check_cancelled(title)
+            if not raw or not str(raw).strip():
+                return {"fail": "empty"}
+            return parse_requirements(raw)
+
+        res = call_single(chunk)
+        if "data" in res and not res.get("salvaged"):
+            return [res["data"]], []
+
+        # Nếu chunk bị lỗi hoặc bị cắt cụt: thử tách đôi ở ranh giới hợp lý rồi chạy song song 2 nửa
+        halves = self._split_chunk_halves(chunk)
+        if halves:
+            LOGGER.info("[%s] Chunk %d/%d bị %s, tự động tách đôi (%d/%d ký tự) chạy song song...", title, cidx, total, res.get("fail") or "cắt cụt", len(halves[0]["data"]), len(halves[1]["data"]))
+            with ThreadPoolExecutor(max_workers=2) as split_pool:
+                half_parsed = list(split_pool.map(call_single, halves))
+
+            half_datas: list[dict[str, Any]] = []
+            half_warns: list[str] = []
+            for hi, hp in enumerate(half_parsed, start=1):
+                if "data" in hp:
+                    half_datas.append(hp["data"])
+                    if hp.get("salvaged"):
+                        half_warns.append(f"Chunk {cidx}.{hi} bị cắt cụt, đã cứu phần hoàn chỉnh.")
+                else:
+                    half_warns.append(f"Chunk {cidx}.{hi}/{total}: {hp.get('fail', 'lỗi')}.")
+
+            orig_reqs = len((res.get("data") or {}).get("requirements") or []) if "data" in res else 0
+            half_reqs = sum(len(d.get("requirements") or []) for d in half_datas)
+            if half_datas and ("fail" in res or half_reqs >= orig_reqs):
+                return half_datas, half_warns
+
+        # Fallback nếu chunk quá nhỏ không thể tách đôi nhưng bị lỗi tạm thời
+        if "fail" in res and not halves:
+            retry_res = call_single(chunk)
+            if "data" in retry_res:
+                warns = [f"Chunk {cidx} bị cắt cụt, đã cứu phần hoàn chỉnh."] if retry_res.get("salvaged") else []
+                return [retry_res["data"]], warns
+            res = retry_res
+
+        if "data" in res:
+            warns = [f"Chunk {cidx} bị cắt cụt, đã cứu phần hoàn chỉnh."] if res.get("salvaged") else []
+            return [res["data"]], warns
+
+        return [], [f"Chunk {cidx}/{total}: {res.get('fail', 'lỗi')}, đã bỏ qua."]
 
     def _extract_structured_requirements(
         self,
@@ -732,67 +1052,49 @@ class AiPipelineService:
         warnings: list[str] = []
         known_feature_names: list[str] = []
 
-        def call_chunk(chunk: dict[str, Any], prev_names: list[str]) -> str:
-            self.check_cancelled(title)
-            prompt = build_requirement_extraction_prompt(
-                task_name=title,
-                chunk_data=chunk["data"],
-                chunk_index=chunk["chunk_index"],
-                total_chunks=chunk["total_chunks"],
-                is_last_chunk=chunk["is_last_chunk"],
-                previous_feature_names=prev_names,
-                user_prompt=user_prompt,
-            )
-            res = self.ai.complete(prompt, max_tokens=6000, temperature=0.1, task_name=title)
-            self.check_cancelled(title)
-            return res
+        # Tài liệu ngắn (<= 3 chunk, không có bộ lọc scope): chạy chunk 1 trước để lấy tên Feature chuẩn cho các chunk sau
+        # Tài liệu dài (> 3 chunk) hoặc có user_prompt: chạy song song toàn bộ ngay lập tức để tối đa hóa tốc độ
+        chunk_outputs: list[tuple[list[dict[str, Any]], list[str]]] = [([], []) for _ in doc_chunks]
+        run_all_parallel = len(doc_chunks) > 3 or bool(user_prompt.strip())
 
-        # Tối ưu: chạy chunk 1 trước để lấy danh sách tên Feature chuẩn truyền cho các chunk sau
-        raw_outputs: list[str | None] = [None] * len(doc_chunks)
-        if doc_chunks:
+        def run_one(c: dict[str, Any], prev_names: list[str]) -> tuple[list[dict[str, Any]], list[str]]:
             try:
-                first_raw = call_chunk(doc_chunks[0], [])
-                raw_outputs[0] = first_raw
-                first_parsed = parse_requirements(first_raw)
-                if "data" in first_parsed:
-                    for f in first_parsed["data"].get("features") or []:
-                        if isinstance(f, dict) and str(f.get("feature_name") or "").strip():
-                            fname = str(f["feature_name"]).strip()
-                            if fname not in known_feature_names:
-                                known_feature_names.append(fname)
+                return self._extract_chunk_with_resilience(
+                    title=title,
+                    chunk=c,
+                    prev_names=prev_names,
+                    user_prompt=user_prompt,
+                )
             except TaskCancelledError:
                 raise
             except Exception as e:
-                warnings.append(f"Chunk 1 lỗi: {e}")
+                LOGGER.warning("Chunk %d lỗi: %s", c["chunk_index"], e)
+                return [], [f"Chunk {c['chunk_index']}/{c['total_chunks']} lỗi: {e}"]
 
-        if len(doc_chunks) > 1:
-            remaining = doc_chunks[1:]
+        if doc_chunks and not run_all_parallel:
+            datas, warns = run_one(doc_chunks[0], [])
+            chunk_outputs[0] = (datas, warns)
+            for d in datas:
+                for f in d.get("features") or []:
+                    if isinstance(f, dict) and str(f.get("feature_name") or "").strip():
+                        fname = str(f["feature_name"]).strip()
+                        if fname not in known_feature_names:
+                            known_feature_names.append(fname)
+            if len(doc_chunks) > 1:
+                remaining = doc_chunks[1:]
+                with ThreadPoolExecutor(max_workers=min(10, len(remaining))) as pool:
+                    rem_res = list(pool.map(lambda c: run_one(c, known_feature_names), remaining))
+                for i, pair in enumerate(rem_res, start=1):
+                    chunk_outputs[i] = pair
+        elif doc_chunks:
+            with ThreadPoolExecutor(max_workers=min(10, len(doc_chunks))) as pool:
+                all_res = list(pool.map(lambda c: run_one(c, []), doc_chunks))
+            chunk_outputs = all_res
 
-            def run_rem(c: dict[str, Any]) -> str | None:
-                try:
-                    return call_chunk(c, known_feature_names)
-                except TaskCancelledError:
-                    raise
-                except Exception as e:
-                    LOGGER.warning("Chunk %d lỗi: %s", c["chunk_index"], e)
-                    return None
-
-            with ThreadPoolExecutor(max_workers=min(6, len(remaining))) as pool:
-                rem_results = list(pool.map(run_rem, remaining))
-            for i, r in enumerate(rem_results, start=1):
-                raw_outputs[i] = r
-
-        for idx, raw in enumerate(raw_outputs):
-            if not raw or not str(raw).strip():
-                warnings.append(f"Chunk {idx + 1}/{len(doc_chunks)} không có kết quả, đã bỏ qua.")
-                continue
-            r = parse_requirements(raw)
-            if "fail" in r:
-                warnings.append(f"Chunk {idx + 1}/{len(doc_chunks)}: {r['fail']}, đã bỏ qua.")
-                continue
-            if r.get("salvaged"):
-                warnings.append(f"Chunk {idx + 1} bị cắt cụt, đã cứu phần hoàn chỉnh.")
-            parsed_chunks.append((idx, r["data"]))
+        for idx, (datas, warns) in enumerate(chunk_outputs):
+            warnings.extend(warns)
+            for d in datas:
+                parsed_chunks.append((idx, d))
 
         if not parsed_chunks:
             raise RuntimeError(
@@ -951,8 +1253,13 @@ class AiPipelineService:
                 fl["flow_order"] = ord_of[fl["feature_id"]]
 
         if not out["requirements"]:
+            hint = (
+                " (Gợi ý: Phạm vi Prompt AI bạn nhập có thể chưa khớp phần nào trong tài liệu; hãy thử mở rộng từ khóa hoặc để trống Prompt AI)."
+                if user_prompt.strip()
+                else ""
+            )
             raise RuntimeError(
-                "AI_structured_requirement không trích xuất được requirement nào từ tài liệu.\n"
+                f"AI_structured_requirement không trích xuất được requirement nào từ tài liệu.{hint}\n"
                 + "\n".join(warnings)
             )
         if warnings:
@@ -1130,7 +1437,7 @@ class AiPipelineService:
                 self.check_cancelled(title)
             try:
                 prompt = build_condition_generator_prompt(chunk, user_prompt)
-                res = self.ai.complete(prompt, max_tokens=8000, temperature=0.2, task_name=title)
+                res = self.ai.complete(prompt, max_tokens=14000, temperature=0.2, timeout=240, task_name=title)
                 if title:
                     self.check_cancelled(title)
                 return res
@@ -1140,7 +1447,7 @@ class AiPipelineService:
                 LOGGER.warning("Test_condition_generator lỗi ở chunk %s: %s", chunk.get("chunk_id"), e)
                 return None
 
-        with ThreadPoolExecutor(max_workers=min(6, max(1, len(enriched_chunks)))) as pool:
+        with ThreadPoolExecutor(max_workers=min(14, max(1, len(enriched_chunks)))) as pool:
             raw_results = list(pool.map(call_cond_ai, enriched_chunks))
 
         all_conditions: list[dict[str, Any]] = []
@@ -1298,7 +1605,7 @@ class AiPipelineService:
             prompt = build_testcase_generator_prompt(batch, user_prompt)
             raw = ""
             try:
-                raw = self.ai.complete(prompt, max_tokens=8000, temperature=0.2, task_name=title)
+                raw = self.ai.complete(prompt, max_tokens=12000, temperature=0.2, timeout=240, task_name=title)
                 if title:
                     self.check_cancelled(title)
             except TaskCancelledError:
@@ -1328,7 +1635,7 @@ class AiPipelineService:
             if missing_conds and len(missing_conds) < len(batch):
                 try:
                     retry_prompt = build_testcase_generator_prompt(missing_conds, user_prompt)
-                    retry_raw = self.ai.complete(retry_prompt, max_tokens=6000, temperature=0.2, task_name=title)
+                    retry_raw = self.ai.complete(retry_prompt, max_tokens=10000, temperature=0.2, timeout=240, task_name=title)
                     retry_parsed = parse_loose(retry_raw, "results")
                     if retry_parsed and isinstance(retry_parsed["data"].get("results"), list):
                         for r in retry_parsed["data"]["results"]:
@@ -1353,7 +1660,7 @@ class AiPipelineService:
                 )
             return batch_rows
 
-        with ThreadPoolExecutor(max_workers=min(6, max(1, len(batches)))) as pool:
+        with ThreadPoolExecutor(max_workers=min(14, max(1, len(batches)))) as pool:
             nested = list(pool.map(run_batch, batches))
 
         all_rows: list[dict[str, Any]] = []

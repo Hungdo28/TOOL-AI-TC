@@ -122,18 +122,26 @@ class MemoryService:
         if not problem_id or not sheet_rows:
             return
         try:
-            records = []
+            records: list[dict[str, Any]] = []
+            seen_hashes: set[str] = set()
+            tc_idx = 0
             for r in sheet_rows:
                 if r.get("row_type") != "testcase":
                     continue
+                tc_idx += 1
+                inner = r.get("content") if isinstance(r.get("content"), dict) else r
                 content = {
-                    "id": r.get("id") or "",
-                    "muc_dich": r.get("muc_dich") or "",
-                    "cac_buoc": r.get("cac_buoc") or "",
-                    "ket_qua_mong_muon": r.get("ket_qua_mong_muon") or "",
-                    "ghi_chu": r.get("ghi_chu") or "",
+                    "id": str(inner.get("id") or r.get("id") or f"[TC]_{tc_idx}").strip(),
+                    "muc_dich": str(inner.get("muc_dich") or r.get("muc_dich") or ""),
+                    "cac_buoc": str(inner.get("cac_buoc") or r.get("cac_buoc") or ""),
+                    "ket_qua_mong_muon": str(inner.get("ket_qua_mong_muon") or r.get("ket_qua_mong_muon") or ""),
+                    "ghi_chu": str(inner.get("ghi_chu") or r.get("ghi_chu") or ""),
                 }
                 hash_input = f"{r.get('test_suite', '')}|{content['id']}|{content['muc_dich']}"
+                c_hash = content_hash(hash_input)
+                if c_hash in seen_hashes:
+                    c_hash = content_hash(f"{hash_input}#{tc_idx}")
+                seen_hashes.add(c_hash)
                 records.append({
                     "kind": "testcase",
                     "problem_id": str(problem_id),
@@ -142,10 +150,10 @@ class MemoryService:
                     "content": content,
                     "review_status": "pending",
                     "approved": False,
-                    "content_hash": content_hash(hash_input),
+                    "content_hash": c_hash,
                 })
             if records:
-                # Xóa các testcase của các phiên chạy cũ thuộc cùng bài toán này (cả theo ID lẫn theo Tên bài toán) để không bị cộng dồn qua nhiều lần chạy
+                # Xóa các testcase của các phiên chạy cũ thuộc cùng bài toán này để không bị cộng dồn qua nhiều lần chạy
                 try:
                     pid_enc = urllib.parse.quote(str(problem_id))
                     title_enc = urllib.parse.quote(str(problem_title).strip())
@@ -157,14 +165,86 @@ class MemoryService:
                 except Exception as del_err:
                     LOGGER.debug("Không thể dọn qa_memory cũ của bài toán %s: %s", problem_id, del_err)
 
-                self.sb._request(
-                    "qa_memory?on_conflict=kind,problem_id,content_hash",
-                    method="POST",
-                    data=records,
-                    prefer="resolution=merge-duplicates,return=minimal",
-                )
+                # Chia nhỏ thành từng lô 200 bản ghi để tránh quá tải/timeout REST API khi có hàng nghìn testcase
+                batch_size = 200
+                for start in range(0, len(records), batch_size):
+                    chunk = records[start : start + batch_size]
+                    self.sb._request(
+                        "qa_memory?on_conflict=kind,problem_id,content_hash",
+                        method="POST",
+                        data=chunk,
+                        prefer="resolution=merge-duplicates,return=minimal",
+                    )
         except Exception as e:
             LOGGER.warning("Lưu qa_memory (testcases) thất bại (bỏ qua): %s", e)
+
+    def fetch_task_testcases(
+        self,
+        *,
+        problem_id: str = "",
+        problem_title: str = "",
+    ) -> list[dict[str, Any]]:
+        """Lấy toàn bộ testcase mới nhất của 1 bài toán từ qa_memory (hỗ trợ phân trang >500 dòng)."""
+        if not (problem_id or problem_title) or not hasattr(self.sb, "_request"):
+            return []
+        try:
+            clauses: list[str] = []
+            if problem_id:
+                pid_enc = urllib.parse.quote(str(problem_id).strip())
+                clauses.append(f"problem_id.eq.{pid_enc}")
+            if problem_title:
+                t_enc = urllib.parse.quote(str(problem_title).strip())
+                clauses.append(f"problem_title.eq.{t_enc}")
+                clauses.append(f"problem_title.ilike.{t_enc}")
+
+            all_rows: list[dict[str, Any]] = []
+            page_size = 1000
+            offset = 0
+            while offset < 10000:
+                endpoint = (
+                    f"qa_memory?kind=eq.testcase&or=({','.join(clauses)})"
+                    "&select=id,problem_id,problem_title,test_suite,content,review_status,approved,created_at"
+                    f"&order=created_at.desc,id.asc&limit={page_size}&offset={offset}"
+                )
+                page = self.sb._request(endpoint, method="GET")
+                if not isinstance(page, list) or not page:
+                    break
+                all_rows.extend(r for r in page if isinstance(r, dict))
+                if len(page) < page_size:
+                    break
+                offset += page_size
+
+            if not all_rows:
+                return []
+
+            # Giữ phiên sinh mới nhất (trong vòng 3 phút kể từ bản ghi mới nhất)
+            ts_list: list[float] = []
+            for r in all_rows:
+                raw_ts = str(r.get("created_at") or "").strip()
+                if raw_ts:
+                    try:
+                        ts_list.append(datetime.fromisoformat(raw_ts.replace("Z", "+00:00")).timestamp())
+                    except Exception:
+                        pass
+            if ts_list:
+                max_ts = max(ts_list)
+                filtered: list[dict[str, Any]] = []
+                for r in all_rows:
+                    raw_ts = str(r.get("created_at") or "").strip()
+                    if not raw_ts:
+                        continue
+                    try:
+                        t_val = datetime.fromisoformat(raw_ts.replace("Z", "+00:00")).timestamp()
+                        if max_ts - t_val <= 180.0:
+                            filtered.append(r)
+                    except Exception:
+                        pass
+                if filtered:
+                    return filtered
+            return all_rows
+        except Exception as e:
+            LOGGER.warning("Truy vấn fetch_task_testcases thất bại: %s", e)
+            return []
 
     def fetch_approved_testcases(self, exclude_problem_id: str) -> list[dict[str, Any]]:
         try:

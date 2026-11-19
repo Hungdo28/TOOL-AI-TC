@@ -8,4 +8,6 @@ from typing import Any
 class ApiResponse:
     status: int
     body: Any
+    content_type: str = "application/json; charset=utf-8"
+    headers: dict[str, str] | None = None
 

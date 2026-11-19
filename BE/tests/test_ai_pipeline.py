@@ -50,8 +50,8 @@ class TestJsonParser(unittest.TestCase):
   "he_thong_va_api": ["[POST] /api/otp - Gửi mã "OTP" cho khách hàng"]
 }"""
         report = parse_analysis_report(raw)
-        self.assertIn("1. MỤC TIÊU TÀI LIỆU", report)
-        self.assertIn("2. CÁC HỆ THỐNG VÀ API", report)
+        self.assertIn("1. TỔNG QUAN, MỤC TIÊU & PHẠM VI NGHIỆP VỤ", report)
+        self.assertIn("2. KIẾN TRÚC TÍCH HỢP & ĐẶC TẢ GIAO TIẾP API", report)
         self.assertIn("/api/otp", report)
 
 
@@ -127,6 +127,23 @@ class TestAiPipelineLogic(unittest.TestCase):
         ]
         enriched = MemoryService.build_memory_text_for_chunks(chunks, approved)
         self.assertIn("Kiểm tra nhập mã OTP hết hạn", enriched[0]["memory_text"])
+
+    def test_filter_doc_by_user_scope_isolates_requested_subsystem(self):
+        doc = (
+            "# GIỚI THIỆU\nTài liệu tổng quan.\n"
+            "# THIẾT KẾ CHI TIẾT\n"
+            "## PHÂN HỆ CRM\n" + ("Nội dung CRM chi tiết. " * 250) + "\n"
+            "## PHÂN HỆ APP AGENCY\n"
+            "### Xem tồn kho của trạm\n" + ("Nội dung App Agency tồn kho. " * 120) + "\n"
+            "## PHÂN HỆ BÁO CÁO TẬP TRUNG\n" + ("Nội dung báo cáo 52. " * 120)
+        )
+        filtered = AiPipelineService._filter_doc_by_user_scope(
+            "Hoa Hồng", doc, "Tôi chỉ yêu cầu phân tích phần app agency thôi"
+        )
+        self.assertIn("PHÂN HỆ APP AGENCY", filtered)
+        self.assertIn("Xem tồn kho của trạm", filtered)
+        self.assertNotIn("Nội dung CRM chi tiết", filtered)
+        self.assertNotIn("Nội dung báo cáo 52", filtered)
 
 
 if __name__ == "__main__":

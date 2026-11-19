@@ -37,6 +37,9 @@ class Router:
             ("POST", "/api/local/records"): task_controller.save_local_record,
             ("GET", "/api/local/records"): task_controller.read_local_record,
             ("POST", "/api/local/open-folder"): task_controller.open_local_folder,
+            ("POST", "/api/local/open-file"): task_controller.open_local_file,
+            ("GET", "/api/local/download"): task_controller.download_local_file,
+            ("GET", "/api/local/testcases"): task_controller.get_local_testcases,
             ("POST", "/api/local/push-drive"): task_controller.push_local_to_drive,
         }
         if auth_controller:

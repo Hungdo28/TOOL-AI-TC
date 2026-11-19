@@ -18,8 +18,10 @@ from services.document_builder import (
     TEMPLATE_CACHE_PATH,
     TEMPLATE_DOC_CACHE_PATH,
     _clean_excel_sheet_title,
+    _extract_toc_subitems,
     _group_testcases_by_suite,
     _organize_subsuites_for_sheet,
+    _parse_sections_from_analysis_text,
     build_analysis_word_bytes,
     build_testcase_excel_bytes,
     read_testcases_from_local_excel,
@@ -415,15 +417,25 @@ class GoogleWorkspace:
 
     def create_analysis_doc(self, task_name: str, analysis_text: str) -> str:
         """
-        Tạo Google Doc phân tích SRS bằng cách COPY TRỰC TIẾP từ TEMPLATE_DOC_ID:
-        - Giữ nguyên 100% Trang bìa gốc của bạn.
-        - Phần nội dung đặt ở sau trang bìa, dùng font chữ Sarabun, định dạng rõ tiêu đề 6 phần SRS
-          và tô đậm các nhãn kỹ thuật ([System], [Method], [Happy Path], [Rủi ro], [Q&A]...).
+        Tạo Google Doc phân tích SRS đồng nhất 100% với bản Word (.docx) ở Local:
+        - Sinh bản .docx chuẩn (có Trang bìa gốc từ TEMPLATE_DOC_ID, Bảng thông tin tổng quan,
+          MỤC LỤC TÀI LIỆU, Bảng đặc tả API/DB/Test/Rủi ro và Font chữ Sarabun)
+        - Tải trực tiếp lên Folder Bài toán trên Google Drive dưới dạng Google Docs để 2 bản Word & Docs giống hệt nhau.
         """
+        if analysis_text and analysis_text.strip():
+            try:
+                docx_bytes = build_analysis_word_bytes(task_name, analysis_text)
+                return self.upload_word_bytes_as_doc(task_name, docx_bytes, fallback_text=analysis_text)
+            except Exception as build_err:
+                LOGGER.warning("Không thể dựng .docx để đồng bộ lên Google Docs, dùng fallback Docs API: %s", build_err)
+        return self._create_analysis_doc_via_api(task_name, analysis_text)
+
+    def _create_analysis_doc_via_api(self, task_name: str, analysis_text: str) -> str:
+        """Fallback tạo Google Doc trực tiếp qua Google Docs API nếu không thể convert từ .docx."""
         with self._mutation_lock:
             parent_folder_id = self._ensure_task_drive_folder(task_name)
 
-            body: dict[str, Any] = {"name": f"Tài liệu phân tích {task_name}"}
+            body: dict[str, Any] = {"name": f"Phân tích bài toán - {task_name}"}
             if parent_folder_id:
                 body["parents"] = [parent_folder_id]
             copied = (
@@ -870,10 +882,55 @@ class GoogleWorkspace:
 
     def upload_word_bytes_as_doc(self, task_name: str, docx_bytes: bytes, fallback_text: str = "") -> str:
         """
-        Đẩy tài liệu Phân tích lên Google Docs bằng cách COPY từ TEMPLATE_DOC_ID
-        (để luôn giữ nguyên 100% Trang bìa gốc của bạn trên Google Docs) và chèn nội dung với font Sarabun.
+        Đẩy trực tiếp file Word (.docx) từ Folder Local lên Folder Bài toán trên Google Drive
+        và chuyển đổi thành Google Docs (mimeType='application/vnd.google-apps.document').
+        Nhờ vậy, bản trên Google Docs sẽ giống hệt 100% bản Word (.docx) ở Local:
+        giữ nguyên Trang bìa gốc, Bảng thông tin tổng quan, MỤC LỤC TÀI LIỆU, các Bảng biểu và Font chữ Sarabun.
         """
-        return self.create_analysis_doc(task_name, fallback_text)
+        with self._mutation_lock:
+            parent_folder_id = self._ensure_task_drive_folder(task_name)
+            if not docx_bytes and fallback_text:
+                docx_bytes = build_analysis_word_bytes(task_name, fallback_text)
+
+            if docx_bytes:
+                try:
+                    metadata: dict[str, Any] = {
+                        "name": f"Phân tích bài toán - {task_name}",
+                        "mimeType": "application/vnd.google-apps.document",
+                    }
+                    if parent_folder_id:
+                        metadata["parents"] = [parent_folder_id]
+
+                    media = MediaIoBaseUpload(
+                        io.BytesIO(docx_bytes),
+                        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        resumable=False,
+                    )
+                    uploaded = (
+                        self.drive.files()
+                        .create(
+                            body=metadata,
+                            media_body=media,
+                            fields="id,webViewLink",
+                            supportsAllDrives=True,
+                        )
+                        .execute()
+                    )
+                    doc_id = uploaded["id"]
+                    try:
+                        self.drive.permissions().create(
+                            fileId=doc_id,
+                            body={"type": "anyone", "role": "reader"},
+                            fields="id",
+                            supportsAllDrives=True,
+                        ).execute()
+                    except Exception:
+                        pass
+                    return uploaded.get("webViewLink") or f"https://docs.google.com/document/d/{doc_id}/edit"
+                except Exception as up_err:
+                    LOGGER.warning("Không thể convert .docx trực tiếp lên Google Docs, dùng fallback Docs API: %s", up_err)
+
+        return self._create_analysis_doc_via_api(task_name, fallback_text)
 
     def upload_excel_bytes_as_sheet(self, task_name: str, xlsx_bytes: bytes, fallback_tcs: list[dict[str, Any]] | None = None) -> str:
         """

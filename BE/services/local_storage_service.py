@@ -12,6 +12,7 @@ from services.common import ApiError
 from services.document_builder import (
     build_analysis_word_bytes,
     build_testcase_excel_bytes,
+    ensure_word_file_has_toc,
 )
 
 LOGGER = logging.getLogger("autotc-backend")
@@ -291,6 +292,7 @@ class LocalStorageService:
         testcase_url: str = "",
         token_usage: dict[str, Any] | None = None,
         tc_prefix: str = "TC",
+        skip_excel_if_exists: bool = False,
     ) -> dict[str, Any]:
         """
         Tự động tạo 1 folder đúng theo tên Bài toán khi AI chạy xong, bên trong gồm:
@@ -298,13 +300,17 @@ class LocalStorageService:
         2. Phân tích bài toán - <Tên bài toán>.docx (Báo cáo phân tích chuẩn đẹp)
         """
         folder_name = self.sanitize_name(task_title)
+        safe_title = self.sanitize_name(task_title)
         target_dir = self._resolve_safe_path(folder_name)
         target_dir.mkdir(parents=True, exist_ok=True)
 
         excel_path = ""
         word_path = ""
+        existing_excel = target_dir / f"[TC] {safe_title}.xlsx"
 
-        if testcases:
+        if skip_excel_if_exists and existing_excel.is_file():
+            excel_path = str(existing_excel)
+        elif testcases:
             excel_res = self.save_testcase_excel(
                 task_title,
                 testcases,
@@ -348,6 +354,7 @@ class LocalStorageService:
                 excel_file = xlsx_list[0]
             if docx_list:
                 word_file = docx_list[0]
+                ensure_word_file_has_toc(word_file, task_title)
 
         return {
             "exists": target_dir.exists(),
@@ -362,10 +369,14 @@ class LocalStorageService:
         target_dir = self._resolve_safe_path(self.sanitize_name(task_name) if task_name else "")
         target_dir.mkdir(parents=True, exist_ok=True)
         try:
-            if hasattr(os, "startfile"):
-                os.startfile(str(target_dir))  # type: ignore[attr-defined]
-        except Exception as err:
-            LOGGER.warning("Không thể tự mở File Explorer cho %s: %s", target_dir, err)
+            import subprocess
+            subprocess.Popen(["explorer.exe", str(target_dir)])
+        except Exception:
+            try:
+                if hasattr(os, "startfile"):
+                    os.startfile(str(target_dir) + os.sep)  # type: ignore[attr-defined]
+            except Exception as err:
+                LOGGER.warning("Không thể tự mở File Explorer cho %s: %s", target_dir, err)
 
         info = self.get_task_bundle_info(task_name) if task_name else {"folderPath": str(target_dir)}
         return {
@@ -373,6 +384,66 @@ class LocalStorageService:
             "message": f"Đã mở folder bài toán: {target_dir}",
             **info,
         }
+
+    def open_task_file(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Mở trực tiếp file Word (.docx) hoặc Excel (.xlsx) của bài toán bằng ứng dụng mặc định trên máy."""
+        task_name = str(payload.get("taskName") or payload.get("baiToan") or payload.get("folder") or "").strip()
+        file_type = str(payload.get("fileType") or payload.get("type") or "folder").lower().strip()
+
+        info = self.get_task_bundle_info(task_name) if task_name else {}
+        target_path: str | None = None
+        if file_type in ("word", "doc", "docx"):
+            target_path = info.get("wordDocPath")
+        elif file_type in ("excel", "sheet", "xlsx"):
+            target_path = info.get("excelSheetPath")
+        elif file_type == "folder" or not file_type:
+            target_path = info.get("folderPath") or str(self._resolve_safe_path(self.sanitize_name(task_name) if task_name else ""))
+
+        if not target_path or not Path(target_path).exists():
+            folder_dir = self._resolve_safe_path(self.sanitize_name(task_name) if task_name else "")
+            folder_dir.mkdir(parents=True, exist_ok=True)
+            target_path = str(folder_dir)
+
+        opened = False
+        try:
+            if hasattr(os, "startfile"):
+                os.startfile(str(target_path))  # type: ignore[attr-defined]
+                opened = True
+        except Exception as err:
+            LOGGER.warning("Không thể mở file/folder %s: %s", target_path, err)
+
+        return {
+            "success": True,
+            "opened": opened,
+            "targetPath": str(target_path),
+            "fileType": file_type,
+            "message": f"Đã mở: {Path(target_path).name if target_path else task_name}",
+            **info,
+        }
+
+    def get_task_file_bytes(self, task_name: str, file_type: str) -> tuple[bytes, str, str]:
+        """
+        Lấy nội dung nhị phân, mime-type và tên file để phục vụ download/mở trực tiếp từ browser.
+        Trả về: (bytes_data, mime_type, file_name)
+        """
+        info = self.get_task_bundle_info(task_name)
+        f_type = (file_type or "").lower().strip()
+        target_path_str = ""
+        if f_type in ("word", "doc", "docx"):
+            target_path_str = info.get("wordDocPath") or ""
+            default_mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        elif f_type in ("excel", "sheet", "xlsx"):
+            target_path_str = info.get("excelSheetPath") or ""
+            default_mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        else:
+            raise ApiError(400, f"Loại file không hợp lệ: {file_type}. Chỉ hỗ trợ 'word' hoặc 'excel'.")
+
+        if not target_path_str or not Path(target_path_str).is_file():
+            raise ApiError(404, f'Không tìm thấy file {file_type} của bài toán "{task_name}" trong folder local.')
+
+        p = Path(target_path_str)
+        content_bytes = p.read_bytes()
+        return content_bytes, default_mime, p.name
 
     def save_autotest_bundle(
         self,

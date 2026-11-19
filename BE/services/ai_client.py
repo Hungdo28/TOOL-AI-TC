@@ -14,8 +14,8 @@ LOGGER = logging.getLogger("autotc-backend")
 
 class AiClient:
     """
-    Client gọi trực tiếp Viettel AI / Anthropic Messages API (tương thích hoàn toàn với node
-    lmChatAnthropic trên n8n) và hỗ trợ fallback sang OpenAI Chat Completions nếu cần.
+    Client gọi trực tiếp Viettel AI / OpenAI Chat Completions (tắt thinking mặc định để
+    tối đa hóa tốc độ & tránh tràn reasoning token) hoặc Anthropic Messages API cho model Claude.
     """
 
     def __init__(self, settings: Settings):
@@ -60,22 +60,34 @@ class AiClient:
         retry_delay: float = 3.0,
         timeout: int = 180,
         task_name: str | None = None,
+        thinking: bool = False,
     ) -> str:
         if not self.api_key:
             raise RuntimeError("Chưa cấu hình AI_API_KEY trong BE/.env")
 
         target_model = model or self.default_model
+        use_anthropic_only = "claude" in target_model.lower() or self.base_url.endswith("/v1/messages")
         last_error: Exception | None = None
 
         for attempt in range(1, max_retries + 2):
             try:
-                return self._call_anthropic_messages(
+                if use_anthropic_only:
+                    return self._call_anthropic_messages(
+                        prompt=prompt,
+                        model=target_model,
+                        max_tokens=max_tokens,
+                        temperature=temperature,
+                        timeout=timeout,
+                        task_name=task_name,
+                    )
+                return self._call_openai_chat_completions(
                     prompt=prompt,
                     model=target_model,
                     max_tokens=max_tokens,
                     temperature=temperature,
                     timeout=timeout,
                     task_name=task_name,
+                    thinking=thinking,
                 )
             except Exception as err:
                 last_error = err
@@ -90,6 +102,94 @@ class AiClient:
                     time.sleep(retry_delay * attempt)
 
         raise RuntimeError(f"AI ({target_model}) không phản hồi sau {max_retries + 1} lần thử: {last_error}")
+
+    def _call_openai_chat_completions(
+        self,
+        *,
+        prompt: str,
+        model: str,
+        max_tokens: int,
+        temperature: float,
+        timeout: int,
+        task_name: str | None = None,
+        thinking: bool = False,
+        allow_kwargs: bool = True,
+    ) -> str:
+        url = (
+            self.base_url
+            if self.base_url.endswith("/v1/chat/completions")
+            else f"{self.base_url}/v1/chat/completions"
+        )
+        payload: dict[str, Any] = {
+            "model": model,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ],
+        }
+        if allow_kwargs and not thinking:
+            payload["chat_template_kwargs"] = {"thinking": False}
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            headers=headers,
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                raw_bytes = resp.read()
+                data = json.loads(raw_bytes.decode("utf-8", errors="replace"))
+                text_out = self._extract_text(data)
+                usage = self._extract_usage(data, prompt=prompt, text_out=text_out)
+                self.record_usage(task_name, usage)
+                choices = data.get("choices") or []
+                finish_reason = choices[0].get("finish_reason") if choices and isinstance(choices[0], dict) else None
+                suffix = " [TRUNCATED max_tokens]" if finish_reason == "length" else ""
+                LOGGER.info(
+                    "[AI Token] (%s) Model: %s | In: %s | Out: %s | Lần gọi này: %s tokens%s",
+                    task_name or "General",
+                    model,
+                    f"{usage['input_tokens']:,}",
+                    f"{usage['output_tokens']:,}",
+                    f"{usage['total_tokens']:,}",
+                    suffix,
+                )
+                return text_out
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode("utf-8", errors="replace")
+            if e.code in (400, 422) and allow_kwargs and not thinking:
+                LOGGER.info("Gateway không nhận chat_template_kwargs, thử gọi lại OpenAI endpoint chuẩn...")
+                return self._call_openai_chat_completions(
+                    prompt=prompt,
+                    model=model,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    timeout=timeout,
+                    task_name=task_name,
+                    thinking=thinking,
+                    allow_kwargs=False,
+                )
+            if e.code in (404, 405):
+                LOGGER.info("Endpoint /v1/chat/completions không khả dụng (%s), chuyển sang /v1/messages...", e.code)
+                return self._call_anthropic_messages(
+                    prompt=prompt,
+                    model=model,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    timeout=timeout,
+                    task_name=task_name,
+                )
+            raise RuntimeError(f"HTTP {e.code} từ AI API: {err_body[:500]}") from e
 
     def _call_anthropic_messages(
         self,
@@ -156,9 +256,13 @@ class AiClient:
         if isinstance(data, dict):
             usage = data.get("usage")
             if isinstance(usage, dict):
-                input_tokens = int(usage.get("input_tokens") or usage.get("prompt_tokens") or 0)
-                output_tokens = int(usage.get("output_tokens") or usage.get("completion_tokens") or 0)
-                total_tokens = int(usage.get("total_tokens") or (input_tokens + output_tokens))
+                base_in = int(usage.get("prompt_tokens") or usage.get("input_tokens") or 0)
+                cache_in = int(usage.get("cache_read_input_tokens") or 0) + int(
+                    usage.get("cache_creation_input_tokens") or 0
+                )
+                input_tokens = base_in + (cache_in if "prompt_tokens" not in usage else 0)
+                output_tokens = int(usage.get("completion_tokens") or usage.get("output_tokens") or 0)
+                total_tokens = input_tokens + output_tokens
                 if total_tokens > 0:
                     return {
                         "input_tokens": input_tokens,
@@ -179,6 +283,20 @@ class AiClient:
         if not isinstance(data, dict):
             return str(data or "")
 
+        # Định dạng OpenAI Chat Completions: {"choices": [{"message": {"content": "..."}}]}
+        choices = data.get("choices")
+        if isinstance(choices, list) and choices:
+            msg = choices[0].get("message") if isinstance(choices[0], dict) else None
+            if isinstance(msg, dict):
+                content_val = msg.get("content")
+                if isinstance(content_val, str) and content_val.strip():
+                    return content_val.strip()
+                reasoning_val = str(msg.get("reasoning_content") or msg.get("reasoning") or "")
+                j_pos = reasoning_val.find('{"')
+                if j_pos >= 0:
+                    return reasoning_val[j_pos:].strip()
+                return ""
+
         # Định dạng Anthropic Messages API: {"content": [{"type": "text", "text": "..."}]}
         content = data.get("content")
         if isinstance(content, list):
@@ -192,16 +310,17 @@ class AiClient:
                         parts.append(str(block["text"]))
             if parts:
                 return "\n".join(parts).strip()
+            # Dự phòng: Nếu model vô tình in JSON ngay trong thinking block mà chưa kịp chuyển sang text
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "thinking":
+                    th_text = str(block.get("thinking") or "")
+                    j_pos = th_text.find('{"')
+                    if j_pos >= 0:
+                        return th_text[j_pos:].strip()
+            return ""
 
         if isinstance(content, str) and content.strip():
             return content.strip()
-
-        # Định dạng OpenAI Chat Completions fallback: {"choices": [{"message": {"content": "..."}}]}
-        choices = data.get("choices")
-        if isinstance(choices, list) and choices:
-            msg = choices[0].get("message") if isinstance(choices[0], dict) else None
-            if isinstance(msg, dict) and msg.get("content"):
-                return str(msg["content"]).strip()
 
         if data.get("output"):
             return str(data["output"]).strip()
