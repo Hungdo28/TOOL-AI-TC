@@ -10,6 +10,7 @@ from services.json_parser import (
     parse_requirements,
 )
 from services.memory_service import MemoryService
+from services.scope_filter import filter_doc_by_user_scope
 
 
 class TestJsonParser(unittest.TestCase):
@@ -136,7 +137,7 @@ class TestAiPipelineLogic(unittest.TestCase):
             "### Xem tồn kho của trạm\n" + ("Nội dung App Agency tồn kho. " * 120) + "\n"
             "## PHÂN HỆ BÁO CÁO TẬP TRUNG\n" + ("Nội dung báo cáo 52. " * 120)
         )
-        filtered = AiPipelineService._filter_doc_by_user_scope(
+        filtered = filter_doc_by_user_scope(
             "Hoa Hồng", doc, "Tôi chỉ yêu cầu phân tích phần app agency thôi"
         )
         self.assertIn("PHÂN HỆ APP AGENCY", filtered)
