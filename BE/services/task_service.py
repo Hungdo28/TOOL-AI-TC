@@ -196,7 +196,8 @@ class TaskService:
                 )
                 if isinstance(rows, list) and rows:
                     approved = [r for r in rows if r.get("approved") is True or r.get("review_status") == "approved"]
-                    self.local_storage.save_testcase_excel(task_name, approved or rows)
+                    if approved:
+                        self.local_storage.save_testcase_excel(task_name, approved)
 
             if not info.get("wordDocPath"):
                 enc = urllib.parse.quote(task_id)

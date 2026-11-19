@@ -118,6 +118,7 @@ class MemoryService:
         problem_id: str,
         problem_title: str,
         sheet_rows: list[dict[str, Any]],
+        approved: bool = False,
     ) -> None:
         if not problem_id or not sheet_rows:
             return
@@ -125,6 +126,7 @@ class MemoryService:
             records: list[dict[str, Any]] = []
             seen_hashes: set[str] = set()
             tc_idx = 0
+            target_status = "approved" if approved else "pending"
             for r in sheet_rows:
                 if r.get("row_type") != "testcase":
                     continue
@@ -148,8 +150,8 @@ class MemoryService:
                     "problem_title": str(problem_title).strip(),
                     "test_suite": r.get("test_suite") or "General",
                     "content": content,
-                    "review_status": "pending",
-                    "approved": False,
+                    "review_status": target_status,
+                    "approved": bool(approved),
                     "content_hash": c_hash,
                 })
             if records:

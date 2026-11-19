@@ -323,33 +323,32 @@ class AiPipelineService:
                 local_bundle = self.local_storage.save_pipeline_task_bundle(
                     task_title=title,
                     problem_id=problem_id,
-                    testcases=tc_sheet_rows or formatted_tcs,
+                    testcases=[],
                     analysis_text=analysis_text,
                     analysis_doc_url="",
                     testcase_url="",
                     token_usage=task_usage,
                     tc_prefix=tc_prefix,
-                    skip_excel_if_exists=run_testcase,
+                    skip_excel_if_exists=True,
                 )
             except Exception as local_err:
-                LOGGER.warning("Không thể lưu bộ tài liệu Word/Excel local cho [%s]: %s", title, local_err)
+                LOGGER.warning("Không thể lưu bộ tài liệu Word/metadata local cho [%s]: %s", title, local_err)
                 try:
                     local_bundle = self.local_storage.get_task_bundle_info(title)
                 except Exception:
                     local_bundle = {}
 
-            # 4. Đặt trạng thái "Chờ duyệt" để người dùng kiểm tra Folder Local và nhấn Xác nhận đẩy lên Sheet
+            # 4. Đặt trạng thái "Chờ duyệt" để người dùng Duyệt TC trước khi lưu ra Excel Local & đẩy lên Sheet
             changes: dict[str, Any] = {"Trạng thái": "Chờ duyệt"}
             updated_task = self.workspace.update_task(problem_id, changes)
 
             LOGGER.info(
-                "🏁 Đã lưu Local bài toán [%s]: %d testcases | Token: %s (In: %s, Out: %s) | Folder Local=%s (Chờ xác nhận đẩy lên Sheet)",
+                "🏁 AI đã sinh xong bài toán [%s]: %d testcases | Token: %s (In: %s, Out: %s) (Chờ người dùng Duyệt TC để xuất Excel Local)",
                 title,
                 testcase_count,
                 f"{task_usage.get('total_tokens', 0):,}",
                 f"{task_usage.get('input_tokens', 0):,}",
                 f"{task_usage.get('output_tokens', 0):,}",
-                local_bundle.get("folderPath", ""),
             )
             return {
                 "success": True,
@@ -485,19 +484,26 @@ class AiPipelineService:
         sheet_rows = self._group_by_test_suite(raw_tc_rows, tc_prefix)
         tc_only_count = sum(1 for r in sheet_rows if r.get("row_type") == "testcase")
 
-        # Bước 2.7: Chỉ lưu file Excel (.xlsx) đa sheet vào Folder Local trên máy (chờ xác nhận mới đẩy lên Google Sheet)
+        # Bước 2.7: Xóa file Excel cũ (nếu có từ lần chạy trước) để chỉ khi người dùng Duyệt TC & bấm Xác nhận mới xuất file Excel Local
         self.check_cancelled(title)
         try:
-            self.local_storage.save_testcase_excel(title, sheet_rows, tc_prefix=tc_prefix)
+            old_info = self.local_storage.get_task_bundle_info(title)
+            old_excel = old_info.get("excelSheetPath")
+            if old_excel:
+                from pathlib import Path
+                p_old = Path(old_excel)
+                if p_old.is_file():
+                    p_old.unlink()
         except Exception as ex_err:
-            LOGGER.warning("[%s] Lưu file Excel TC local gặp lỗi: %s", title, ex_err)
+            LOGGER.debug("[%s] Không thể dọn file Excel cũ trước khi duyệt: %s", title, ex_err)
 
-        # Bước 2.8: Lưu toàn bộ testcase vào qa_memory để phục vụ màn hình Review & Chạy lại
+        # Bước 2.8: Lưu toàn bộ testcase vào qa_memory (trạng thái pending) để phục vụ màn hình Review & Duyệt TC
         try:
             self.memory.save_testcases(
                 problem_id=problem_id,
                 problem_title=title,
                 sheet_rows=sheet_rows,
+                approved=False,
             )
         except Exception as e:
             LOGGER.warning("[%s] Lưu qa_memory thất bại: %s", title, e)
@@ -534,6 +540,7 @@ class AiPipelineService:
                     problem_id=task_id,
                     problem_title=task_name,
                     sheet_rows=testcases,
+                    approved=True,
                 )
             except Exception as mem_err:
                 LOGGER.debug("Không thể đồng bộ lại qa_memory khi lưu Local [%s]: %s", task_name, mem_err)
@@ -1347,82 +1354,40 @@ class AiPipelineService:
             }
 
         out: list[dict[str, Any]] = []
-        for idx, f in enumerate(features):
+        suite_seq = 0
+        for f in features:
+            fname = str(f.get("feature_name") or "").strip()
+            if re.search(r"\b(hồi quy|regression)\b", fname, re.IGNORECASE):
+                continue
             fid = f.get("feature_id")
             reqs = [
                 r
                 for r in requirements
                 if (r.get("feature_id") not in known if fid == "__GENERAL__" else r.get("feature_id") == fid)
+                and not re.search(r"\b(hồi quy|regression)\b", str(r.get("requirement") or ""), re.IGNORECASE)
             ]
             if not reqs:
                 continue
+            suite_seq += 1
             parts = math.ceil(len(reqs) / MAX_REQ_PER_FEATURE_CHUNK)
             for p in range(parts):
                 sl = reqs[p * MAX_REQ_PER_FEATURE_CHUNK : (p + 1) * MAX_REQ_PER_FEATURE_CHUNK]
                 feat_clean = {
                     "feature_id": fid,
-                    "feature_name": f.get("feature_name"),
+                    "feature_name": fname or "General",
                     "description": f.get("description") or "",
                 }
-                chunk_id = f"F{idx + 1:02d}" + (f"-{p + 1}" if parts > 1 else "")
+                chunk_id = f"F{suite_seq:02d}" + (f"-{p + 1}" if parts > 1 else "")
                 out.append(
                     {
                         "chunk_id": chunk_id,
-                        "suite_name": f.get("feature_name") or "General",
-                        "suite_order": idx + 1,
+                        "suite_name": fname or "General",
+                        "suite_order": suite_seq,
                         "part": p + 1,
                         "total_parts": parts,
                         "context": build_context(feat_clean, sl),
                     }
                 )
-
-        has_regression = any(
-            re.search(r"hồi quy|regression", str(f.get("feature_name") or ""), re.IGNORECASE)
-            for f in features
-        )
-        cs_has = bool(change_scope.get("changed") or change_scope.get("unchanged_but_impacted"))
-        if cs_has and not has_regression:
-            order = len(features) + 1
-            out.append(
-                {
-                    "chunk_id": f"F{order:02d}",
-                    "suite_name": "Hồi quy các luồng bị ảnh hưởng bởi thay đổi",
-                    "suite_order": order,
-                    "part": 1,
-                    "total_parts": 1,
-                    "context": {
-                        **base_ctx,
-                        "feature": {
-                            "feature_id": "__REGRESSION__",
-                            "feature_name": "Hồi quy các luồng bị ảnh hưởng bởi thay đổi",
-                            "description": "Các luồng đi qua API/module bị thay đổi phải giữ nguyên hành vi cũ.",
-                        },
-                        "requirements": [
-                            {
-                                "requirement_id": r.get("requirement_id"),
-                                "type": r.get("type"),
-                                "requirement": r.get("requirement"),
-                                "expected_behavior": r.get("expected_behavior"),
-                                "preconditions": r.get("preconditions"),
-                                "related_api": r.get("related_api"),
-                                "related_fields": r.get("related_fields"),
-                                "related_state": r.get("related_state"),
-                            }
-                            for r in requirements
-                        ],
-                        "business_rules": arr("business_rules"),
-                        "decision_tables": [],
-                        "integrations": arr("integrations"),
-                        "exceptions": [],
-                        "flows": arr("flows"),
-                        "inputs": [],
-                        "apis": arr("apis"),
-                        "data_objects": arr("data_objects")[:30],
-                        "states": arr("states")[:30],
-                        "ambiguities": [],
-                    },
-                }
-            )
 
         return out
 
@@ -1510,12 +1475,15 @@ class AiPipelineService:
                 vp_raw = c.get("verify_points") if isinstance(c.get("verify_points"), dict) else {}
                 tech = str(c.get("test_technique") or "Use case")
                 cond_type = str(c.get("condition_type") or "Positive")
-                is_dt = bool(re.search(r"quyết định", tech, re.IGNORECASE))
-                is_int = bool(
-                    re.search(r"tích hợp|negative|hồi quy", tech, re.IGNORECASE)
-                    or cond_type == "Regression"
+                is_reg = bool(
+                    re.search(r"hồi quy|regression", tech, re.IGNORECASE)
+                    or cond_type.lower() == "regression"
+                    or re.search(r"\b(hồi quy|regression)\b", str(c.get("condition") or ""), re.IGNORECASE)
                 )
-                is_reg = bool(re.search(r"hồi quy", tech, re.IGNORECASE) or cond_type == "Regression")
+                if is_reg:
+                    continue
+                is_dt = bool(re.search(r"quyết định", tech, re.IGNORECASE))
+                is_int = bool(re.search(r"tích hợp|negative", tech, re.IGNORECASE))
 
                 cond = {
                     **c,
@@ -1786,7 +1754,10 @@ class AiPipelineService:
 
         for tc in items:
             suite = str(tc.get("test_suite") or "").strip() or "General"
-            key = f"{suite}||{norm(tc.get('muc_dich'))}||{norm(tc.get('cac_buoc'))}||{norm(tc.get('ket_qua_mong_muon'))}"
+            purpose_raw = str(tc.get("muc_dich") or "").strip()
+            if re.search(r"\b(hồi quy|regression)\b", f"{suite} {purpose_raw}", re.IGNORECASE):
+                continue
+            key = f"{suite}||{norm(purpose_raw)}||{norm(tc.get('cac_buoc'))}||{norm(tc.get('ket_qua_mong_muon'))}"
             if key in seen:
                 continue
             seen.add(key)

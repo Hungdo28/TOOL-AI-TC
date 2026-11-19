@@ -88,6 +88,8 @@ class AutoTestService:
             spec_text=combined_spec,
             custom_prompt=custom_prompt,
             manual_tcs=manual_tcs,
+            login_username=login_username,
+            login_password=login_password,
         )
 
         generated_cases: list[dict[str, Any]] = []
@@ -268,6 +270,8 @@ class AutoTestService:
         spec_text: str,
         custom_prompt: str,
         manual_tcs: list[dict[str, Any]],
+        login_username: str = "",
+        login_password: str = "",
     ) -> str:
         mode_instruction = {
             "api": "CHỈ SINH các kịch bản kiểm thử tự động loại 'API' (HTTP Request RESTful).",
@@ -281,12 +285,24 @@ class AutoTestService:
                 manual_tcs[:25], ensure_ascii=False, indent=2
             )
 
+        auth_block = ""
+        if login_username or login_password:
+            auth_block = (
+                "THÔNG TIN TÀI KHOẢN ĐĂNG NHẬP THỰC TẾ ĐƯỢC CẤP (DÙNG CHO CÁC KỊCH BẢN HAPPY PATH / ĐĂNG NHẬP THÀNH CÔNG):\n"
+                f"- Username thực tế: {login_username}\n"
+                f"- Password thực tế: {login_password}\n"
+                "BẮT BUỘC sử dụng đúng Username và Password thực tế ở trên cho các bước `fill` đăng nhập hợp lệ (Happy Path) hoặc request API login hợp lệ; "
+                "còn các kịch bản Negative (sai mật khẩu, bỏ trống, tài khoản không tồn tại) thì mới dùng dữ liệu giả/rỗng."
+            )
+
         return f"""Bạn là Kiến trúc sư Kiểm thử Tự động (SDET / Automation Test Architect).
 Nhiệm vụ: Thiết kế danh sách Testcase Tự động hóa (Executable Auto-Test Cases) cho bài toán: "{task_name}".
 
 CHẾ ĐỘ YÊU CẦU: {mode_instruction}
 - API Base URL mục tiêu: {base_url or 'http://localhost:8088'}
 - Web UI URL mục tiêu: {web_url or 'http://127.0.0.1:5500/FE/login.html'}
+
+{auth_block}
 
 {f'ĐẶC TẢ KỸ THUẬT / SWAGGER / TÀI LIỆU:{chr(10)}{spec_text[:8000]}' if spec_text else ''}
 

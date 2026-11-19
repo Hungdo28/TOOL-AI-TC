@@ -93,14 +93,25 @@ class SupabaseRepository:
         raw_status = str(row.get("status") or "Chưa làm")
         status = self._local_status_overrides.get(p_id, raw_status)
 
-        # Khôi phục trạng thái 'Chờ duyệt' sau khi restart backend nếu bài toán đã sinh file Local nhưng chưa đẩy lên Drive
-        if p_id not in self._local_status_overrides and raw_status == "Đã xong" and not tc_url.strip() and not doc_url.strip() and title.strip():
-            records_dir = getattr(self.settings, "local_records_dir", None)
-            if records_dir:
-                safe_folder = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "_", title.strip()).strip(" .")
-                task_dir = Path(records_dir) / safe_folder
-                if task_dir.is_dir() and any(f.suffix.lower() in (".xlsx", ".docx") and not f.name.startswith("~$") for f in task_dir.iterdir() if f.is_file()):
-                    status = "Chờ duyệt"
+        has_local_excel = False
+        has_local_word = False
+        records_dir = getattr(self.settings, "local_records_dir", None)
+        if records_dir and title.strip():
+            safe_folder = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "_", title.strip()).strip(" .")
+            task_dir = Path(records_dir) / safe_folder
+            if task_dir.is_dir():
+                for f in task_dir.iterdir():
+                    if not f.is_file() or f.name.startswith("~$"):
+                        continue
+                    ext = f.suffix.lower()
+                    if ext == ".xlsx":
+                        has_local_excel = True
+                    elif ext == ".docx":
+                        has_local_word = True
+
+        # Khôi phục trạng thái 'Chờ duyệt' sau khi restart backend nếu bài toán đã chạy xong nhưng chưa đẩy lên Drive
+        if p_id not in self._local_status_overrides and raw_status == "Đã xong" and not tc_url.strip() and not doc_url.strip() and (has_local_excel or has_local_word):
+            status = "Chờ duyệt"
 
         return {
             "id": p_id,
@@ -114,6 +125,8 @@ class SupabaseRepository:
             "Link tài liệu phân tích": doc_url,
             "Trạng thái": status,
             "Người làm": str(row.get("assignee") or ""),
+            "has_local_excel": has_local_excel,
+            "has_local_word": has_local_word,
         }
 
     def list_tasks(self) -> list[dict[str, Any]]:

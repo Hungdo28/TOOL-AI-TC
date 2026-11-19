@@ -76,10 +76,9 @@ class TestAiPipelineLogic(unittest.TestCase):
             },
         }
         chunks = AiPipelineService._split_by_feature(structured)
-        # 1 chunk cho FEAT001 + 1 chunk tự động sinh cho Hồi quy
-        self.assertEqual(len(chunks), 2)
+        # Chỉ giữ chunk chức năng chính, không tự động sinh thêm chunk Hồi quy
+        self.assertEqual(len(chunks), 1)
         self.assertEqual(chunks[0]["suite_name"], "Gửi OTP")
-        self.assertIn("Hồi quy", chunks[1]["suite_name"])
 
     def test_group_by_test_suite_deduplicates_and_numbers(self):
         raw_rows = [
