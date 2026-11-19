@@ -1,0 +1,14 @@
+# Dữ liệu sinh ra trong lúc chạy tool
+local_records/
+AutoTC_Records/
+
+# Thư viện và cache
+node_modules/
+__pycache__/
+*.py[cod]
+
+# Bí mật và credential (phòng khi đặt ở thư mục khác)
+.env
+service-account*.json
+oauth-client*.json
+authorized-user*.json
