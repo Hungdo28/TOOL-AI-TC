@@ -1,5 +1,5 @@
 @echo off
-title AutoTC Backend Server (Port 3000)
+title AutoTC Backend Server (Port 8088)
 
 echo ======================================================
 echo          KHOI DONG AUTOTC BACKEND SERVER
@@ -33,11 +33,11 @@ if not exist ".env" (
     )
 )
 
-echo [OK] Dang khoi dong Backend tai http://127.0.0.1:3000 ...
+echo [OK] Dang khoi dong Backend tai http://127.0.0.1:8088 ...
 echo [!] Luu y: GIU CUA SO NAY CHAY NGAM trong khi su dung Tool Kiem thu AI.
 echo.
 
-%PY_CMD% app.py
+%PY_CMD% -u app.py
 
 if %ERRORLEVEL% NEQ 0 (
     echo.

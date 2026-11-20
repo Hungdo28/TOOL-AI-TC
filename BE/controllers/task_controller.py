@@ -112,7 +112,9 @@ class TaskController:
         import urllib.parse
         encoded_filename = urllib.parse.quote(file_name)
         headers = {
-            "Content-Disposition": f"inline; filename*=UTF-8''{encoded_filename}",
+            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}",
+            "X-File-Name": encoded_filename,
+            "Access-Control-Expose-Headers": "Content-Disposition, X-File-Name",
         }
         return ApiResponse(200, content_bytes, content_type=mime_type, headers=headers)
 

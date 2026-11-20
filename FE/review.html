@@ -453,6 +453,39 @@
             return res.status === 204 ? null : res.json();
         };
 
+        function getReviewBackendApiBase() {
+            return (window.AUTO_TC_API_BASE || (window.location.hostname === 'quanlv.io.vn'
+                ? 'https://tool-ai-tc.onrender.com/api'
+                : (['5500', '5501', '5173', ''].includes(window.location.port) ? 'http://127.0.0.1:8088/api' : `${window.location.origin}/api`))).replace(/\/$/, '');
+        }
+
+        function getReviewBackendHeaders(json = false) {
+            const headers = {};
+            const token = (currentUser && currentUser.token) || localStorage.getItem('authToken');
+            let tokenValid = false;
+            if (token && typeof token === 'string') {
+                const parts = token.trim().split('.');
+                if (parts.length === 3) {
+                    try {
+                        const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+                        const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
+                        const payload = JSON.parse(atob(padded));
+                        tokenValid = !(payload && typeof payload.exp === 'number' && Date.now() >= (payload.exp * 1000) - 60000);
+                    } catch (_) {
+                        tokenValid = false;
+                    }
+                }
+            }
+            if (tokenValid) {
+                headers['Authorization'] = `Bearer ${token}`;
+            } else {
+                if (currentUser && currentUser.username) headers['X-User-Name'] = currentUser.username;
+                if (currentUser && currentUser.role) headers['X-User-Role'] = currentUser.role;
+            }
+            if (json) headers['Content-Type'] = 'application/json';
+            return headers;
+        }
+
         // ================= STATE QUẢN LÝ =================
         let rawRows = [];          // Dữ liệu gốc từ Supabase
         let choice = {};           // Trạng thái duyệt người dùng chọn: { [id]: 'pending' | 'approved' | 'rejected' }
@@ -461,6 +494,13 @@
         let allExpanded = false;
         let isMockMode = false;
         let sortAsc = true;
+        let displayLimit = 150;
+
+        function showMoreCards(step = 200) {
+            displayLimit = step < 0 ? Number.MAX_SAFE_INTEGER : (displayLimit + step);
+            renderCards();
+        }
+        window.showMoreCards = showMoreCards;
 
         // Thuật toán sắp xếp tự nhiên theo thứ tự số cho testcase ([TC]_1 -> [TC]_178 hoặc TC_01 -> TC_99)
         const testcaseCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
@@ -605,22 +645,55 @@
         // ================= TẢI DANH SÁCH TESTCASE =================
         async function loadTestcases() {
             const probId = document.getElementById('probSelect').value;
-            const probTitle = document.getElementById('probSelect').selectedOptions[0]?.textContent || probId;
+            const rawProbTitle = document.getElementById('probSelect').selectedOptions[0]?.textContent || probId;
+            const probTitle = String(rawProbTitle || '').replace(/\s*\(\d+\s*TC\)\s*$/, '').trim();
             document.getElementById('currentTaskTitle').textContent = probTitle || '—';
+            displayLimit = 150;
 
             if (!probId) {
                 showEmptyState(true, 'Vui lòng chọn bài toán', 'Chọn một bài toán ở thanh điều hướng phía trên để xem các testcase.');
                 return;
             }
 
-            showLoading(true, 'Đang tải danh sách testcase từ Supabase...');
+            showLoading(true, 'Đang tải danh sách testcase...');
 
             try {
-                // Query bài toán theo problem_id hoặc problem_title
-                const encoded = encodeURIComponent(probId);
-                const queryPath = `qa_memory?kind=eq.testcase&or=(problem_id.eq.${encoded},problem_title.eq.${encoded},problem_title.ilike.${encoded})&select=id,problem_id,problem_title,test_suite,content,review_status,approved,created_at&order=created_at.desc,id.asc&limit=500`;
-                
-                const data = await api(queryPath);
+                let data = [];
+                // Bước 1: Ưu tiên gọi Backend (/api/local/testcases: hỗ trợ phân trang qa_memory & fallback đọc file Excel Local)
+                try {
+                    const params = new URLSearchParams();
+                    if (probTitle) params.set('taskName', probTitle);
+                    if (probId) params.set('problem_id', probId);
+                    const localResp = await fetch(`${getReviewBackendApiBase()}/local/testcases?${params.toString()}`, {
+                        method: 'GET',
+                        headers: getReviewBackendHeaders(false)
+                    });
+                    if (localResp.ok) {
+                        const localJson = await localResp.json().catch(() => ({}));
+                        if (localJson && Array.isArray(localJson.items) && localJson.items.length > 0) {
+                            data = localJson.items;
+                        }
+                    }
+                } catch (backendErr) {
+                    console.warn('Không gọi được /api/local/testcases, chuyển sang truy vấn Supabase phân trang:', backendErr);
+                }
+
+                // Bước 2: Dự phòng truy vấn Supabase qa_memory trực tiếp có phân trang (không giới hạn 500)
+                if (data.length === 0) {
+                    const orClauses = [`problem_id.eq.${encodeURIComponent(probId)}`, `problem_title.eq.${encodeURIComponent(probId)}`];
+                    if (probTitle) {
+                        const encodedTitle = encodeURIComponent(probTitle);
+                        orClauses.push(`problem_title.eq.${encodedTitle}`, `problem_title.ilike.${encodedTitle}`);
+                    }
+                    const pageSize = 1000;
+                    for (let offset = 0; offset < 20000; offset += pageSize) {
+                        const queryPath = `qa_memory?kind=eq.testcase&or=(${orClauses.join(',')})&select=id,problem_id,problem_title,test_suite,content,review_status,approved,created_at&order=created_at.desc,id.asc&limit=${pageSize}&offset=${offset}`;
+                        const pageData = await api(queryPath);
+                        if (!Array.isArray(pageData) || pageData.length === 0) break;
+                        data = data.concat(pageData);
+                        if (pageData.length < pageSize) break;
+                    }
+                }
                 isMockMode = false;
 
                 if (!Array.isArray(data) || data.length === 0) {
@@ -634,8 +707,8 @@
                     }
                     showEmptyState(
                         true,
-                        'Chưa có testcase nào trong Supabase',
-                        `Bài toán "${probTitle}" chưa có bản ghi testcase nào được nạp vào bảng qa_memory. Bạn có thể nạp bộ testcase mẫu để trải nghiệm thử giao diện.`
+                        'Chưa có testcase nào được lưu',
+                        `Bài toán "${probTitle}" chưa có bản ghi testcase nào trong bảng qa_memory hoặc file Excel Local.`
                     );
                     updateCounters();
                     return;
@@ -665,6 +738,17 @@
                     choice[r.id] = r.review_status || (r.approved === true ? 'approved' : (r.approved === false ? 'rejected' : 'pending'));
                 });
 
+                // Nếu tất cả đã được duyệt/từ chối và tab hiện tại là 'pending', tự động chuyển sang 'all' để tránh hiện màn hình trống
+                if (rawRows.length > 0 && currentFilter === 'pending') {
+                    const hasPending = rawRows.some(r => (choice[r.id] || 'pending') === 'pending');
+                    if (!hasPending) {
+                        setFilter('all');
+                        updateCounters();
+                        if (window.lucide) window.lucide.createIcons();
+                        return;
+                    }
+                }
+
                 renderCards();
                 updateCounters();
                 if (window.lucide) window.lucide.createIcons();
@@ -672,8 +756,8 @@
                 console.error('Lỗi khi tải testcase:', err);
                 showEmptyState(
                     true,
-                    'Không thể kết nối Supabase',
-                    `Đã xảy ra lỗi: ${err.message}. Bạn có thể bấm nút bên dưới để xem giao diện với dữ liệu mẫu.`
+                    'Không thể kết nối tải testcase',
+                    `Đã xảy ra lỗi: ${err.message}.`
                 );
             }
         }
@@ -789,6 +873,7 @@
         // ================= LỌC & TÌM KIẾM =================
         function setFilter(filter) {
             currentFilter = filter;
+            displayLimit = 150;
             document.querySelectorAll('.filter-tab').forEach(tab => {
                 const isActive = tab.getAttribute('data-filter') === filter;
                 tab.className = isActive
@@ -800,6 +885,7 @@
 
         function handleSearch(val) {
             searchQuery = (val || '').toLowerCase().trim();
+            displayLimit = 150;
             renderCards();
         }
 
@@ -863,22 +949,29 @@
                 return compareTestcaseOrder(itemA, itemB, sortAsc);
             });
 
-            sortedSuites.forEach(([suiteName, list]) => {
+            let renderedCount = 0;
+            for (const [suiteName, list] of sortedSuites) {
+                if (renderedCount >= displayLimit) break;
+                const remaining = displayLimit - renderedCount;
+                const slice = list.slice(0, remaining);
+
                 const groupEl = document.createElement('div');
-                groupEl.className = 'space-y-3';
+                groupEl.className = 'review-suite-group space-y-3';
+                groupEl._suiteRows = list;
 
                 // Suite header
                 const approvedInSuite = list.filter(r => choice[r.id] === 'approved').length;
                 const rejectedInSuite = list.filter(r => choice[r.id] === 'rejected').length;
+                const countLabel = slice.length < list.length ? `${slice.length}/${list.length} testcase` : `${list.length} testcase`;
 
                 groupEl.innerHTML = `
                     <div class="flex items-center justify-between pb-1 pt-2 border-b border-slate-200">
                         <div class="flex items-center gap-2">
                             <i data-lucide="folder-git-2" class="w-4 h-4 text-blue-600"></i>
                             <h2 class="text-sm font-extrabold text-slate-800 tracking-tight">${escapeHtml(suiteName)}</h2>
-                            <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600">${list.length} testcase</span>
+                            <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600">${countLabel}</span>
                         </div>
-                        <div class="flex items-center gap-2 text-xs font-semibold">
+                        <div class="review-suite-counts flex items-center gap-2 text-xs font-semibold">
                             ${approvedInSuite > 0 ? `<span class="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">Giữ: ${approvedInSuite}</span>` : ''}
                             ${rejectedInSuite > 0 ? `<span class="text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200/60">Bỏ: ${rejectedInSuite}</span>` : ''}
                         </div>
@@ -887,9 +980,25 @@
                 `;
 
                 const cardsContainer = groupEl.querySelector('.cards-container');
-                list.forEach(r => cardsContainer.appendChild(createTestcaseCard(r)));
+                slice.forEach(r => cardsContainer.appendChild(createTestcaseCard(r)));
                 container.appendChild(groupEl);
-            });
+                renderedCount += slice.length;
+            }
+
+            if (visible.length > renderedCount) {
+                const remainingTotal = visible.length - renderedCount;
+                const nextStep = Math.min(200, remainingTotal);
+                const footer = document.createElement('div');
+                footer.className = 'bg-white p-4 rounded-2xl border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm';
+                footer.innerHTML = `
+                    <span class="text-slate-600 font-medium">Đang hiển thị <strong>${renderedCount}</strong> / <strong>${visible.length}</strong> testcase (còn ${remainingTotal} câu chưa hiển thị để tránh lag trình duyệt)</span>
+                    <div class="flex items-center gap-2">
+                        <button type="button" onclick="showMoreCards(200)" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition">Xem thêm +${nextStep}</button>
+                        <button type="button" onclick="showMoreCards(-1)" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition">Hiển thị tất cả (${visible.length})</button>
+                    </div>
+                `;
+                container.appendChild(footer);
+            }
 
             if (window.lucide) window.lucide.createIcons();
         }
@@ -1017,8 +1126,28 @@
             const current = choice[id] || 'pending';
             // Click lần nữa vào trạng thái đang chọn sẽ quay lại 'pending' (hủy chọn)
             choice[id] = current === targetStatus ? 'pending' : targetStatus;
-            
-            renderCards();
+
+            const existingCard = document.getElementById(`card_${id}`);
+            const row = rawRows.find(r => r.id === id);
+            if (existingCard && row) {
+                const freshCard = createTestcaseCard(row);
+                existingCard.replaceWith(freshCard);
+                const groupEl = freshCard.closest('.review-suite-group');
+                if (groupEl && Array.isArray(groupEl._suiteRows)) {
+                    const countsEl = groupEl.querySelector('.review-suite-counts');
+                    if (countsEl) {
+                        const approvedInSuite = groupEl._suiteRows.filter(r => choice[r.id] === 'approved').length;
+                        const rejectedInSuite = groupEl._suiteRows.filter(r => choice[r.id] === 'rejected').length;
+                        countsEl.innerHTML = `
+                            ${approvedInSuite > 0 ? `<span class="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">Giữ: ${approvedInSuite}</span>` : ''}
+                            ${rejectedInSuite > 0 ? `<span class="text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200/60">Bỏ: ${rejectedInSuite}</span>` : ''}
+                        `;
+                    }
+                }
+                if (window.lucide) window.lucide.createIcons();
+            } else {
+                renderCards();
+            }
             updateCounters();
         }
 
@@ -1391,14 +1520,20 @@
                     });
                 }
 
-                // Cập nhật từng nhóm trạng thái vào qa_memory
+                // Cập nhật từng nhóm trạng thái vào qa_memory (chia batch 100 ID để tránh URL quá dài)
                 for (const s of ['approved', 'rejected', 'pending']) {
                     const idsToUpdate = rawRows
-                        .filter(r => (choice[r.id] || 'pending') === s && (r.review_status || 'pending') !== s)
+                        .filter(r => {
+                            const sid = String(r.id || '');
+                            if (!sid || sid.startsWith('local_') || sid.startsWith('mock_') || sid.startsWith('tc_')) return false;
+                            return (choice[r.id] || 'pending') === s && (r.review_status || 'pending') !== s;
+                        })
                         .map(r => r.id);
 
-                    if (idsToUpdate.length > 0) {
-                        await api(`qa_memory?id=in.(${idsToUpdate.join(',')})`, {
+                    const chunkSize = 100;
+                    for (let i = 0; i < idsToUpdate.length; i += chunkSize) {
+                        const batch = idsToUpdate.slice(i, i + chunkSize);
+                        await api(`qa_memory?id=in.(${batch.join(',')})`, {
                             method: 'PATCH',
                             headers: { Prefer: 'return=minimal' },
                             body: JSON.stringify({
@@ -1448,10 +1583,9 @@
                     const probId = sel?.value || '';
                     const taskName = (sel?.selectedOptions?.[0]?.textContent || '').replace(/\s*\(\d+\s*TC\)\s*$/, '').trim() || rawRows[0]?.problem_title || '';
                     if (taskName) {
-                        const apiBase = (window.AUTO_TC_API_BASE || (window.location.hostname === 'quanlv.io.vn' ? 'https://tool-ai-tc.onrender.com/api' : (['5500', '5501', '5173', ''].includes(window.location.port) ? 'http://127.0.0.1:8088/api' : `${window.location.origin}/api`))).replace(/\/$/, '');
-                        await fetch(`${apiBase}/tasks/run`, {
+                        const saveResp = await fetch(`${getReviewBackendApiBase()}/tasks/run`, {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
+                            headers: getReviewBackendHeaders(true),
                             body: JSON.stringify({
                                 baiToan: taskName,
                                 problem_id: probId,
@@ -1460,6 +1594,10 @@
                                 testcases: sheetRows
                             })
                         });
+                        const saveJson = await saveResp.json().catch(() => ({}));
+                        if (!saveResp.ok) {
+                            throw new Error(saveJson.message || `Lỗi HTTP ${saveResp.status} khi lưu Folder Local`);
+                        }
                     }
                 }
 
@@ -1468,6 +1606,7 @@
                 console.error('Lỗi khi lưu kết quả:', err);
                 showToast(`Lưu thất bại: ${err.message}`, 'error');
             } finally {
+                btnSave.disabled = false;
                 label.textContent = 'Xác nhận & Lưu vào Local';
                 updateCounters();
             }
@@ -1489,10 +1628,9 @@
             if (btn) btn.disabled = true;
             if (lbl) lbl.textContent = 'Đang đẩy lên Sheet & Docs...';
             try {
-                const apiBase = (window.AUTO_TC_API_BASE || (window.location.hostname === 'quanlv.io.vn' ? 'https://tool-ai-tc.onrender.com/api' : (['5500', '5501', '5173', ''].includes(window.location.port) ? 'http://127.0.0.1:8088/api' : `${window.location.origin}/api`))).replace(/\/$/, '');
-                const resp = await fetch(`${apiBase}/local/push-drive`, {
+                const resp = await fetch(`${getReviewBackendApiBase()}/local/push-drive`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: getReviewBackendHeaders(true),
                     body: JSON.stringify({ baiToan: taskName, problem_id: probId })
                 });
                 const data = await resp.json().catch(() => ({}));

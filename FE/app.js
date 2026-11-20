@@ -188,14 +188,53 @@ const MAX_FILE_SIZE = 20 * 1024 * 1024;
 const MAX_TOTAL_FILE_SIZE = 50 * 1024 * 1024;
 const ALLOWED_FILE_EXTENSIONS = new Set(['doc', 'docx', 'xls', 'xlsx', 'pdf', 'txt']);
 
+function isJwtTokenExpired(token) {
+    if (!token || typeof token !== 'string') return true;
+    const parts = token.trim().split('.');
+    if (parts.length !== 3) return true;
+    try {
+        const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+        const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
+        const payload = JSON.parse(atob(padded));
+        if (!payload || typeof payload !== 'object') return true;
+        if (typeof payload.exp === 'number') {
+            return Date.now() >= (payload.exp * 1000) - 60000;
+        }
+        return false;
+    } catch (_) {
+        return true;
+    }
+}
+
+function saveStoredAuthToken(token) {
+    if (currentUser) currentUser.token = token || null;
+    if (token) {
+        localStorage.setItem('authToken', token);
+    } else {
+        localStorage.removeItem('authToken');
+    }
+    const raw = localStorage.getItem('currentUser');
+    if (raw) {
+        try {
+            const parsed = JSON.parse(raw);
+            if (token) {
+                parsed.token = token;
+            } else {
+                delete parsed.token;
+            }
+            localStorage.setItem('currentUser', JSON.stringify(parsed));
+        } catch (_) {}
+    }
+}
+
 function getBackendHeaders(json = false) {
     const headers = {};
     const token = (currentUser && currentUser.token) || localStorage.getItem('authToken');
-    if (token) {
+    if (token && !isJwtTokenExpired(token)) {
         // Gửi Bearer token chuẩn bảo mật (không lộ username hay role thô trong Request Headers)
         headers['Authorization'] = `Bearer ${token}`;
     } else {
-        // Dự phòng tương thích nếu chưa kịp cấp JWT token
+        // Dự phòng tương thích nếu chưa kịp cấp JWT token hoặc token đã hết hạn
         if (currentUser && currentUser.username) headers['X-User-Name'] = currentUser.username;
         if (currentUser && currentUser.role) headers['X-User-Role'] = currentUser.role;
     }
@@ -203,38 +242,49 @@ function getBackendHeaders(json = false) {
     return headers;
 }
 
-// Tự động xin cấp JWT token an toàn từ backend nếu phiên chưa có token
-async function ensureAuthToken() {
+let _authRefreshPromise = null;
+
+// Tự động xin cấp hoặc làm mới JWT token an toàn từ backend nếu chưa có hoặc đã hết hạn
+async function ensureAuthToken(forceRefresh = false) {
     const existingToken = (currentUser && currentUser.token) || localStorage.getItem('authToken');
-    if (existingToken) return existingToken;
+    if (!forceRefresh && existingToken && !isJwtTokenExpired(existingToken)) {
+        return existingToken;
+    }
     if (!currentUser || !currentUser.username) return null;
 
-    try {
-        const resp = await fetch(`${BACKEND_API_BASE}/auth/token`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: currentUser.username })
-        });
-        if (resp.ok) {
-            const data = await resp.json();
-            if (data && data.token) {
-                currentUser.token = data.token;
-                localStorage.setItem('authToken', data.token);
-                const raw = localStorage.getItem('currentUser');
-                if (raw) {
-                    try {
-                        const parsed = JSON.parse(raw);
-                        parsed.token = data.token;
-                        localStorage.setItem('currentUser', JSON.stringify(parsed));
-                    } catch (_) {}
-                }
-                return data.token;
-            }
-        }
-    } catch (e) {
-        console.warn('Không thể tự động cấp JWT token:', e);
+    if (forceRefresh || (existingToken && isJwtTokenExpired(existingToken))) {
+        saveStoredAuthToken(null);
     }
-    return null;
+
+    if (_authRefreshPromise) {
+        return _authRefreshPromise;
+    }
+
+    _authRefreshPromise = (async () => {
+        try {
+            const resp = await fetch(`${BACKEND_API_BASE}/auth/token`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: currentUser.username })
+            });
+            if (resp.ok) {
+                const data = await resp.json();
+                if (data && data.token) {
+                    saveStoredAuthToken(data.token);
+                    return data.token;
+                }
+            }
+        } catch (e) {
+            console.warn('Không thể tự động cấp/làm mới JWT token:', e);
+        }
+        return null;
+    })();
+
+    try {
+        return await _authRefreshPromise;
+    } finally {
+        _authRefreshPromise = null;
+    }
 }
 
 
@@ -549,15 +599,24 @@ function syncRunningTasksFromServer(rows) {
         }
 
         const row = rows.find(item => getColVal(item, 'Bài toán') === taskName);
+        if (!row) {
+            delete taskStartTime[taskName];
+            delete taskExecutionInfo[taskName];
+            return false;
+        }
         const status = String(getColVal(row, 'Trạng thái') || '').toLowerCase().trim();
-        const isTerminal = status === 'đã xong' || status.includes('lỗi') || status.includes('thất bại') || status.includes('error');
+        const isTerminal = status === 'đã xong'
+            || status === 'chờ duyệt'
+            || status === 'chưa làm'
+            || status.includes('lỗi')
+            || status.includes('thất bại')
+            || status.includes('error');
         const isActivelyRunning = status === 'waiting' || status === 'đang chạy' || status === 'đang xử lý';
 
-        const shouldKeep = (activeServerTasks.has(taskName) || isActivelyRunning || Boolean(runContextByTask[taskName])) && !isTerminal;
+        const shouldKeep = (activeServerTasks.has(taskName) || isActivelyRunning) && !isTerminal;
         if (!shouldKeep) {
             delete taskStartTime[taskName];
             delete taskExecutionInfo[taskName];
-            delete runContextByTask[taskName];
         }
         return shouldKeep;
     });
@@ -750,22 +809,40 @@ function splitHttpLinks(value) {
 }
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
+    const { _authRetried, ...fetchOptions } = options;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-    if (options.signal) {
-        if (options.signal.aborted) {
+    if (fetchOptions.signal) {
+        if (fetchOptions.signal.aborted) {
             controller.abort();
         } else {
-            options.signal.addEventListener('abort', () => controller.abort(), { once: true });
+            fetchOptions.signal.addEventListener('abort', () => controller.abort(), { once: true });
         }
     }
 
+    let resp;
     try {
-        return await fetch(url, { ...options, signal: controller.signal });
+        resp = await fetch(url, { ...fetchOptions, signal: controller.signal });
     } finally {
         clearTimeout(timeoutId);
     }
+
+    if (
+        resp.status === 401
+        && !_authRetried
+        && typeof url === 'string'
+        && url.startsWith(BACKEND_API_BASE)
+        && currentUser
+        && currentUser.username
+    ) {
+        const freshToken = await ensureAuthToken(true);
+        if (freshToken) {
+            const nextHeaders = { ...(fetchOptions.headers || {}), Authorization: `Bearer ${freshToken}` };
+            return fetchWithTimeout(url, { ...fetchOptions, headers: nextHeaders, _authRetried: true }, timeoutMs);
+        }
+    }
+    return resp;
 }
 
 function setAddMode(mode) {
@@ -916,19 +993,37 @@ function renderTable() {
         const makeLink = (linkStr, tenBaiToan, type = 'source') => {
             const urls = splitHttpLinks(linkStr);
 
+            const hasLocalExcel = Boolean(row.has_local_excel);
             const localButtonsHtml = (type === 'testcase' && trangThai === 'Chờ duyệt')
                 ? `<div class="flex flex-col items-center gap-1.5 mb-1">
-                        <button type="button" onclick="openLocalTaskFolder(${originalIndex})" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition cursor-pointer" title="Mở Folder Local để xem file Excel TC & Word Phân tích">
-                            <i data-lucide="folder-open" class="w-3.5 h-3.5"></i> Mở Folder Local
-                        </button>
+                        <div class="flex items-center gap-1">
+                            <button type="button" onclick="openTestcaseReviewModalForTask('${escapeHtml(ten)}', '${escapeHtml(String(row.id || row.problem_id || ''))}')" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 transition cursor-pointer" title="Mở bảng Duyệt & Xem trước testcase để chọn lưu vào Excel">
+                                <i data-lucide="list-checks" class="w-3.5 h-3.5 text-amber-600"></i> ${hasLocalExcel ? 'Duyệt lại TC' : 'Duyệt TC (Chờ lưu Excel)'}
+                            </button>
+                            ${hasLocalExcel ? `
+                            <button type="button" onclick="openLocalTaskFile(${originalIndex}, 'excel')" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition cursor-pointer" title="Mở trực tiếp file Excel Testcase đã duyệt trên máy">
+                                <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5 text-emerald-600"></i> Mở Excel
+                            </button>
+                            <button type="button" onclick="openLocalTaskFolder(${originalIndex})" class="p-1 rounded-lg text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition cursor-pointer" title="Mở Folder Local chứa file">
+                                <i data-lucide="folder-open" class="w-3.5 h-3.5"></i>
+                            </button>
+                            ` : ''}
+                        </div>
+                        ${hasLocalExcel ? `
                         <button type="button" onclick="confirmPushLocalToDrive(${originalIndex})" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition cursor-pointer" title="Xác nhận đẩy tài liệu từ Folder Local lên Google Sheet & Docs">
                             <i data-lucide="cloud-upload" class="w-3.5 h-3.5"></i> Đẩy lên Sheet & Docs
                         </button>
+                        ` : ''}
                    </div>`
                 : (type === 'analysis' && trangThai === 'Chờ duyệt'
-                    ? `<button type="button" onclick="openLocalTaskFolder(${originalIndex})" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition cursor-pointer mb-1" title="Đã lưu file Word Phân tích trong Folder Local - Bấm để mở">
-                            <i data-lucide="file-text" class="w-3.5 h-3.5"></i> Đã lưu Word Local
-                       </button>`
+                    ? `<div class="flex items-center gap-1 mb-1">
+                            <button type="button" onclick="openLocalTaskFile(${originalIndex}, 'word')" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition cursor-pointer" title="Mở trực tiếp file Word Phân tích SRS trên máy">
+                                <i data-lucide="file-text" class="w-3.5 h-3.5 text-blue-600"></i> Mở file Word
+                            </button>
+                            <button type="button" onclick="openLocalTaskFolder(${originalIndex})" class="p-1 rounded-lg text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition cursor-pointer" title="Mở Folder Local chứa file">
+                                <i data-lucide="folder-open" class="w-3.5 h-3.5"></i>
+                            </button>
+                       </div>`
                     : '');
 
             if (urls.length === 0) {
@@ -1174,8 +1269,11 @@ async function deleteDocument(index) {
     const taskId = row.row_number;  // Backend luôn trả về row_number
     if (!confirm(`⚠️ Anh có chắc chắn muốn xóa bài toán: "${tenBaiToan}" không? Hành động này không thể hoàn tác!`)) return;
 
-    document.getElementById('loadingText').innerText = 'Đang xóa...';
-    document.getElementById('loadingOverlay').classList.remove('hidden');
+    showToast(`Đang xóa bài toán "${tenBaiToan}"...`, 'info', 3000);
+
+    // Xóa tạm thời trên UI ngay lập tức để người dùng không cảm giác bị đơ/load lại trang
+    const removedRow = dataRows.splice(index, 1)[0];
+    renderTable();
 
     try {
         const res = await fetchWithTimeout(URL_POST_DELETE, {
@@ -1184,19 +1282,22 @@ async function deleteDocument(index) {
             body: JSON.stringify({ id: taskId })
         });
 
-        const result = await showActionResponse(
-            res,
-            'Đã xóa bài toán thành công.',
-            'Backend không thể xóa dữ liệu.'
-        );
-
-        if (result.succeeded) {
-            await loadData();
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.success !== false) {
+            showToast(`Đã xóa bài toán "${tenBaiToan}" thành công.`, 'success', 4000);
+            await loadData(true);
+        } else {
+            // Rollback lại dòng nếu backend xóa thất bại
+            if (removedRow) dataRows.splice(index, 0, removedRow);
+            renderTable();
+            showToast(data.message || 'Lỗi khi xóa bài toán trên máy chủ.', 'error', 6000);
+            await loadData(true);
         }
     } catch (err) {
-        showResultPopup('Lỗi mạng: Không thể kết nối backend để xóa.', 'error');
-    } finally {
-        document.getElementById('loadingOverlay').classList.add('hidden');
+        if (removedRow) dataRows.splice(index, 0, removedRow);
+        renderTable();
+        showToast('Lỗi mạng: Không thể kết nối backend để xóa.', 'error', 6000);
+        await loadData(true);
     }
 }
 
@@ -1505,6 +1606,13 @@ let currentModalFilter = 'all';
 let modalSearchQuery = '';
 let isModalMockMode = false;
 let modalSortAsc = true;
+let modalDisplayLimit = 150;
+
+function showMoreModalTestcases(step = 200) {
+    modalDisplayLimit = step < 0 ? Number.MAX_SAFE_INTEGER : (modalDisplayLimit + step);
+    renderModalTestcaseCards();
+}
+window.showMoreModalTestcases = showMoreModalTestcases;
 
 function toggleModalSortOrder() {
     modalSortAsc = !modalSortAsc;
@@ -1521,9 +1629,34 @@ function toggleModalSortOrder() {
 }
 window.toggleModalSortOrder = toggleModalSortOrder;
 
+function updateSingleModalCard(id) {
+    const row = modalTestcaseRows.find(r => r.id === id);
+    if (!row) return;
+    const existingCard = document.getElementById(`modal_tc_${id}`);
+    if (!existingCard) return;
+
+    const freshCard = createModalCard(row);
+    existingCard.replaceWith(freshCard);
+
+    const suiteEl = freshCard.closest('.modal-suite-group');
+    if (suiteEl && Array.isArray(suiteEl._suiteRows)) {
+        const countsEl = suiteEl.querySelector('.modal-suite-counts');
+        if (countsEl) {
+            const approvedCount = suiteEl._suiteRows.filter(r => modalChoice[r.id] === 'approved').length;
+            const rejectedCount = suiteEl._suiteRows.filter(r => modalChoice[r.id] === 'rejected').length;
+            countsEl.innerHTML = `
+                ${approvedCount > 0 ? `<span class="text-emerald-600">Giữ: ${approvedCount}</span> ` : ''}
+                ${rejectedCount > 0 ? `<span class="text-rose-600">Bỏ: ${rejectedCount}</span>` : ''}
+            `;
+        }
+    }
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
 function toggleModalTestcaseKeep(id, isChecked) {
     modalChoice[id] = isChecked ? 'approved' : 'rejected';
-    renderModalTestcaseCards();
+    updateSingleModalCard(id);
     updateModalCounters();
 }
 window.toggleModalTestcaseKeep = toggleModalTestcaseKeep;
@@ -1693,6 +1826,7 @@ async function loadModalTestcases(taskName, probId = '', preloadedRows = null) {
 
     currentModalFilter = 'all';
     modalSearchQuery = '';
+    modalDisplayLimit = 150;
     const searchInput = document.getElementById('modalSearchInput');
     if (searchInput) searchInput.value = '';
 
@@ -1711,31 +1845,64 @@ async function loadModalTestcases(taskName, probId = '', preloadedRows = null) {
     container.innerHTML = `
         <div class="py-10 text-center space-y-2 bg-white rounded-xl border border-slate-200">
             <div class="w-8 h-8 border-3 border-slate-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
-            <p class="text-xs font-semibold text-slate-500">Đang tải testcase...</p>
+            <p class="text-xs font-semibold text-slate-500">Đang tải danh sách testcase...</p>
         </div>
     `;
 
+    const cleanName = String(taskName || '').trim();
     try {
-        const cleanName = String(taskName || '').trim();
-        const encoded = encodeURIComponent(cleanName);
-        const orClauses = [`problem_title.eq.${encoded}`, `problem_title.ilike.${encoded}`];
-        if (probId) {
-            orClauses.unshift(`problem_id.eq.${encodeURIComponent(probId)}`);
+        let data = [];
+        let sourceLabel = '';
+
+        // Bước 1: Ưu tiên đọc qua Backend (/api/local/testcases: hỗ trợ phân trang qa_memory & fallback đọc file Excel Local)
+        try {
+            const params = new URLSearchParams();
+            if (cleanName) params.set('taskName', cleanName);
+            if (probId) params.set('problem_id', probId);
+            const localResp = await fetchWithTimeout(`${BACKEND_API_BASE}/local/testcases?${params.toString()}`, {
+                method: 'GET',
+                headers: getBackendHeaders(false)
+            }, 30000);
+            if (localResp.ok) {
+                const localJson = await localResp.json().catch(() => ({}));
+                if (localJson && Array.isArray(localJson.items) && localJson.items.length > 0) {
+                    data = localJson.items;
+                    sourceLabel = localJson.source || 'qa_memory';
+                }
+            }
+        } catch (backendErr) {
+            console.warn('Không gọi được /api/local/testcases, chuyển sang truy vấn Supabase phân trang:', backendErr);
         }
 
-        const queryPath = `qa_memory?kind=eq.testcase&or=(${orClauses.join(',')})&select=id,problem_id,problem_title,test_suite,content,review_status,approved,created_at&order=created_at.desc,id.asc&limit=500`;
-        const url = `${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/${queryPath}`;
-
-        const res = await fetch(url, {
-            headers: {
-                apikey: SUPABASE_ANON_KEY,
-                Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-                'Content-Type': 'application/json'
+        // Bước 2: Dự phòng truy vấn Supabase qa_memory trực tiếp có phân trang (không giới hạn 500)
+        if (data.length === 0) {
+            const encoded = encodeURIComponent(cleanName);
+            const orClauses = [`problem_title.eq.${encoded}`, `problem_title.ilike.${encoded}`];
+            if (probId) {
+                orClauses.unshift(`problem_id.eq.${encodeURIComponent(probId)}`);
             }
-        });
 
-        if (!res.ok) throw new Error(`Lỗi kết nối Supabase (${res.status})`);
-        const data = await res.json();
+            const pageSize = 1000;
+            for (let offset = 0; offset < 20000; offset += pageSize) {
+                const queryPath = `qa_memory?kind=eq.testcase&or=(${orClauses.join(',')})&select=id,problem_id,problem_title,test_suite,content,review_status,approved,created_at&order=created_at.desc,id.asc&limit=${pageSize}&offset=${offset}`;
+                const url = `${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/${queryPath}`;
+
+                const res = await fetch(url, {
+                    headers: {
+                        apikey: SUPABASE_ANON_KEY,
+                        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!res.ok) throw new Error(`Lỗi kết nối Supabase (${res.status})`);
+                const pageData = await res.json();
+                if (!Array.isArray(pageData) || pageData.length === 0) break;
+                data = data.concat(pageData);
+                if (pageData.length < pageSize) break;
+            }
+            sourceLabel = 'qa_memory';
+        }
 
         isModalMockMode = false;
 
@@ -1767,7 +1934,8 @@ async function loadModalTestcases(taskName, probId = '', preloadedRows = null) {
 
             const subtitleEl = document.getElementById('testcaseReviewModalSubtitle');
             if (subtitleEl && (!Array.isArray(preloadedRows) || preloadedRows.length === 0)) {
-                subtitleEl.innerHTML = `AI vừa hoàn tất sinh testcase cho bài toán: <strong id="testcaseReviewTaskName" class="text-slate-900 font-bold">${escapeHtml(cleanName)}</strong> <span class="inline-flex items-center gap-1 ml-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">Phiên mới nhất: ${modalTestcaseRows.length} testcase</span>. Tích chọn các testcase bạn muốn giữ:`;
+                const sourceNote = sourceLabel === 'local_excel' ? ' • Nguồn: Excel Local' : '';
+                subtitleEl.innerHTML = `AI vừa hoàn tất sinh testcase cho bài toán: <strong id="testcaseReviewTaskName" class="text-slate-900 font-bold">${escapeHtml(cleanName)}</strong> <span class="inline-flex items-center gap-1 ml-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">Phiên mới nhất: ${modalTestcaseRows.length} testcase${sourceNote}</span>. Tích chọn các testcase bạn muốn giữ:`;
             }
 
             renderModalTestcaseCards();
@@ -1775,10 +1943,33 @@ async function loadModalTestcases(taskName, probId = '', preloadedRows = null) {
             return;
         }
 
-        loadModalMockTestcases();
+        modalTestcaseRows = [];
+        modalChoice = {};
+        updateModalCounters();
+        container.innerHTML = `
+            <div class="p-8 text-center space-y-3 bg-white rounded-xl border border-amber-200">
+                <p class="text-sm font-bold text-slate-800">Chưa tìm thấy testcase cho "${escapeHtml(cleanName)}"</p>
+                <p class="text-xs text-slate-500">Không có bản ghi testcase nào trong Supabase qa_memory hoặc file Excel Local cho bài toán này.</p>
+                <button type="button" id="btnRetryModalLoad" class="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all">Tải lại</button>
+            </div>
+        `;
+        const retryBtn = document.getElementById('btnRetryModalLoad');
+        if (retryBtn) retryBtn.onclick = () => loadModalTestcases(cleanName, probId);
     } catch (err) {
         console.error('Lỗi khi tải testcase cho modal:', err);
-        loadModalMockTestcases();
+        isModalMockMode = false;
+        modalTestcaseRows = [];
+        modalChoice = {};
+        updateModalCounters();
+        container.innerHTML = `
+            <div class="p-8 text-center space-y-3 bg-white rounded-xl border border-rose-200">
+                <p class="text-sm font-bold text-rose-700">Không thể tải danh sách testcase</p>
+                <p class="text-xs text-slate-500">${escapeHtml(err.message || 'Lỗi kết nối máy chủ')}</p>
+                <button type="button" id="btnRetryModalLoad" class="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all">Thử tải lại</button>
+            </div>
+        `;
+        const retryBtn = document.getElementById('btnRetryModalLoad');
+        if (retryBtn) retryBtn.onclick = () => loadModalTestcases(cleanName, probId);
     }
 }
 
@@ -1908,19 +2099,26 @@ function renderModalTestcaseCards() {
         return compareTestcaseOrder(itemA, itemB, modalSortAsc);
     });
 
-    sortedSuites.forEach(([suite, list]) => {
+    let renderedCount = 0;
+    for (const [suite, list] of sortedSuites) {
+        if (renderedCount >= modalDisplayLimit) break;
+        const remaining = modalDisplayLimit - renderedCount;
+        const slice = list.slice(0, remaining);
+
         const suiteEl = document.createElement('div');
-        suiteEl.className = 'space-y-2';
+        suiteEl.className = 'modal-suite-group space-y-2';
+        suiteEl._suiteRows = list;
 
         const approvedCount = list.filter(r => modalChoice[r.id] === 'approved').length;
         const rejectedCount = list.filter(r => modalChoice[r.id] === 'rejected').length;
+        const countLabel = slice.length < list.length ? `${slice.length}/${list.length}` : `${list.length}`;
 
         suiteEl.innerHTML = `
             <div class="flex items-center justify-between text-xs font-bold text-slate-700 px-1 pt-1">
                 <span class="flex items-center gap-1.5">
-                    <i data-lucide="folder" class="w-3.5 h-3.5 text-blue-600"></i> ${escapeHtml(suite)} (${list.length})
+                    <i data-lucide="folder" class="w-3.5 h-3.5 text-blue-600"></i> ${escapeHtml(suite)} (${countLabel})
                 </span>
-                <span class="text-[11px] font-semibold text-slate-500">
+                <span class="modal-suite-counts text-[11px] font-semibold text-slate-500">
                     ${approvedCount > 0 ? `<span class="text-emerald-600">Giữ: ${approvedCount}</span> ` : ''}
                     ${rejectedCount > 0 ? `<span class="text-rose-600">Bỏ: ${rejectedCount}</span>` : ''}
                 </span>
@@ -1929,9 +2127,25 @@ function renderModalTestcaseCards() {
         `;
 
         const cardsBox = suiteEl.querySelector('.cards-box');
-        list.forEach(r => cardsBox.appendChild(createModalCard(r)));
+        slice.forEach(r => cardsBox.appendChild(createModalCard(r)));
         container.appendChild(suiteEl);
-    });
+        renderedCount += slice.length;
+    }
+
+    if (visible.length > renderedCount) {
+        const remainingTotal = visible.length - renderedCount;
+        const nextStep = Math.min(200, remainingTotal);
+        const footer = document.createElement('div');
+        footer.className = 'p-3.5 bg-white rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs';
+        footer.innerHTML = `
+            <span class="text-slate-600 font-medium">Đang hiển thị <strong>${renderedCount}</strong> / <strong>${visible.length}</strong> testcase (còn ${remainingTotal} câu chưa hiển thị để tránh lag trình duyệt)</span>
+            <div class="flex items-center gap-2">
+                <button type="button" onclick="showMoreModalTestcases(200)" class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all">Xem thêm +${nextStep}</button>
+                <button type="button" onclick="showMoreModalTestcases(-1)" class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition-all">Hiển thị tất cả (${visible.length})</button>
+            </div>
+        `;
+        container.appendChild(footer);
+    }
 
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
@@ -1961,8 +2175,8 @@ function createModalCard(r) {
                 </label>
 
                 <div class="flex items-center gap-2 flex-1 min-w-0 cursor-pointer select-none" onclick="toggleModalCardDetail('${r.id}')">
-                    <button type="button" class="p-0.5 text-slate-400 hover:text-slate-600 rounded shrink-0">
-                        <i data-lucide="${r._open ? 'chevron-up' : 'chevron-down'}" class="w-3.5 h-3.5"></i>
+                    <button type="button" class="p-0.5 text-slate-400 hover:text-slate-600 rounded shrink-0 modal-card-chevron transition-transform ${r._open ? 'rotate-180' : ''}">
+                        <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
                     </button>
                     ${codeBadge}
                     <div class="text-xs sm:text-sm font-bold ${isApproved ? 'text-slate-800' : 'text-slate-500 line-through'} truncate flex-1" title="${escapeHtml(c.muc_dich || '')}">
@@ -2003,13 +2217,22 @@ function toggleModalCardDetail(id) {
     const row = modalTestcaseRows.find(r => r.id === id);
     if (!row) return;
     row._open = !row._open;
+    const detailEl = document.getElementById(`modal_detail_${id}`);
+    if (detailEl) {
+        detailEl.classList.toggle('hidden', !row._open);
+        detailEl.classList.toggle('block', row._open);
+        const cardEl = document.getElementById(`modal_tc_${id}`);
+        const chevron = cardEl && cardEl.querySelector('.modal-card-chevron');
+        if (chevron) chevron.classList.toggle('rotate-180', row._open);
+        return;
+    }
     renderModalTestcaseCards();
 }
 
 function setModalChoice(id, targetStatus) {
     const current = modalChoice[id] || 'pending';
     modalChoice[id] = current === targetStatus ? 'pending' : targetStatus;
-    renderModalTestcaseCards();
+    updateSingleModalCard(id);
     updateModalCounters();
 }
 
@@ -2031,6 +2254,7 @@ function bulkSetModalStatus(targetStatus) {
 
 function setModalFilter(filter) {
     currentModalFilter = filter;
+    modalDisplayLimit = 150;
     document.querySelectorAll('.modal-tab').forEach(tab => {
         const isActive = tab.getAttribute('data-modal-filter') === filter;
         tab.className = isActive
@@ -2042,6 +2266,7 @@ function setModalFilter(filter) {
 
 function handleModalSearch(val) {
     modalSearchQuery = (val || '').toLowerCase().trim();
+    modalDisplayLimit = 150;
     renderModalTestcaseCards();
 }
 
@@ -2116,6 +2341,16 @@ function buildApprovedSheetRows(rows) {
 async function saveAndApproveTestcaseReview() {
     if (!activeTestcaseReview) return;
 
+    if (isModalMockMode) {
+        showToast('⚠️ Đang ở chế độ dữ liệu mẫu demo — không ghi đè lên dữ liệu thật hoặc file Excel Local.', 'warning', 6000);
+        return;
+    }
+
+    if (modalTestcaseRows.length === 0) {
+        alert('⚠️ Chưa có danh sách testcase nào được tải. Vui lòng thử tải lại trước khi xác nhận.');
+        return;
+    }
+
     const taskName = activeTestcaseReview.taskName;
     const probId = activeTestcaseReview.probId || '';
     const approvedCount = modalTestcaseRows.filter(r => modalChoice[r.id] === 'approved').length;
@@ -2151,12 +2386,18 @@ async function saveAndApproveTestcaseReview() {
         if (!isModalMockMode && modalTestcaseRows.length > 0) {
             for (const s of ['approved', 'rejected', 'pending']) {
                 const ids = modalTestcaseRows
-                    .filter(r => (modalChoice[r.id] || 'pending') === s && (r.review_status || 'pending') !== s)
+                    .filter(r => {
+                        const sid = String(r.id || '');
+                        if (!sid || sid.startsWith('local_') || sid.startsWith('mock_') || sid.startsWith('tc_')) return false;
+                        return (modalChoice[r.id] || 'pending') === s && (r.review_status || 'pending') !== s;
+                    })
                     .map(r => r.id);
 
-                if (ids.length > 0) {
-                    const url = `${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/qa_memory?id=in.(${ids.join(',')})`;
-                    await fetch(url, {
+                const chunkSize = 100;
+                for (let i = 0; i < ids.length; i += chunkSize) {
+                    const batch = ids.slice(i, i + chunkSize);
+                    const url = `${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/qa_memory?id=in.(${batch.join(',')})`;
+                    const patchResp = await fetch(url, {
                         method: 'PATCH',
                         headers: {
                             apikey: SUPABASE_ANON_KEY,
@@ -2170,6 +2411,9 @@ async function saveAndApproveTestcaseReview() {
                             reviewed_at: new Date().toISOString()
                         })
                     });
+                    if (!patchResp.ok) {
+                        console.warn(`PATCH qa_memory thất bại (batch ${i / chunkSize + 1}, status=${patchResp.status})`);
+                    }
                 }
             }
         }
@@ -2190,22 +2434,45 @@ async function saveAndApproveTestcaseReview() {
                 requestId: createRequestId(),
                 testcases: sheetRows
             };
-            try {
-                const saveRes = await fetchWithTimeout(URL_POST_RUN, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(saveLocalPayload)
-                }, 45000);
-                const saveData = await saveRes.json().catch(() => ({}));
-                savedFolder = saveData.local_records?.folderPath || '';
-            } catch (exportErr) {
-                console.warn('Gửi lệnh lưu Folder Local:', exportErr);
+            const saveRes = await fetchWithTimeout(URL_POST_RUN, {
+                method: 'POST',
+                headers: getBackendHeaders(true),
+                body: JSON.stringify(saveLocalPayload)
+            }, 120000);
+            const saveData = await saveRes.json().catch(() => ({}));
+            if (!saveRes.ok) {
+                throw new Error(saveData.message || `Backend trả về lỗi HTTP ${saveRes.status} khi lưu Folder Local.`);
+            }
+            savedFolder = saveData.local_records?.folderPath || '';
+        }
+
+        // Nếu truy cập từ máy người dùng qua Server (hoặc người dùng đã cấu hình thư mục lưu trên máy)
+        // -> Tự động tạo folder `AutoTC_Records/<Tên bài toán>/` trên máy người dùng và lưu file Word + Excel
+        let clientSavedNote = '';
+        if (window.AutoTCClientFolder) {
+            const isRemote = window.AutoTCClientFolder.isRemoteHosted();
+            const hasClientDir = await window.AutoTCClientFolder.hasConfiguredFolder();
+            if (isRemote || hasClientDir) {
+                try {
+                    const clientRes = await window.AutoTCClientFolder.saveTaskFilesToClient(
+                        taskName,
+                        ['excel', 'word'],
+                        { promptIfMissing: isRemote, fallbackDownload: isRemote }
+                    );
+                    if (clientRes.mode === 'fs' && clientRes.savedFiles.length > 0) {
+                        clientSavedNote = ` & tự lưu về máy bạn (${clientRes.folderLabel})`;
+                    } else if (clientRes.mode === 'download' && clientRes.savedFiles.length > 0) {
+                        clientSavedNote = ` & đã tải ${clientRes.savedFiles.length} file về Downloads`;
+                    }
+                } catch (clientErr) {
+                    console.warn('Không thể tự lưu file về máy người dùng:', clientErr);
+                }
             }
         }
 
-        const folderNote = savedFolder ? ` (${savedFolder})` : '';
+        const folderNote = clientSavedNote || (savedFolder ? ` (${savedFolder})` : '');
         showToast(
-            `📁 Đã lưu ${approvedRows.length} testcase & Word Phân tích vào Folder Local${folderNote}! Hãy kiểm tra và nhấn nút "Đẩy lên Sheet & Docs" trên bảng.`,
+            `📁 Đã lưu ${approvedRows.length} testcase & Word Phân tích${folderNote}! Hãy kiểm tra và nhấn nút "Đẩy lên Sheet & Docs" trên bảng.`,
             'success',
             9000
         );
@@ -2216,7 +2483,7 @@ async function saveAndApproveTestcaseReview() {
         alert(`❌ Lỗi khi lưu vào Folder Local: ${err.message}`);
     } finally {
         if (btn) btn.disabled = false;
-        if (label) label.textContent = 'Xác nhận & Lưu vào Local';
+        updateModalCounters();
     }
 }
 
@@ -2515,9 +2782,7 @@ async function doRunSingle(tenBaiToan, testcasePrompt, mode) {
             await startPollingIfNeeded(true);
             const tokenUsage = responseData.data?.token_usage || responseData.token_usage;
             const tokenMsg = tokenUsage?.total_tokens ? ` (${tokenUsage.total_tokens.toLocaleString()} tokens)` : '';
-            const localFolder = responseData.data?.local_records?.folderPath;
-            const localMsg = localFolder ? ` | Đã lưu vào Folder Local: ${localFolder} (Hãy kiểm tra và nhấn "Đẩy lên Sheet")` : '';
-            showToast((responseData.message || 'Đã lưu tài liệu vào Folder Local.') + tokenMsg + localMsg, 'success', 9000);
+            showToast(`✅ AI đã sinh xong ${tcList.length || ''} testcase${tokenMsg}! Hãy kiểm tra trên bảng Duyệt và bấm "Xác nhận & Lưu vào Local" để xuất file Excel.`, 'success', 9000);
         } else {
             processingTasks = processingTasks.filter(item => item !== tenBaiToan);
             delete taskStartTime[tenBaiToan];
@@ -2927,16 +3192,16 @@ window.confirmStopStream = async function () {
 
         if (resp.ok) {
             showToast(`Đã dừng luồng xử lý bài toán "${taskName}".`, 'info', 5000);
-            setTimeout(loadData, 1000);
+            setTimeout(() => loadData(true), 800);
         } else {
             const data = await resp.json().catch(() => ({}));
             showToast(data.message || `Lỗi khi dừng bài toán "${taskName}" trên máy chủ.`, 'warning', 6000);
-            loadData();
+            loadData(true);
         }
     } catch (err) {
         console.error('Lỗi khi dừng luồng bài toán:', err);
         showToast(`Không thể kết nối đến máy chủ để dừng bài toán "${taskName}".`, 'error', 6000);
-        loadData();
+        loadData(true);
     }
 };
 
@@ -2985,15 +3250,15 @@ window.stopAllRunningTasks = async function () {
 
         if (resp.ok) {
             showToast(`Đã gửi lệnh dừng ${tasksToStop.length} bài toán thành công.`, 'info', 5000);
-            setTimeout(loadData, 1000);
+            setTimeout(() => loadData(true), 800);
         } else {
             showToast('Lỗi khi gửi yêu cầu dừng tới máy chủ.', 'warning', 6000);
-            loadData();
+            loadData(true);
         }
     } catch (err) {
         console.error('Lỗi khi dừng toàn bộ bài toán:', err);
         showToast('Không thể kết nối tới máy chủ để dừng các bài toán.', 'error', 6000);
-        loadData();
+        loadData(true);
     }
 };
 
@@ -3047,6 +3312,17 @@ window.AutoTCLocal = {
         if (!resp.ok) throw new Error(data.message || 'Không thể mở Folder Local');
         return data;
     },
+    async openTaskFile(taskName, fileType = 'word') {
+        await ensureAuthToken();
+        const resp = await fetch(`${BACKEND_API_BASE}/local/open-file`, {
+            method: 'POST',
+            headers: getBackendHeaders(true),
+            body: JSON.stringify({ taskName, fileType }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.message || `Không thể mở file ${fileType}`);
+        return data;
+    },
     async pushTaskToDrive(taskName, problemId = '', testcases = null) {
         await ensureAuthToken();
         const payload = { baiToan: taskName, problem_id: problemId };
@@ -3067,11 +3343,78 @@ window.openLocalTaskFolder = async function (index) {
     if (!row) return;
     const taskName = getColVal(row, 'Bài toán') || '';
     if (!taskName) return;
+
+    // Chỉ chuyển sang luồng Client FS Sync khi đang truy cập từ máy ngoài qua Server host.
+    // Khi chạy trên localhost, nút này phải luôn mở cửa sổ Windows Explorer trực tiếp trên máy.
+    if (window.AutoTCClientFolder && window.AutoTCClientFolder.isRemoteHosted()) {
+        try {
+            const res = await window.AutoTCClientFolder.saveTaskFilesToClient(
+                taskName,
+                ['excel', 'word'],
+                { promptIfMissing: true, fallbackDownload: true }
+            );
+            if (res.mode === 'fs' && res.savedFiles.length > 0) {
+                showToast(`📁 Đã tạo folder & lưu ${res.savedFiles.length} file về máy bạn: ${res.folderLabel}`, 'success', 7000);
+            } else if (res.mode === 'download' && res.savedFiles.length > 0) {
+                showToast(`⬇️ Đã tải ${res.savedFiles.length} file của "${taskName}" về thư mục Downloads.`, 'info', 6000);
+            } else {
+                showToast(`⚠️ Bài toán "${taskName}" chưa có file Word/Excel nào trên hệ thống để lưu.`, 'warning', 6000);
+            }
+            return;
+        } catch (err) {
+            showToast(`Không thể lưu folder về máy: ${err.message}`, 'error', 6000);
+            return;
+        }
+    }
+
     try {
         const res = await window.AutoTCLocal.openTaskFolder(taskName);
         showToast(`📁 Đã mở Folder Local: ${res.folderPath || taskName}`, 'info', 6000);
     } catch (err) {
         showToast(`Không thể mở Folder Local: ${err.message}`, 'error', 6000);
+    }
+};
+
+window.openLocalTaskFile = async function (index, fileType = 'word') {
+    const row = dataRows[index];
+    if (!row) return;
+    const taskName = getColVal(row, 'Bài toán') || '';
+    if (!taskName) return;
+    const typeLabel = fileType === 'excel' ? 'Excel Testcase' : 'Word Phân tích';
+
+    // Nếu đang truy cập bản host trên Server -> tuyệt đối không gọi os.startfile trên Server,
+    // mà tải trực tiếp file về máy người dùng (và đồng bộ vào folder đã chọn nếu có)
+    if (window.AutoTCClientFolder && window.AutoTCClientFolder.isRemoteHosted()) {
+        try {
+            const hasClientDir = await window.AutoTCClientFolder.hasConfiguredFolder();
+            const res = await window.AutoTCClientFolder.saveTaskFilesToClient(
+                taskName,
+                [fileType],
+                { promptIfMissing: !hasClientDir, fallbackDownload: true, alsoDownload: true }
+            );
+            if (res.mode === 'fs' && res.savedFiles.length > 0) {
+                showToast(`📄 Đã lưu ${typeLabel} vào "${res.folderLabel}" & tải về để mở!`, 'success', 6000);
+            } else if (res.mode === 'download' && res.savedFiles.length > 0) {
+                showToast(`⬇️ Đang tải file ${typeLabel}: ${res.savedFiles[0]}`, 'info', 5000);
+            } else {
+                showToast(`⚠️ Chưa có file ${typeLabel} cho bài toán "${taskName}".`, 'warning', 5000);
+            }
+            return;
+        } catch (err) {
+            showToast(`Không thể tải file ${typeLabel}: ${err.message}`, 'error', 6000);
+            return;
+        }
+    }
+
+    try {
+        const res = await window.AutoTCLocal.openTaskFile(taskName, fileType);
+        const fileName = (res.targetPath || '').split(/[\\/]/).pop() || taskName;
+        showToast(`📄 Đã mở file ${typeLabel}: ${fileName}`, 'success', 6000);
+    } catch (err) {
+        // Fallback tự động tải file từ backend nếu không thể mở qua OS
+        const dlUrl = `${BACKEND_API_BASE}/local/download?taskName=${encodeURIComponent(taskName)}&type=${fileType}`;
+        window.open(dlUrl, '_blank');
+        showToast(`Đang tải file ${typeLabel} về máy...`, 'info', 5000);
     }
 };
 

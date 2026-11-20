@@ -35,6 +35,7 @@ def main() -> None:
     settings = Settings.from_env()
     server = build_server(settings)
     LOGGER.info("AutoTC backend dang chay tai http://%s:%s", settings.host, settings.port)
+    LOGGER.info("Thu muc luu file local: %s", settings.local_records_dir)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

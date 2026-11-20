@@ -30,7 +30,7 @@ class LocalStorageService:
             primary_dir.mkdir(parents=True, exist_ok=True)
             self.root_dir = primary_dir
         except OSError as err:
-            fallback_dir = (Path(__file__).resolve().parents[2] / "local_records").resolve()
+            fallback_dir = (Path(__file__).resolve().parents[2] / "AutoTC_Records").resolve()
             fallback_dir.mkdir(parents=True, exist_ok=True)
             LOGGER.warning(
                 "Không thể tạo thư mục '%s' (%s). Tự động chuyển sang thư mục dự phòng: %s",
@@ -369,12 +369,15 @@ class LocalStorageService:
         target_dir = self._resolve_safe_path(self.sanitize_name(task_name) if task_name else "")
         target_dir.mkdir(parents=True, exist_ok=True)
         try:
-            import subprocess
-            subprocess.Popen(["explorer.exe", str(target_dir)])
+            if hasattr(os, "startfile"):
+                os.startfile(str(target_dir))  # type: ignore[attr-defined]
+            else:
+                import subprocess
+                subprocess.Popen(["explorer.exe", str(target_dir)])
         except Exception:
             try:
-                if hasattr(os, "startfile"):
-                    os.startfile(str(target_dir) + os.sep)  # type: ignore[attr-defined]
+                import subprocess
+                subprocess.Popen(["explorer.exe", str(target_dir)])
             except Exception as err:
                 LOGGER.warning("Không thể tự mở File Explorer cho %s: %s", target_dir, err)
 

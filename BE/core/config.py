@@ -1,9 +1,40 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
+
+LOGGER = logging.getLogger("autotc-backend")
+
+
+def resolve_local_records_dir(configured_dir: str | None, project_root: Path) -> str:
+    """
+    Xác định và tự động tạo thư mục lưu file local (Excel/Word/AutoTest).
+    - Nếu người dùng chưa cấu hình LOCAL_RECORDS_DIR -> tự tạo `<project_root>/AutoTC_Records`.
+    - Nếu đã cấu hình (VD: D:\\AutoTC_Records) nhưng ổ đĩa không tồn tại / không có quyền ghi
+      -> tự động fallback về `<project_root>/AutoTC_Records` và tạo mới.
+    """
+    default_dir = (project_root / "AutoTC_Records").resolve()
+    raw = str(configured_dir or "").strip()
+
+    if raw:
+        expanded = Path(os.path.expandvars(raw)).expanduser()
+        candidate = expanded.resolve() if expanded.is_absolute() else (project_root / expanded).resolve()
+        try:
+            candidate.mkdir(parents=True, exist_ok=True)
+            return str(candidate)
+        except OSError as err:
+            LOGGER.warning(
+                "Không thể tạo thư mục LOCAL_RECORDS_DIR='%s' (%s). Tự động chuyển về thư mục mặc định: %s",
+                candidate,
+                err,
+                default_dir,
+            )
+
+    default_dir.mkdir(parents=True, exist_ok=True)
+    return str(default_dir)
 
 
 def load_dotenv(path: Path | str) -> None:
@@ -55,12 +86,12 @@ class Settings:
     ai_api_key: str = "sk-i3Pls4y--I4fTfS8VJdGHw"
     ai_model: str = "DeepSeek-V4.1-Flash"
     figma_access_token: str = ""
-    local_records_dir: str = str(Path(__file__).resolve().parents[3] / "AutoTC_Records")
+    local_records_dir: str = str(Path(__file__).resolve().parents[2] / "AutoTC_Records")
 
     @classmethod
     def from_env(cls) -> "Settings":
         backend_root = Path(__file__).resolve().parents[1]
-        default_records_dir = str((backend_root.parent.parent / "AutoTC_Records").resolve())
+        project_root = backend_root.parent
         load_dotenv(backend_root / ".env")
         # Hỗ trợ Secret Files trên Render (/etc/secrets/.env)
         if Path("/etc/secrets/.env").is_file():
@@ -93,6 +124,10 @@ class Settings:
             or os.getenv("SUPABASE_SERVICE_KEY", "").strip()
             or None
         )
+        local_records_dir = resolve_local_records_dir(
+            os.getenv("LOCAL_RECORDS_DIR"),
+            project_root,
+        )
 
         return cls(
             host=os.getenv("HOST", "0.0.0.0"),
@@ -122,5 +157,5 @@ class Settings:
             ai_api_key=(os.getenv("AI_API_KEY", "").strip() or os.getenv("GEMINI_API_KEY", "").strip() or "sk-i3Pls4y--I4fTfS8VJdGHw"),
             ai_model=os.getenv("AI_MODEL", "DeepSeek-V4.1-Flash").strip(),
             figma_access_token=os.getenv("FIGMA_ACCESS_TOKEN", "").strip(),
-            local_records_dir=os.getenv("LOCAL_RECORDS_DIR", default_records_dir).strip() or default_records_dir,
+            local_records_dir=local_records_dir,
         )

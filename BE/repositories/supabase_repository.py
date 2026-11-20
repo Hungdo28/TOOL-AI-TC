@@ -97,7 +97,7 @@ class SupabaseRepository:
         has_local_word = False
         records_dir = getattr(self.settings, "local_records_dir", None)
         if records_dir and title.strip():
-            safe_folder = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "_", title.strip()).strip(" .")
+            safe_folder = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "_", title.strip()).strip(". ")[:100] or "unnamed"
             task_dir = Path(records_dir) / safe_folder
             if task_dir.is_dir():
                 for f in task_dir.iterdir():

@@ -155,17 +155,29 @@ class MemoryService:
                     "content_hash": c_hash,
                 })
             if records:
-                # Xóa các testcase của các phiên chạy cũ thuộc cùng bài toán này để không bị cộng dồn qua nhiều lần chạy
-                try:
-                    pid_enc = urllib.parse.quote(str(problem_id))
-                    title_enc = urllib.parse.quote(str(problem_title).strip())
-                    self.sb._request(
-                        f"qa_memory?kind=eq.testcase&or=(problem_id.eq.{pid_enc},problem_title.eq.{title_enc},problem_title.ilike.{title_enc})",
-                        method="DELETE",
-                        prefer="return=minimal",
-                    )
-                except Exception as del_err:
-                    LOGGER.debug("Không thể dọn qa_memory cũ của bài toán %s: %s", problem_id, del_err)
+                # Xóa toàn bộ testcase của các phiên chạy cũ thuộc cùng bài toán này để không bị cộng dồn
+                # Tách riêng DELETE theo problem_id và problem_title (tránh lỗi PostgREST 400 khi tên có dấu cách trong or=())
+                if problem_id:
+                    try:
+                        pid_enc = urllib.parse.quote(str(problem_id).strip(), safe="")
+                        self.sb._request(
+                            f"qa_memory?kind=eq.testcase&problem_id=eq.{pid_enc}",
+                            method="DELETE",
+                            prefer="return=minimal",
+                        )
+                    except Exception as del_err:
+                        LOGGER.warning("Không thể dọn qa_memory cũ theo problem_id=%s: %s", problem_id, del_err)
+
+                if problem_title and str(problem_title).strip():
+                    try:
+                        title_enc = urllib.parse.quote(str(problem_title).strip(), safe="")
+                        self.sb._request(
+                            f"qa_memory?kind=eq.testcase&problem_title=ilike.{title_enc}",
+                            method="DELETE",
+                            prefer="return=minimal",
+                        )
+                    except Exception as del_err:
+                        LOGGER.warning("Không thể dọn qa_memory cũ theo problem_title=%s: %s", problem_title, del_err)
 
                 # Chia nhỏ thành từng lô 200 bản ghi để tránh quá tải/timeout REST API khi có hàng nghìn testcase
                 batch_size = 200
@@ -192,10 +204,11 @@ class MemoryService:
         try:
             clauses: list[str] = []
             if problem_id:
-                pid_enc = urllib.parse.quote(str(problem_id).strip())
+                pid_enc = urllib.parse.quote(str(problem_id).strip(), safe="")
                 clauses.append(f"problem_id.eq.{pid_enc}")
             if problem_title:
-                t_enc = urllib.parse.quote(str(problem_title).strip())
+                t_clean = str(problem_title).strip().replace('"', "")
+                t_enc = urllib.parse.quote(f'"{t_clean}"', safe="")
                 clauses.append(f"problem_title.eq.{t_enc}")
                 clauses.append(f"problem_title.ilike.{t_enc}")
 
